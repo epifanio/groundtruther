@@ -1,0 +1,18 @@
+---
+Filesystem:
+    filemanager: {{filemanager}}
+HabCam:
+    imagepath: {{imagepath}}
+    imagemetadata: {{imagemetadata}}
+    imageannotation: {{imageannotation}}
+Mbes:
+    soundings: {{soundings}}
+Broadcast: 
+    ip: {{ip}}
+    port: {{port}}
+Export:
+    kmldir: {{kmldir}}
+    vrtdir: {{vrtdir}}
+Processing:
+    GPU: {{gpu_avaibility}}
+    GRASS_API: {{grass_api_endpoint}}

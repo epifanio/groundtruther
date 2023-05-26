@@ -1,0 +1,18 @@
+---
+Filesystem:
+    filemanager: /usr/bin/nautilus
+HabCam:
+    imagepath: /home/epinux/dev/PHD/Groundtruther/data/imgs_jpg
+    imagemetadata: /home/epinux/dev/PHD/Groundtruther/data/imagemetadata.pq
+    imageannotation: /home/epinux/dev/PHD/Groundtruther/data/detector_output.csv
+Mbes:
+    soundings: /home/epinux/dev/PHD/Groundtruther/data/mbes_2015.parquet
+Broadcast: 
+    ip: 127.0.0.1
+    port: 7000
+Export:
+    kmldir: /home/epinux/Downloads
+    vrtdir: /home/epinux/Downloads
+Processing:
+    GPU: False
+    GRASS_API: http://localhost/docs

@@ -1,0 +1,47 @@
+---
+name:
+    key_details: 
+        SMID: {{SMID}}
+        catami: {{catami}}
+        identification_features: {{identification_features}}
+        year_identified: {{year_identified}}
+        verification_status: {{verification_status}}
+        physical_sample: {{physical_sample}}
+        worms_aphiaid : {{worms_aphiaid}}
+    
+    taxonomy: 
+        phylum: {{SMID}}
+        class: {{catami}}
+        identification_features: {{identification_features}}
+        order: {{year_identified}}
+        family: {{verification_status}}
+        genus: {{physical_sample}}
+        species : {{worms_aphiaid}}
+        
+    morphology: 
+        cnidaria: {{cnidaria}}
+        corals: {{corals}}
+        black_and_octocorals: {{black_and_octocorals}}
+        branching_3D: {{branching_3D}}
+
+
+#    image_details: 
+#        image_name: {{image_name}}
+#        image_credit: {{image_credit}}
+#        identified_by: {{identified_by}}
+#        date_identified: {{date_identified}},
+#    locality: 
+#        locality: {{locality}}
+#        location_remarks: {{location_remarks}}
+#        marine_regions_ID: {{marine_regions_ID}}
+#        depth: {{depth}}
+#    
+
+    {% for dict_item in parent_list %}
+        {% for dict_item in dict_items %}
+            {{dict_items.keys()}}
+            {% for key, value in dict_item.items() %}
+                {{key}}: {{value}}
+        {% endfor %}
+    {% endfor %}
+

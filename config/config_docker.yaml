@@ -1,0 +1,18 @@
+---
+Filesystem:
+    filemanager: /usr/bin/sh
+HabCam:
+    imagepath: /home/jovyan/hbc_browser/data/imgs_jpg
+    imagemetadata: /home/jovyan/hbc_browser/data/imagemetadata.pq
+    imageannotation: /home/jovyan/hbc_browser/data/detector_output.csv
+Mbes:
+    soundings: /home/jovyan/hbc_browser/data/mbes_2015.parquet
+Broadcast: 
+    ip: 127.0.0.1
+    port: 7000
+Export:
+    kmldir: /home/jovyan/hbc_browser/export/kml
+    vrtdir: /home/jovyan/hbc_browser/data
+Processing:
+    GPU: False
+    GRASS_API: http://localhost/docs
