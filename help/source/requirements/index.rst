@@ -11,9 +11,9 @@ Requirements
     mamba install -y simplekml \
     pyqtgraph \
     pyqt \
-    pyqt5-sip \
-    pyqtchart \
-    pyqtwebengine \
+    # pyqt5-sip \
+    # pyqtchart \
+    # pyqtwebengine \
     pyopengl \
     qgis \
     pydantic \
@@ -23,6 +23,10 @@ Requirements
     polars \
     plotnine \
     pyarrow \
-    numba
+    numba \
+    simplekml \
+    pandas \
+    scipy
 
 .. toctree::
+
