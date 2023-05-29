@@ -11,9 +11,6 @@ Requirements
     mamba install -y simplekml \
     pyqtgraph \
     pyqt \
-    # pyqt5-sip \
-    # pyqtchart \
-    # pyqtwebengine \
     pyopengl \
     qgis \
     pydantic \
