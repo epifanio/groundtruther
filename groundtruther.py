@@ -21,6 +21,8 @@
  *                                                                         *
  ***************************************************************************/
 """
+import os, sys
+sys.path.append(os.path.dirname(__file__))
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
@@ -30,13 +32,22 @@ from .resources_rc import *
 from qgis.gui import QgsMapToolEmitPoint
 import groundtruther.resources_rc
 
+from groundtruther.dependencies.solver import SolveDependencies
+
+# here I run the solver directly which is not fair...
+# better open a prompt / dialog and ask of it is OK
+# then execute - the same metod can try the import
+# and append to a list the packages that are not available
+# then the dialog will list them and ask for installation
+
+SolveDependencies()
+
 # Import the code for the DockWidget
 from .groundtruther_dockwidget import GroundTrutherDockWidget
 import os.path
 from groundtruther.maptools.qgsmaptools import GRQueryTool, QueryTool, GCRTool
 
-import os, sys
-sys.path.append(os.path.dirname(__file__))
+
 
 class GroundTruther:
     """QGIS Plugin Implementation."""
