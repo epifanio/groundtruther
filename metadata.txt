@@ -5,8 +5,8 @@
 [general]
 name=GroundTruther
 qgisMinimumVersion=3.0
-description=A toolset for Serafloor Caracterization
-version=0.1
+description=A toolset for Seafloor Caracterization
+version=0.2
 author=epinux
 email=epiesasha@me.com
 
@@ -20,7 +20,7 @@ repository=https://github.com/epifanio/groundtruther
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-# changelog=
+changelog=fixing issue with resources and settings dialog
 
 # Tags are comma separated with spaces allowed
 tags=python
