@@ -1,5 +1,9 @@
 <RCC>
   <qresource prefix="icons">
+    <file>qtui/icons/ingranaggio_icona.gif</file>
+    <file>qtui/icons/SquadraCompasso_solid.png</file>
+    <file>qtui/icons/quit.png</file>
+    <file>qtui/icons/SquadraCompasso.png</file>
     <file>qtui/icons/mActionSelectRectangle.svg</file>
     <file>qtui/icons/gui-query.gif</file>
     <file>qtui/icons/epi.gif</file>
