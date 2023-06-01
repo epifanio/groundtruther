@@ -77,7 +77,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
             'gisdb':  self.gisenv['GISDBASE'],
         }
 
-        response = requests.get('http://localhost/api/get_rvg_list', params=params, headers=headers)
+        response = requests.get(f'{self.parent.settings["Processing"]["GRASS_API"]}/api/get_rvg_list', params=params, headers=headers)
         actual_item = self.elevation.currentText()
         self.elevation.clear()
         self.elevation.addItems(response.json()['data']['raster'])
@@ -212,7 +212,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         
         
     def run_grassapi(self, headers, params):
-        self.response = requests.post(f'http://localhost/api/{self.module_name}', headers=headers, params=params)
+        self.response = requests.post(f'{self.parent.settings["Processing"]["GRASS_API"]}/api/{self.module_name}', headers=headers, params=params)
         try:
             self.returned_item = self.response.json()
         except:

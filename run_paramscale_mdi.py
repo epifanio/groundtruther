@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import QDialog, QWidget
 from PyQt5.QtCore import QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject, pyqtSlot
 # from pygui.geomorphon_gui import GeoMorphon
 from groundtruther.pygui.Ui_paramscale_ui import Ui_paramscale
-
+from groundtruther.configure import get_settings
 
 import requests
 from requests.exceptions import ConnectionError
@@ -77,7 +77,7 @@ class ParamScaleWidget(QWidget, Ui_paramscale):
             'gisdb':  self.gisenv['GISDBASE'],
         }
 
-        response = requests.get('http://localhost/api/get_rvg_list', params=params, headers=headers)
+        response = requests.get(f'{self.parent.settings["Processing"]["GRASS_API"]}/api/get_rvg_list', params=params, headers=headers)
         actual_item = self.input.currentText()
         self.input.clear()
         self.input.addItems(response.json()['data']['raster'])
@@ -168,7 +168,7 @@ class ParamScaleWidget(QWidget, Ui_paramscale):
         
         
     def run_grassapi(self, headers, params):
-        self.response = requests.post(f'http://localhost/api/{self.module_name}', params=params, headers=headers)
+        self.response = requests.post(f'{self.parent.settings["Processing"]["GRASS_API"]}/api/{self.module_name}', params=params, headers=headers)
         try:
             self.returned_item = self.response.json()
         except:
