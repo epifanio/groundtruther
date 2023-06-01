@@ -344,7 +344,7 @@
                     <string>Ellipse</string>
                    </property>
                    <property name="icon">
-                    <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+                    <iconset resource="../resources.qrc">
                      <normaloff>:/icons/qtui/icons/ellipse.png</normaloff>:/icons/qtui/icons/ellipse.png</iconset>
                    </property>
                   </item>
@@ -353,7 +353,7 @@
                     <string>Rectangle</string>
                    </property>
                    <property name="icon">
-                    <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+                    <iconset resource="../resources.qrc">
                      <normaloff>:/icons/qtui/icons/rectangle.png</normaloff>:/icons/qtui/icons/rectangle.png</iconset>
                    </property>
                   </item>
@@ -997,7 +997,7 @@
         <string/>
        </property>
        <property name="icon">
-        <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+        <iconset resource="../resources.qrc">
          <normaloff>:/icons/qtui/icons/chart-line.svg</normaloff>:/icons/qtui/icons/chart-line.svg</iconset>
        </property>
        <property name="iconSize">
@@ -1045,7 +1045,7 @@
         <string/>
        </property>
        <property name="icon">
-        <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+        <iconset resource="../resources.qrc">
          <normaloff>:/icons/qtui/icons/circle-xmark.svg</normaloff>:/icons/qtui/icons/circle-xmark.svg</iconset>
        </property>
        <property name="iconSize">
@@ -1090,7 +1090,7 @@
         <string/>
        </property>
        <property name="icon">
-        <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+        <iconset resource="../resources.qrc">
          <normaloff>:/icons/qtui/icons/floppy-disk.svg</normaloff>:/icons/qtui/icons/floppy-disk.svg</iconset>
        </property>
        <property name="iconSize">
@@ -1119,7 +1119,7 @@
   </layout>
  </widget>
  <resources>
-  <include location="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc"/>
+  <include location="../resources.qrc"/>
  </resources>
  <connections/>
 </ui>

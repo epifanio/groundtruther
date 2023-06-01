@@ -217,7 +217,7 @@
              <string/>
             </property>
             <property name="icon">
-             <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+             <iconset resource="../resources.qrc">
               <normaloff>:/icons/qtui/icons/backward.svg</normaloff>:/icons/qtui/icons/backward.svg</iconset>
             </property>
             <property name="autoRepeat">
@@ -253,7 +253,7 @@
              <string/>
             </property>
             <property name="icon">
-             <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+             <iconset resource="../resources.qrc">
               <normaloff>:/icons/qtui/icons/forward.svg</normaloff>:/icons/qtui/icons/forward.svg</iconset>
             </property>
             <property name="autoRepeat">
@@ -388,7 +388,7 @@
   </widget>
   <action name="actionWizard">
    <property name="icon">
-    <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+    <iconset resource="../resources.qrc">
      <normaloff>:/icons/qtui/icons/screwdriver-wrench.svg</normaloff>:/icons/qtui/icons/screwdriver-wrench.svg</iconset>
    </property>
    <property name="text">
@@ -400,8 +400,8 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
-     <normaloff>:/icons/qtui/icons/screwdriver-wrench.svg</normaloff>:/icons/qtui/icons/screwdriver-wrench.svg</iconset>
+    <iconset resource="../resources.qrc">
+     <normaloff>:/icons/qtui/icons/SquadraCompasso_solid.png</normaloff>:/icons/qtui/icons/SquadraCompasso_solid.png</iconset>
    </property>
    <property name="text">
     <string>Tools</string>
@@ -409,7 +409,7 @@
   </action>
   <action name="actionQuit">
    <property name="icon">
-    <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+    <iconset resource="../resources.qrc">
      <normaloff>:/icons/qtui/icons/power-off.svg</normaloff>:/icons/qtui/icons/power-off.svg</iconset>
    </property>
    <property name="text">
@@ -421,7 +421,7 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+    <iconset resource="../resources.qrc">
      <normaloff>:/icons/qtui/icons/pen-to-square.svg</normaloff>:/icons/qtui/icons/pen-to-square.svg</iconset>
    </property>
    <property name="text">
@@ -436,7 +436,7 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+    <iconset resource="../resources.qrc">
      <normaloff>:/icons/qtui/icons/map-location-dot.svg</normaloff>:/icons/qtui/icons/map-location-dot.svg</iconset>
    </property>
    <property name="text">
@@ -454,7 +454,7 @@
     <bool>true</bool>
    </property>
    <property name="icon">
-    <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+    <iconset resource="../resources.qrc">
      <normaloff>:/icons/qtui/icons/image.svg</normaloff>:/icons/qtui/icons/image.svg</iconset>
    </property>
    <property name="text">
@@ -463,7 +463,7 @@
   </action>
   <action name="actiongrass_settings">
    <property name="icon">
-    <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+    <iconset resource="../resources.qrc">
      <normaloff>:/icons/qtui/icons/grass_bold_dark.png</normaloff>:/icons/qtui/icons/grass_bold_dark.png</iconset>
    </property>
    <property name="text">
@@ -475,7 +475,7 @@
   <tabstop>ImageIndexspinBox</tabstop>
  </tabstops>
  <resources>
-  <include location="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc"/>
+  <include location="../resources.qrc"/>
  </resources>
  <connections/>
 </ui>

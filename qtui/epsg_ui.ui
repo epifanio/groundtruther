@@ -186,7 +186,7 @@
   </layout>
  </widget>
  <resources>
-  <include location="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc"/>
+  <include location="../resources.qrc"/>
  </resources>
  <connections/>
 </ui>

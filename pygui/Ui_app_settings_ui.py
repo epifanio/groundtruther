@@ -24,7 +24,7 @@ class Ui_appsettings(object):
         self.scrollArea.setWidgetResizable(True)
         self.scrollArea.setObjectName("scrollArea")
         self.scrollAreaWidgetContents = QtWidgets.QWidget()
-        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, -120, 468, 680))
+        self.scrollAreaWidgetContents.setGeometry(QtCore.QRect(0, 0, 468, 680))
         self.scrollAreaWidgetContents.setObjectName("scrollAreaWidgetContents")
         self.verticalLayout_10 = QtWidgets.QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_10.setObjectName("verticalLayout_10")

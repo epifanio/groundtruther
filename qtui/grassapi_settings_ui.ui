@@ -33,7 +33,7 @@
       <property name="geometry">
        <rect>
         <x>0</x>
-        <y>-192</y>
+        <y>0</y>
         <width>454</width>
         <height>655</height>
        </rect>
@@ -147,7 +147,7 @@
                <string>...</string>
               </property>
               <property name="icon">
-               <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+               <iconset resource="../resources.qrc">
                 <normaloff>:/icons/qtui/icons/arrows-rotate.svg</normaloff>:/icons/qtui/icons/arrows-rotate.svg</iconset>
               </property>
              </widget>
@@ -225,7 +225,7 @@
                <string/>
               </property>
               <property name="icon">
-               <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+               <iconset resource="../resources.qrc">
                 <normaloff>:/icons/qtui/icons/grass_mapset_search.svg</normaloff>:/icons/qtui/icons/grass_mapset_search.svg</iconset>
               </property>
              </widget>
@@ -251,7 +251,7 @@
                  <string>...</string>
                 </property>
                 <property name="icon">
-                 <iconset resource="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc">
+                 <iconset resource="../resources.qrc">
                   <normaloff>:/icons/qtui/icons/file-image.svg</normaloff>:/icons/qtui/icons/file-image.svg</iconset>
                 </property>
                </widget>
@@ -503,7 +503,7 @@
   </layout>
  </widget>
  <resources>
-  <include location="../../../.local/share/QGIS/QGIS3/profiles/default/python/plugins/groundtruther/resources.qrc"/>
+  <include location="../resources.qrc"/>
  </resources>
  <connections/>
 </ui>
