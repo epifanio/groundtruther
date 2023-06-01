@@ -1,7 +1,7 @@
 #/***************************************************************************
 # GroundTruther
 #
-# A toolset for Serafloor Caracterization
+# A toolset for Seafloor Caracterization
 #							 -------------------
 #		begin				: 2023-05-09
 #		git sha				: $Format:%H$
@@ -52,9 +52,9 @@ EXTRAS = metadata.txt icon.png
 
 EXTRA_DIRS =
 
-COMPILED_RESOURCE_FILES = resources.py
+COMPILED_RESOURCE_FILES = resources_rc.py
 
-PEP8EXCLUDE=pydev,resources.py,conf.py,third_party,ui
+PEP8EXCLUDE=pydev,resources_rc.py,conf.py,third_party,ui
 
 # QGISDIR points to the location where your plugin should be installed.
 # This varies by platform, relative to your HOME directory:
