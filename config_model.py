@@ -32,7 +32,6 @@ class Broadcast(BaseModel):
 
 class Processing(BaseModel):
     """docstring"""
-
     gpu_avaibility: bool = False
     grass_api_endpoint: AnyUrl = None
 
@@ -56,4 +55,5 @@ class HabcamSettings(BaseModel):
     Export: Union[Export]
     Broadcast: Broadcast
     # Mapviewer: Mapviewer
+    Processing: Union[Processing]
     Filesystem: Filesystem
