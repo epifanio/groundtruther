@@ -6,7 +6,7 @@
 name=GroundTruther
 qgisMinimumVersion=3.0
 description=A toolset for Seafloor Caracterization
-version=0.2
+version=0.3
 author=epinux
 email=epiesasha@me.com
 
@@ -20,7 +20,7 @@ repository=https://github.com/epifanio/groundtruther
 
 hasProcessingProvider=no
 # Uncomment the following line and add your changelog:
-changelog=fixing issue with resources and settings dialog
+changelog=fixing issue with settings and miove grass widgets into a separate file, rename key settings. remove hardcoded url
 
 # Tags are comma separated with spaces allowed
 tags=python
