@@ -63,6 +63,13 @@ class ConfigDialog(QDialog, AppSettings):
             self.broadcast_ip.setText(self.settings_value["Broadcast"]["ip"])
             self.broadcast_port.setText(
                 str(self.settings_value["Broadcast"]["port"]))
+            
+            if self.settings_value["Processing"]["gpu_avaibility"]:
+                self.gpu_avaibility.setCurrentText('Enabled')
+            else:
+                self.gpu_avaibility.setCurrentText('Disabled')
+            self.grass_api_endpoint.setText(
+                self.settings_value["Processing"]["grass_api_endpoint"])
             # self.mapviewer_basemap.setText(
             #     self.settings_value["Mapviewer"]["basemap"])
         else:
@@ -77,7 +84,7 @@ class ConfigDialog(QDialog, AppSettings):
                 "Export": {"kmldir": self.kml_path, "vrtdir": self.vrt_path},
                 "Broadcast": {"ip": self.broadcast_ip, "port": self.broadcast_port},
                 # "Mapviewer": {"basemap": self.mapviewer_basemap},
-                "Processing": {"GPU": False, "GRASS_API": "http://localhost/docs"},
+                "Processing": {"gpu_avaibility": False, "grass_api_endpoint": "http://localhost/docs"},
             }
 
             self.settings = self.get_settings2()
@@ -94,12 +101,12 @@ class ConfigDialog(QDialog, AppSettings):
                 str(self.settings["Broadcast"]["port"]))
             # self.mapviewer_basemap.setText(
             #     self.settings["Mapviewer"]["basemap"])
-            if self.settings["Processing"]["GPU"]:
+            if self.settings["Processing"]["gpu_avaibility"]:
                 self.gpu_avaibility.setCurrentText('Enabled')
             else:
                 self.gpu_avaibility.setCurrentText('Disabled')
             self.grass_api_endpoint.setText(
-                self.settings["Processing"]["GRASS_API"])
+                self.settings["Processing"]["grass_api_endpoint"])
 
             bad_keys = self.validate_config(get_bad_keys=True)
             bad_key = [str(list(i.keys())[0]) for i in bad_keys]
@@ -313,7 +320,8 @@ class ConfigDialog(QDialog, AppSettings):
                 "ip": self.broadcast_ip.text(),
                 "port": int(self.broadcast_port.text()),
             },
-            # "Mapviewer": {"basemap": self.mapviewer_basemap.text()},
+            "Processing": {"gpu_avaibility": self.gpu_avaibility_value,
+                           "grass_api_endpoint": self.grass_api_endpoint.text()},
             "Filesystem": {"filemanager": self.filemanager.text()},
         }
         return gui_settings
@@ -344,13 +352,18 @@ def validate_config2(settings, get_bad_keys=False):
                 "ip": settings["Broadcast"]["ip"],
                 "port": int(settings["Broadcast"]["port"]),
             },
-            # Mapviewer={"basemap": settings["Mapviewer"]["basemap"]},
+            Processing={
+                "gpu_avaibility": settings["Processing"]["gpu_avaibility"],
+                "grass_api_endpoint": settings["Processing"]["grass_api_endpoint"],
+            },
             Filesystem={"filemanager": settings["Filesystem"]["filemanager"]},
         )
         return True
     except ValidationError as msg:
         bad_keys = []
-        error_msg = "The following Parameters have invalid values: \n"
+        error_msg = f"For the provided settings: \n {settings} \n the following Parameters have invalid values: \n"
+        print(error_msg)
+        print(msg.errors())
         for i in msg.errors():
             print(i)
             error_msg = error_msg + f"""{i['loc'][0]} : {i['loc'][1]} \n"""
