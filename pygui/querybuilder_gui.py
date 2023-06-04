@@ -361,7 +361,7 @@ class QueryBuilder(QWidget, Ui_Form):
             self.pointdatasource = self.settings["Mbes"]["soundings"]
             if self.point_df is not None:
                 del self.point_df
-            if self.settings['Processing']['GPU']:
+            if self.settings['Processing']['gpu_avaibility']:
                 print('############## USE GPU #################')
                 self.point_df = cudf.read_parquet(self.pointdatasource)
                 self.image_df = cudf.read_parquet(self.image_metadata)
@@ -471,7 +471,7 @@ class QueryBuilder(QWidget, Ui_Form):
     def get_images(self, index):
         if self.image_df is not None:
             del self.image_df
-        if self.settings['Processing']['GPU']:
+        if self.settings['Processing']['gpu_avaibility']:
             print('############## USE GPU #################')
             self.image_df = cudf.read_parquet(self.image_metadata)
         else:
@@ -482,7 +482,7 @@ class QueryBuilder(QWidget, Ui_Form):
     def get_point(self, index):
         if self.point_df is not None:
             del self.point_df
-        if self.settings['Processing']['GPU']:
+        if self.settings['Processing']['gpu_avaibility']:
             print('############## USE GPU #################')
             self.point_df = cudf.read_parquet(self.pointdatasource)
         else:
@@ -539,7 +539,7 @@ class QueryBuilder(QWidget, Ui_Form):
         xx, yy = pp(geom_array[:, 0], geom_array[:, 1])
         px = self.point_df[self.xutm_field].values
         py = self.point_df[self.yutm_field].values
-        if self.settings['Processing']['GPU']:
+        if self.settings['Processing']['gpu_avaibility']:
             print('############## USE GPU #################')
             point_selection_index = get_spatial_selection_gpu(px, py, xx, yy)
             self.point_selection = self.point_df[point_selection_index]
@@ -556,7 +556,7 @@ class QueryBuilder(QWidget, Ui_Form):
         img_x = self.image_df['Xutm_adj'].values
         img_y = self.image_df['Yutm_adj'].values
         
-        if self.settings['Processing']['GPU']:
+        if self.settings['Processing']['gpu_avaibility']:
             print('############## USE GPU #################')
             image_selection_index = get_spatial_selection_gpu(img_x, img_y, xx, yy)
             self.image_selection_cudf = self.image_df[image_selection_index]
@@ -779,7 +779,7 @@ class QueryBuilder(QWidget, Ui_Form):
         # file.close()
 
     def get_xy(df, longitude="Longitude", latitude="Latitude"):
-        if self.settings['Processing']['GPU']:
+        if self.settings['Processing']['gpu_avaibility']:
             print('############## USE GPU #################')
             x = df[longitude].dropna().values.get()
             y = df[latitude].dropna().values.get()
