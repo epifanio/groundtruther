@@ -77,7 +77,7 @@ class ParamScaleWidget(QWidget, Ui_paramscale):
             'gisdb':  self.gisenv['GISDBASE'],
         }
 
-        response = requests.get(f'{self.parent.settings["Processing"]["GRASS_API"]}/api/get_rvg_list', params=params, headers=headers)
+        response = requests.get(f'{self.parent.settings["Processing"]["grass_api_endpoint"]}/api/get_rvg_list', params=params, headers=headers)
         actual_item = self.input.currentText()
         self.input.clear()
         self.input.addItems(response.json()['data']['raster'])
@@ -122,14 +122,14 @@ class ParamScaleWidget(QWidget, Ui_paramscale):
                                 self.parent.region_response['south'], 
                                 self.parent.region_response['west'], 
                                 self.parent.region_response['east']])
-        self.parent.grass_mdi.gis_tool_report.setHtml(str('... running ...'))
+        self.parent.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(str('... running ...'))
         self.worker = Worker(self.run_grassapi, headers, params)
         self.worker.signal.module_output.connect(self.show_module_output_mem)
         self.threadpool.start(self.worker)
         
     @pyqtSlot(dict)
     def show_module_output(self, module_output):
-        self.parent.grass_mdi.gis_tool_report.setHtml(str(module_output))
+        self.parent.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(str(module_output))
         if self.add_output.isChecked():
             with open(f'{self.output_suffix.text()}.tif', 'wb') as f:
                 f.write(self.response.content)
@@ -149,7 +149,7 @@ class ParamScaleWidget(QWidget, Ui_paramscale):
         #print(module_output)
         #print(self.parent)
         # print(self.parent.grass_dialog.set_grass_location())
-        self.parent.grass_mdi.gis_tool_report.setHtml(str(module_output))
+        self.parent.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(str(module_output))
         if self.add_output.isChecked():
             layer_name = str(uuid.uuid1())
             newsrc = f'/vsimem/newsrc_{layer_name}'
@@ -168,7 +168,7 @@ class ParamScaleWidget(QWidget, Ui_paramscale):
         
         
     def run_grassapi(self, headers, params):
-        self.response = requests.post(f'{self.parent.settings["Processing"]["GRASS_API"]}/api/{self.module_name}', params=params, headers=headers)
+        self.response = requests.post(f'{self.parent.settings["Processing"]["grass_api_endpoint"]}/api/{self.module_name}', params=params, headers=headers)
         try:
             self.returned_item = self.response.json()
         except:

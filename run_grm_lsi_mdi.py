@@ -77,7 +77,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
             'gisdb':  self.gisenv['GISDBASE'],
         }
 
-        response = requests.get(f'{self.parent.settings["Processing"]["GRASS_API"]}/api/get_rvg_list', params=params, headers=headers)
+        response = requests.get(f'{self.parent.settings["Processing"]["grass_api_endpoint"]}/api/get_rvg_list', params=params, headers=headers)
         actual_item = self.elevation.currentText()
         self.elevation.clear()
         self.elevation.addItems(response.json()['data']['raster'])
@@ -121,7 +121,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
                                 self.parent.region_response['south'], 
                                 self.parent.region_response['west'], 
                                 self.parent.region_response['east']])
-        self.parent.grass_mdi.gis_tool_report.setHtml(str('... running ...'))
+        self.parent.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(str('... running ...'))
         print(headers, params)
         self.worker = Worker(self.run_grassapi, headers, params)
         self.worker.signal.module_output.connect(self.show_module_output_mem)
@@ -129,7 +129,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         
     @pyqtSlot(dict)
     def show_module_output(self, module_output):
-        self.parent.grass_mdi.gis_tool_report.setHtml(str(module_output))
+        self.parent.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(str(module_output))
         if self.add_output.isChecked():
             with open(f'{self.output_suffix.text()}.tif', 'wb') as f:
                 f.write(self.response.content)
@@ -149,7 +149,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         #print(module_output)
         #print(self.parent)
         # print(self.parent.grass_dialog.set_grass_location())
-        self.parent.grass_mdi.gis_tool_report.setHtml(str(module_output))
+        self.parent.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(str(module_output))
         # dict_keys(['max_dist', 
         #            'max_3d_dist', 
         #            'H', 
@@ -162,7 +162,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         #            'encoded_swc_string', 
         #            'img_profile_map'])
         #self.parent.grass_mdi.gis_tool_report.setHtml(str(f"""<img src="data:image/png;base64, {module_output['img_profile_map']}">"""))
-        self.parent.grass_mdi.gis_tool_report.setHtml(f"""<table>
+        self.parent.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(f"""<table>
             <tbody>
                 <tr>
                 <th>Length</th>
@@ -212,7 +212,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         
         
     def run_grassapi(self, headers, params):
-        self.response = requests.post(f'{self.parent.settings["Processing"]["GRASS_API"]}/api/{self.module_name}', headers=headers, params=params)
+        self.response = requests.post(f'{self.parent.settings["Processing"]["grass_api_endpoint"]}/api/{self.module_name}', headers=headers, params=params)
         try:
             self.returned_item = self.response.json()
         except:
