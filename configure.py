@@ -183,8 +183,8 @@ class ConfigDialog(QDialog, AppSettings):
                 Filesystem={
                     "filemanager": self.settings["Filesystem"]["filemanager"]},
                 Processing={
-                    "gpu_avaibility": self.settings["Processing"]["GPU"],
-                    "grass_api_endpoint": self.settings["Processing"]["GRASS_API"],
+                    "gpu_avaibility": self.settings["Processing"]["gpu_avaibility"],
+                    "grass_api_endpoint": self.settings["Processing"]["grass_api_endpoint"],
                 }
             )
             return True

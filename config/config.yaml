@@ -7,12 +7,12 @@ HabCam:
     imageannotation: /home/epinux/dev/PHD/Groundtruther/data/detector_output.csv
 Mbes:
     soundings: /home/epinux/dev/PHD/Groundtruther/data/mbes_2015.parquet
-Broadcast: 
+Broadcast:
     ip: 127.0.0.1
     port: 7000
 Export:
     kmldir: /home/epinux/Downloads
     vrtdir: /home/epinux/Downloads
 Processing:
-    GPU: False
-    GRASS_API: http://localhost/docs
+    gpu_avaibility: False
+    grass_api_endpoint: http://localhost/docs
