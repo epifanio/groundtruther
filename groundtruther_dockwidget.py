@@ -66,6 +66,53 @@ from groundtruther.run_grm_lsi_mdi import GrmLsiWidget
 import groundtruther.resources_rc
 
  
+from PyQt5.QtCore import Qt
+
+# Create a subclass of pg.ImageView
+class MyImageView1(pg.ImageView):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            print("Left mouse button pressed at position:", event.pos())
+        elif event.button() == Qt.RightButton:
+            print("Right mouse button pressed at position:", event.pos())
+            
+
+class CustomGraphItem(pg.GraphItem):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.custom_attribute = None
+
+    def setCustomAttribute(self, value):
+        self.custom_attribute = value
+
+    def getCustomAttribute(self):
+        return self.custom_attribute
+
+            
+class MyImageView(pg.ImageView):
+    mousePressEventSignal = pyqtSignal(object)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.plot_items = []  # Store the GraphItems
+        
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            pos = event.pos()
+            
+            for item in self.plot_items:
+                if item.sceneBoundingRect().contains(pos):
+                    print("Mouse position intersects GraphItem:", item)
+                    print("Mouse position intersects GraphItem:", item.getCustomAttribute())
+                    self.mousePressEventSignal.emit(item.getCustomAttribute())
+                    item.setPen('w')
+                else:
+                    item.setPen('r')
+                    #self.mousePressEventSignal.emit('None')
+                    
+            
 class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetBase):
 
     closingPlugin = pyqtSignal()
@@ -117,6 +164,8 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         # print(self.parent.plugin_dir) # = os.path.dirname(__file__))
         self.grassenabled = False
         self.r = None
+        self.annotation_box_linewidth = 1
+        self.annotation_box_vertexsize = 15
         print(self.actions)
         print(iface)
 
@@ -125,8 +174,10 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
     def init_ui(self):
         """docstring"""
         self.region_response = None
-        self.imv = pg.ImageView(self.w)
+        # self.imv = pg.ImageView(self.w)
+        self.imv = MyImageView(self.w) 
         self.w.setCentralWidget(self.imv)
+        self.imv.mousePressEventSignal.connect(self.setStausMessage)
         self.appsettings = AppSettings()
         self.grass_config_widget = GrassSettings()
         self.w.toolWidget.hide()
@@ -185,7 +236,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         #
         #
         self.w.tools.insertTab(1, self.savekml, "Report Builder")
-        self.querybuilder = QueryBuilder()
+        self.querybuilder = QueryBuilder(self)
         self.w.tools.insertTab(2, self.querybuilder, "Query Builder")
         #
 
@@ -345,13 +396,13 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self.w.gisToolSplitter.insertWidget(0, self.grassWidgetContents)
 
     def onZoomInClicked(self):
-        self.grass_mdi.gis_tool_report.zoomIn(1)
+        self.grassWidgetContents.grass_mdi.gis_tool_report.zoomIn(1)
 
     def onZoomOutClicked(self):
-        self.grass_mdi.gis_tool_report.zoomOut(1)
+        self.grassWidgetContents.grass_mdi.gis_tool_report.zoomOut(1)
     
     def onClearClicked(self):
-        self.grass_mdi.gis_tool_report.clear()
+        self.grassWidgetContents.grass_mdi.gis_tool_report.clear()
 
     def view_r_gemorphon(self, module):
         if self.r_gemorphon_window.isVisible():
@@ -378,17 +429,17 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         
     def set_mdi_view(self, index):
         if self.mdi_view.itemText(index) == 'Cascade':
-            self.grass_mdi.grassTools.cascadeSubWindows()
+            self.grassWidgetContents.grass_mdi.grassTools.cascadeSubWindows()
         if self.mdi_view.itemText(index) == 'Tiled':
-            self.grass_mdi.grassTools.tileSubWindows()
+            self.grassWidgetContents.grass_mdi.grassTools.tileSubWindows()
         if self.mdi_view.itemText(index) == 'Minimize':
-            for i in self.grass_mdi.grassTools.subWindowList():
+            for i in self.grassWidgetContents.grass_mdi.grassTools.subWindowList():
                 print(i)
                 if i.isVisible():
                     #i.hide()
                     i.showMinimized()
         if self.mdi_view.itemText(index) == 'Close':
-            for i in self.grass_mdi.grassTools.subWindowList():
+            for i in self.grassWidgetContents.grass_mdi.grassTools.subWindowList():
                 print(i)
                 if i.isVisible():
                     i.hide()
@@ -406,8 +457,6 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         """docstring"""
         # self.dialog.exec_()
         self.settings = get_settings(self.config)
-        self.host = self.settings["Broadcast"]["ip"]
-        self.port = self.settings["Broadcast"]["port"]
         self.dirname = self.settings["HabCam"]["imagepath"]
         self.metadatafile = self.settings["HabCam"]["imagemetadata"]
         self.imageannotationfile = self.settings["HabCam"]["imageannotation"]
@@ -491,7 +540,8 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
     
     def get_query_message(self, stringa):
         print('stringa', stringa)
-        self.grass_mdi.gis_tool_report.setHtml(stringa)
+        # self.grass_mdi.gis_tool_report.setHtml(stringa)
+        self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(stringa)
         
     def get_query_position(self, lat, lon):
         print('position', lat, lon)
@@ -504,7 +554,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         # self.w.gisTools_logger.setText(
         #     f'Zoom to nearest Image: index # {index}')
 
-    def get_grass_query_data(self, lat:float, lon: float):
+    def get_grass_query_data_(self, lat:float, lon: float):
         grass_settings = self.grass_dialog.set_grass_location()
         if grass_settings['status'] == 'SUCCESS':
             grass_gisenv = grass_settings['data']['gisenv']
@@ -530,8 +580,60 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         else:
             point = [[lon, lat]]
         print(point)
-        self.grass_mdi.gis_tool_report.setHtml(str(point))
+        self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(str(point))
 
+
+
+
+    def get_grass_query_data(self, lat:float, lon: float):
+        print(lat, lon)
+        headers = {
+            'accept': 'application/json',
+            'Content-Type': 'application/json',
+        }
+        grass_settings = self.grass_dialog.set_grass_location()
+        grass_layers = ['bathy']
+        
+        if grass_settings['status'] == 'SUCCESS':
+            grass_gisenv = grass_settings['data']['gisenv']
+        
+        params = {
+            'location_name': grass_gisenv['LOCATION_NAME'],
+            'mapset_name': grass_gisenv['MAPSET'],
+            'gisdb': grass_gisenv['GISDBASE'],
+            }
+        # response = requests.get('https://grassapi.wps.met.no/api/get_rvg_list', params=params, headers=headers)
+        response = requests.get(
+            f'{self.grass_api_endpoint}/api/get_rvg_list',params=params, headers=headers, timeout=60)
+        grass_layers = response.json()['data']['raster']
+        
+        
+        if int(grass_settings['data']['region']['projection'].split(' ')[0]) == 1:
+            params = {'lonlat': 'true'}
+        else:
+            params = {'lonlat': 'false'}
+        # corner = [[minlon, maxlat], [maxlon, minlat]]
+
+        json_data = {
+            'location': {
+                'location_name': grass_gisenv['LOCATION_NAME'],
+                'mapset_name': grass_gisenv['MAPSET'],
+                'gisdb': grass_gisenv['GISDBASE'],
+            },
+            'coors': [lon, lat],
+            'grass_layers': grass_layers,
+        }
+
+        response = requests.post(
+            f'{self.grass_api_endpoint}/api/r_what',params=params, headers=headers, json=json_data, timeout=60)
+        # point = response.json()['data']
+        print('r_what_response: ', response.json())
+        results = "<br>".join([f"{list(i.keys())[0]}: {i[list(i.keys())[0]]['value']}  <br>" for i in response.json() if i[list(i.keys())[0]]['value'] != 'No data'])
+        # values = [f"{i}: {response.json()[0][i]['value']}" for i in grass_layers]
+        # value = response.json()[0]['bathy']['value']
+        # print(point)
+        # result = str(lon)+" "+str(lat)+"<br>"+str(values)
+        self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(results)
 
     def set_grass_region(self, minlat: float, maxlat: float, minlon: float, maxlon: float):
         grass_settings = self.grass_dialog.set_grass_location()
@@ -629,6 +731,9 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             )
             del i
         self.graph_items = []
+
+    def setStausMessage(self, message):
+        self.w.statusbar.showMessage(message)
         
     def decreaseimageindex(self):
         """docstring"""
@@ -715,6 +820,8 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         # self.w.gisToolSplitter.widget(1).canvas.refresh()
 
     def build_box(self, bbox):
+        # self.annotation_box_linewidth = 1
+        # self.annotation_box_vertexsize = 15
         pos = np.array(
             [
                 [bbox[0], bbox[1]],
@@ -734,10 +841,10 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         symbols = ["o", "o", "o", "o"]
         lines = np.array(
             [
-                (255, 0, 0, 255, 3),
-                (255, 0, 0, 255, 3),
-                (255, 0, 0, 255, 3),
-                (255, 0, 0, 255, 3),
+                (255, 0, 0, 255, self.annotation_box_linewidth),
+                (255, 0, 0, 255, self.annotation_box_linewidth),
+                (255, 0, 0, 255, self.annotation_box_linewidth),
+                (255, 0, 0, 255, self.annotation_box_linewidth),
             ],
             dtype=[
                 ("red", np.ubyte),
@@ -778,7 +885,9 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                     print("annotation label", annotation["Species"][i])
                     print("annotation confidence treshold",
                           annotation["Confidence"][i])
-                    self.g = pg.GraphItem()
+                    self.g = CustomGraphItem()
+                    self.g.setCustomAttribute(annotation["Species"][i])
+                    # self.g = pg.GraphItem()
                     pos, adj, lines, symbols = self.build_box(
                         bbox["bbox"]
                     )
@@ -791,6 +900,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                         pxMode=False,
                     )
                     self.imv.addItem(self.g)
+                    self.imv.plot_items.append(self.g)
                     # print(self.imv.getImageItem())
                     self.g.setZValue(10)  # make sure ROI is drawn above image
                     self.graph_items.append(self.g)
@@ -954,8 +1064,6 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         """docstring"""
         self.dialog.exec_()
         self.settings = get_settings(self.config)
-        self.host = self.settings["Broadcast"]["ip"]
-        self.port = self.settings["Broadcast"]["port"]
         self.dirname = self.settings["HabCam"]["imagepath"]
         self.metadatafile = self.settings["HabCam"]["imagemetadata"]
         self.imageannotationfile = self.settings["HabCam"]["imageannotation"]
