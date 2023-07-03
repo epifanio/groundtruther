@@ -11,6 +11,12 @@ from groundtruther.run_geomorphon_mdi import GeoMorphonWidget
 from groundtruther.run_paramscale_mdi import ParamScaleWidget
 from groundtruther.run_grm_lsi_mdi import GrmLsiWidget
 
+from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QCheckBox,  QMenu, QAction
+import requests
+class GrassLayerTableWidgetItem(QTableWidgetItem):
+    def __init__(self, text, layer_enabled):
+        super().__init__(text)
+        self.layer_enabled = layer_enabled
 
 class GrassMdi(QWidget, Ui_grass_mdi):
     def __init__(self, parent=None):
@@ -133,8 +139,135 @@ class GrassTools(QMainWindow):
         
         self.grass_mdi.clear.clicked.connect(self.onClearClicked)
         
+        # self.grass_mdi.grass_layers.setHorizontalHeaderLabels(["Layer Name", "Value"])
+        self.grass_mdi.grass_layers.hide()
+        self.grass_mdi.reload_grass_layers.hide()
+        self.grass_mdi.show_hide_grass_layers.clicked.connect(self.toggle_grass_layers_table)
+        self.grass_mdi.reload_grass_layers.clicked.connect(self.load_grass_layers)
+        self.grass_mdi.filterLineEdit_label.hide()
+        self.grass_mdi.filterLineEdit.hide()
+        self.grass_mdi.filterLineEdit.setPlaceholderText("Filter...")
+        self.grass_mdi.filterLineEdit.textChanged.connect(self.filter_table)
+        
+        self.grass_mdi.grass_layers.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.grass_mdi.grass_layers.customContextMenuRequested.connect(self.show_context_menu)
+        # self.grass_mdi.grass_layers.viewport().customContextMenuRequested.connect(self.show_context_menu)
+
         # self.setWindowTitle("MDI demo")
         # self.show()
+        
+    def show_context_menu(self, position):
+        indexes = self.grass_mdi.grass_layers.selectedIndexes()
+        if indexes:
+            menu = QMenu(self)
+            delete_action = QAction("Delete Row", self)
+            delete_action.triggered.connect(self.delete_row)
+            menu.addAction(delete_action)
+            menu.exec_(self.grass_mdi.grass_layers.viewport().mapToGlobal(position))
+            
+    def delete_row(self):
+        # this is a placeholder for now
+        # I want to add the following actions:
+        # 1.: zoom to selected layer
+        # 2.: add selected layer to map
+        # 3.: set the GRASS region for selected layer
+        # 4.: delete selected layer from GRASS DB
+        # 5.: get layer history / metadata
+        indexes = self.grass_mdi.grass_layers.selectedIndexes()
+        if indexes:
+            rows = set()
+            for index in indexes:
+                rows.add(index.row())
+            for row in sorted(rows, reverse=True):
+                self.grass_mdi.grass_layers.removeRow(row)
+            
+    def toggle_grass_layers_table(self):
+        self.grass_mdi.grass_layers.setVisible(not self.grass_mdi.grass_layers.isVisible())
+        self.grass_mdi.reload_grass_layers.setVisible(not self.grass_mdi.reload_grass_layers.isVisible())        
+        self.grass_mdi.filterLineEdit_label.setVisible(not self.grass_mdi.filterLineEdit_label.isVisible())
+        self.grass_mdi.filterLineEdit.setVisible(not self.grass_mdi.filterLineEdit.isVisible())
+
+        # self.get_grass_layers()
+        
+    def load_grass_layers(self):
+        self.grass_mdi.grass_layers.clear()
+        grass_layers = self.get_grass_layers()
+        # self.grass_mdi.grass_layers.addItems(grass_layers)
+        self.populate_table(grass_layers)
+        
+    def populate_table(self, items):
+        self.grass_mdi.grass_layers.setRowCount(len(items))
+        self.grass_mdi.grass_layers.setColumnCount(2)
+        self.grass_mdi.grass_layers.setHorizontalHeaderLabels(["Layer Name", "Value"])
+        for row, item in enumerate(items):
+            checkbox = QCheckBox(item)
+            checkbox.setProperty("layer_enabled", f"Custom Property for {item}")
+            # empty_cell = GrassLayerTableWidgetItem("")
+            empty_cell = GrassLayerTableWidgetItem("", checkbox.property("layer_enabled"))
+            
+            self.grass_mdi.grass_layers.setCellWidget(row, 0, checkbox)
+            self.grass_mdi.grass_layers.setItem(row, 1, empty_cell)  
+            
+    def add_query_result(self, result):
+        print(f'i got {result}')
+        result_dict = {}
+        for dictionary in result:
+            key = next(iter(dictionary))  # Get the key of the first level dictionary
+            value = dictionary[key]  # Get the sub-dictionary as the value
+            result_dict[key] = value  
+        for row in range(self.grass_mdi.grass_layers.rowCount()):
+            checkbox_item = self.grass_mdi.grass_layers.cellWidget(row, 0)
+            if checkbox_item.text() in result_dict:
+                value_cell = GrassLayerTableWidgetItem(result_dict[checkbox_item.text()]['value'], checkbox_item.property("layer_enabled") )
+                self.grass_mdi.grass_layers.setItem(row, 1, value_cell)
+            
+    def get_checked_items(self):
+        print('getting list of checked items')
+        self.checked_layers = []
+        for row in range(self.grass_mdi.grass_layers.rowCount()):
+            checkbox_item = self.grass_mdi.grass_layers.cellWidget(row, 0)
+            if isinstance(checkbox_item, QCheckBox) and checkbox_item.isChecked():
+                item = checkbox_item.text()
+                self.checked_layers.append(item)
+                
+    def filter_table(self):
+        filter_text = self.grass_mdi.filterLineEdit.text().strip().lower()
+        print(self.grass_mdi.grass_layers.rowCount())
+        for row in range(self.grass_mdi.grass_layers.rowCount()):
+            checkbox_item = self.grass_mdi.grass_layers.cellWidget(row, 0)
+            item = checkbox_item.text()
+            row_text = item.lower() if item else ""
+            print(row_text)
+            if filter_text in row_text:
+                self.grass_mdi.grass_layers.setRowHidden(row, False)
+            else:
+                self.grass_mdi.grass_layers.setRowHidden(row, True)
+
+        
+    def get_grass_layers(self):
+        self.grass_dialog = self.parent.grass_dialog
+        grass_settings = self.grass_dialog.set_grass_location()
+        self.settings = self.parent.settings
+        self.grass_api_endpoint = self.settings["Processing"]["grass_api_endpoint"]
+        if grass_settings['status'] == 'SUCCESS':
+            grass_gisenv = grass_settings['data']['gisenv']
+        headers = {
+            'accept': 'application/json',
+            'Content-Type': 'application/json',
+        }
+        params = {
+            'location_name': grass_gisenv['LOCATION_NAME'],
+            'mapset_name': grass_gisenv['MAPSET'],
+            'gisdb': grass_gisenv['GISDBASE'],
+            }
+        # response = requests.get('https://grassapi.wps.met.no/api/get_rvg_list', params=params, headers=headers)
+        response = requests.get(
+            f'{self.grass_api_endpoint}/api/get_rvg_list',params=params, headers=headers, timeout=60)
+        grass_layers = response.json()['data']['raster']
+        print(grass_layers)
+        return grass_layers    
+        # print(self.settings, grass_settings)
+        
         
     def reload_parent_objects(self):
         self.grass_dialog = self.parent.grass_dialog
