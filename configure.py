@@ -23,8 +23,6 @@ class ConfigDialog(QDialog, AppSettings):
         QDialog.__init__(self, parent)
 
         self.setupUi(self)
-        self.broadcast_port.setValidator(
-            QRegExpValidator(QRegExp("^[0-9]{12}$")))
         # toot_dir from environment var
         self.root_dir = os.path.dirname(__file__) # os.environ.get("HBC_ROOT_DIR")
         self.config = config # os.environ.get('HBC_CONFIG')
@@ -59,11 +57,7 @@ class ConfigDialog(QDialog, AppSettings):
             )
             self.mbes_path.setText(self.settings_value["Mbes"]["soundings"])
             self.kml_path.setText(self.settings_value["Export"]["kmldir"])
-            self.vrt_path.setText(self.settings_value["Export"]["vrtdir"])
-            self.broadcast_ip.setText(self.settings_value["Broadcast"]["ip"])
-            self.broadcast_port.setText(
-                str(self.settings_value["Broadcast"]["port"]))
-            
+            self.vrt_path.setText(self.settings_value["Export"]["vrtdir"])            
             if self.settings_value["Processing"]["gpu_avaibility"]:
                 self.gpu_avaibility.setCurrentText('Enabled')
             else:
@@ -82,8 +76,6 @@ class ConfigDialog(QDialog, AppSettings):
                 },
                 "Mbes": {"soundings": self.mbes_path},
                 "Export": {"kmldir": self.kml_path, "vrtdir": self.vrt_path},
-                "Broadcast": {"ip": self.broadcast_ip, "port": self.broadcast_port},
-                # "Mapviewer": {"basemap": self.mapviewer_basemap},
                 "Processing": {"gpu_avaibility": False, "grass_api_endpoint": "http://localhost/docs"},
             }
 
@@ -96,11 +88,6 @@ class ConfigDialog(QDialog, AppSettings):
             self.mbes_path.setText(self.settings["Mbes"]["soundings"])
             self.kml_path.setText(self.settings["Export"]["kmldir"])
             self.vrt_path.setText(self.settings["Export"]["vrtdir"])
-            self.broadcast_ip.setText(self.settings["Broadcast"]["ip"])
-            self.broadcast_port.setText(
-                str(self.settings["Broadcast"]["port"]))
-            # self.mapviewer_basemap.setText(
-            #     self.settings["Mapviewer"]["basemap"])
             if self.settings["Processing"]["gpu_avaibility"]:
                 self.gpu_avaibility.setCurrentText('Enabled')
             else:
@@ -123,8 +110,6 @@ class ConfigDialog(QDialog, AppSettings):
         # else:
         #     self.gpu_avaibility.setEnabled(False)
         self.gpu_avaibility.setEnabled(False)
-        self.broadcast_config_box.setVisible(False)
-        self.broadcast_config_box.hide()
         self.vrt_label.hide()
         self.vrt_path.hide()
         self.select_vrt_path.hide()
@@ -175,10 +160,6 @@ class ConfigDialog(QDialog, AppSettings):
                     "kmldir": self.settings["Export"]["kmldir"],
                     "vrtdir": self.settings["Export"]["vrtdir"],
                 },
-                Broadcast={
-                    "ip": self.settings["Broadcast"]["ip"],
-                    "port": int(self.settings["Broadcast"]["port"]),
-                },
                 # Mapviewer={"basemap": self.settings["Mapviewer"]["basemap"]},
                 Filesystem={
                     "filemanager": self.settings["Filesystem"]["filemanager"]},
@@ -203,12 +184,6 @@ class ConfigDialog(QDialog, AppSettings):
 
     def write_config(self):
         """docstring"""
-        try:
-            int(self.broadcast_port.text())
-        except ValueError:
-            error_message(
-                "Invalid PORT number setting to default value \n 7000")
-            self.broadcast_port.setText("7000")
         gui_settings = self.get_gui_settings()
         if validate_config2(gui_settings):
             # if self.validate_config():
@@ -222,8 +197,6 @@ class ConfigDialog(QDialog, AppSettings):
                     "soundings": self.mbes_path.text(),
                     "kmldir": self.kml_path.text(),
                     "vrtdir": self.vrt_path.text(),
-                    "ip": self.broadcast_ip.text(),
-                    "port": self.broadcast_port.text(),
                     "gpu_avaibility": self.gpu_avaibility_value,
                     "grass_api_endpoint": self.grass_api_endpoint.text(),
                 }
@@ -316,10 +289,6 @@ class ConfigDialog(QDialog, AppSettings):
                 "imageannotation": self.imageannotation_path.text(),
             },
             "Export": {"kmldir": self.kml_path.text(), "vrtdir": self.vrt_path.text()},
-            "Broadcast": {
-                "ip": self.broadcast_ip.text(),
-                "port": int(self.broadcast_port.text()),
-            },
             "Processing": {"gpu_avaibility": self.gpu_avaibility_value,
                            "grass_api_endpoint": self.grass_api_endpoint.text()},
             "Filesystem": {"filemanager": self.filemanager.text()},
@@ -347,10 +316,6 @@ def validate_config2(settings, get_bad_keys=False):
             Export={
                 "kmldir": settings["Export"]["kmldir"],
                 "vrtdir": settings["Export"]["vrtdir"],
-            },
-            Broadcast={
-                "ip": settings["Broadcast"]["ip"],
-                "port": int(settings["Broadcast"]["port"]),
             },
             Processing={
                 "gpu_avaibility": settings["Processing"]["gpu_avaibility"],

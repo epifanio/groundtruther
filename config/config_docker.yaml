@@ -7,9 +7,6 @@ HabCam:
     imageannotation: /home/jovyan/hbc_browser/data/detector_output.csv
 Mbes:
     soundings: /home/jovyan/hbc_browser/data/mbes_2015.parquet
-Broadcast: 
-    ip: 127.0.0.1
-    port: 7000
 Export:
     kmldir: /home/jovyan/hbc_browser/export/kml
     vrtdir: /home/jovyan/hbc_browser/data

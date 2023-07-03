@@ -29,7 +29,7 @@
         <x>0</x>
         <y>0</y>
         <width>468</width>
-        <height>680</height>
+        <height>568</height>
        </rect>
       </property>
       <layout class="QVBoxLayout" name="verticalLayout_10">
@@ -318,87 +318,6 @@
         </widget>
        </item>
        <item>
-        <widget class="QGroupBox" name="broadcast_config_box">
-         <property name="title">
-          <string>Broadcast</string>
-         </property>
-         <layout class="QVBoxLayout" name="verticalLayout_6">
-          <item>
-           <layout class="QVBoxLayout" name="verticalLayout_7">
-            <item>
-             <layout class="QHBoxLayout" name="horizontalLayout_7">
-              <item>
-               <widget class="QLabel" name="broadcast_IP_label">
-                <property name="text">
-                 <string>IP                  </string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <spacer name="horizontalSpacer_7">
-                <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>40</width>
-                  <height>20</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="broadcast_ip">
-                <property name="text">
-                 <string>127.0.0.1</string>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-            <item>
-             <layout class="QHBoxLayout" name="horizontalLayout_8">
-              <item>
-               <widget class="QLabel" name="broadcast_port_label">
-                <property name="text">
-                 <string>Port             </string>
-                </property>
-               </widget>
-              </item>
-              <item>
-               <spacer name="horizontalSpacer_8">
-                <property name="orientation">
-                 <enum>Qt::Horizontal</enum>
-                </property>
-                <property name="sizeHint" stdset="0">
-                 <size>
-                  <width>40</width>
-                  <height>20</height>
-                 </size>
-                </property>
-               </spacer>
-              </item>
-              <item>
-               <widget class="QLineEdit" name="broadcast_port">
-                <property name="inputMethodHints">
-                 <set>Qt::ImhNone</set>
-                </property>
-                <property name="text">
-                 <string>7000</string>
-                </property>
-                <property name="echoMode">
-                 <enum>QLineEdit::Normal</enum>
-                </property>
-               </widget>
-              </item>
-             </layout>
-            </item>
-           </layout>
-          </item>
-         </layout>
-        </widget>
-       </item>
-       <item>
         <widget class="QGroupBox" name="groupBox">
          <property name="title">
           <string>Processing</string>
@@ -566,8 +485,6 @@
    </item>
   </layout>
  </widget>
- <resources>
-  <include location="../resources.qrc"/>
- </resources>
+ <resources/>
  <connections/>
 </ui>
