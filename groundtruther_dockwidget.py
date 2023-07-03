@@ -592,21 +592,22 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             'Content-Type': 'application/json',
         }
         grass_settings = self.grass_dialog.set_grass_location()
-        grass_layers = ['bathy']
+        # grass_layers = ['bathy']
         
         if grass_settings['status'] == 'SUCCESS':
             grass_gisenv = grass_settings['data']['gisenv']
         
-        params = {
-            'location_name': grass_gisenv['LOCATION_NAME'],
-            'mapset_name': grass_gisenv['MAPSET'],
-            'gisdb': grass_gisenv['GISDBASE'],
-            }
-        # response = requests.get('https://grassapi.wps.met.no/api/get_rvg_list', params=params, headers=headers)
-        response = requests.get(
-            f'{self.grass_api_endpoint}/api/get_rvg_list',params=params, headers=headers, timeout=60)
-        grass_layers = response.json()['data']['raster']
-        
+        # params = {
+        #     'location_name': grass_gisenv['LOCATION_NAME'],
+        #     'mapset_name': grass_gisenv['MAPSET'],
+        #     'gisdb': grass_gisenv['GISDBASE'],
+        #     }
+        # # response = requests.get('https://grassapi.wps.met.no/api/get_rvg_list', params=params, headers=headers)
+        # response = requests.get(
+        #     f'{self.grass_api_endpoint}/api/get_rvg_list',params=params, headers=headers, timeout=60)
+        # grass_layers = response.json()['data']['raster']
+        self.grassWidgetContents.get_checked_items()
+        grass_layers = self.grassWidgetContents.checked_layers
         
         if int(grass_settings['data']['region']['projection'].split(' ')[0]) == 1:
             params = {'lonlat': 'true'}
@@ -628,11 +629,15 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             f'{self.grass_api_endpoint}/api/r_what',params=params, headers=headers, json=json_data, timeout=60)
         # point = response.json()['data']
         print('r_what_response: ', response.json())
-        results = "<br>".join([f"{list(i.keys())[0]}: {i[list(i.keys())[0]]['value']}  <br>" for i in response.json() if i[list(i.keys())[0]]['value'] != 'No data'])
-        # values = [f"{i}: {response.json()[0][i]['value']}" for i in grass_layers]
-        # value = response.json()[0]['bathy']['value']
-        # print(point)
-        # result = str(lon)+" "+str(lat)+"<br>"+str(values)
+        if response.json()['status'] == 'SUCCESS':
+            results = "<br>".join([f"{list(i.keys())[0]}: {i[list(i.keys())[0]]['value']}  <br>" for i in response.json()['data'] if i[list(i.keys())[0]]['value'] != 'No data'])
+            # values = [f"{i}: {response.json()[0][i]['value']}" for i in grass_layers]
+            # value = response.json()[0]['bathy']['value']
+            # print(point)
+            # result = str(lon)+" "+str(lat)+"<br>"+str(values)
+            self.grassWidgetContents.add_query_result(response.json()['data'])
+        else:
+            results = str(response.json())
         self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(results)
 
     def set_grass_region(self, minlat: float, maxlat: float, minlon: float, maxlon: float):
