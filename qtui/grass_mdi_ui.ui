@@ -6,60 +6,186 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>301</width>
-    <height>220</height>
+    <width>390</width>
+    <height>494</height>
    </rect>
   </property>
   <property name="windowTitle">
    <string>Form</string>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout_2">
+  <layout class="QVBoxLayout" name="verticalLayout_3">
    <item>
-    <widget class="QSplitter" name="splitter">
+    <widget class="QSplitter" name="splitter_2">
      <property name="orientation">
-      <enum>Qt::Vertical</enum>
+      <enum>Qt::Horizontal</enum>
      </property>
-     <widget class="QMdiArea" name="grassTools">
-      <property name="sizePolicy">
-       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
-        <horstretch>0</horstretch>
-        <verstretch>0</verstretch>
-       </sizepolicy>
+     <widget class="QFrame" name="frame">
+      <property name="frameShape">
+       <enum>QFrame::StyledPanel</enum>
       </property>
-      <property name="minimumSize">
-       <size>
-        <width>0</width>
-        <height>0</height>
-       </size>
+      <property name="frameShadow">
+       <enum>QFrame::Raised</enum>
       </property>
-      <property name="maximumSize">
-       <size>
-        <width>16777215</width>
-        <height>16777215</height>
-       </size>
-      </property>
-      <property name="contextMenuPolicy">
-       <enum>Qt::DefaultContextMenu</enum>
-      </property>
-      <property name="verticalScrollBarPolicy">
-       <enum>Qt::ScrollBarAsNeeded</enum>
-      </property>
-      <property name="horizontalScrollBarPolicy">
-       <enum>Qt::ScrollBarAsNeeded</enum>
-      </property>
-      <property name="activationOrder">
-       <enum>QMdiArea::StackingOrder</enum>
-      </property>
-      <property name="tabsMovable">
-       <bool>true</bool>
-      </property>
-     </widget>
-     <widget class="QWidget" name="verticalLayoutWidget">
-      <layout class="QVBoxLayout" name="verticalLayout">
+      <layout class="QVBoxLayout" name="verticalLayout_2">
        <item>
-        <layout class="QHBoxLayout" name="horizontalLayout">
+        <widget class="QSplitter" name="splitter">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <widget class="QMdiArea" name="grassTools">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>0</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="contextMenuPolicy">
+           <enum>Qt::DefaultContextMenu</enum>
+          </property>
+          <property name="verticalScrollBarPolicy">
+           <enum>Qt::ScrollBarAsNeeded</enum>
+          </property>
+          <property name="horizontalScrollBarPolicy">
+           <enum>Qt::ScrollBarAsNeeded</enum>
+          </property>
+          <property name="activationOrder">
+           <enum>QMdiArea::StackingOrder</enum>
+          </property>
+          <property name="tabsMovable">
+           <bool>true</bool>
+          </property>
+         </widget>
+         <widget class="QWidget" name="verticalLayoutWidget">
+          <layout class="QVBoxLayout" name="verticalLayout">
+           <item>
+            <layout class="QHBoxLayout" name="horizontalLayout">
+             <item>
+              <spacer name="horizontalSpacer">
+               <property name="orientation">
+                <enum>Qt::Horizontal</enum>
+               </property>
+               <property name="sizeHint" stdset="0">
+                <size>
+                 <width>40</width>
+                 <height>20</height>
+                </size>
+               </property>
+              </spacer>
+             </item>
+             <item>
+              <widget class="QToolButton" name="zoom_in">
+               <property name="text">
+                <string>...</string>
+               </property>
+               <property name="icon">
+                <iconset resource="../resources.qrc">
+                 <normaloff>:/icons/qtui/icons/mActionIncreaseFont.svg</normaloff>:/icons/qtui/icons/mActionIncreaseFont.svg</iconset>
+               </property>
+               <property name="autoRepeat">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QToolButton" name="zoom_out">
+               <property name="text">
+                <string>...</string>
+               </property>
+               <property name="icon">
+                <iconset resource="../resources.qrc">
+                 <normaloff>:/icons/qtui/icons/mActionDecreaseFont.svg</normaloff>:/icons/qtui/icons/mActionDecreaseFont.svg</iconset>
+               </property>
+               <property name="autoRepeat">
+                <bool>true</bool>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QToolButton" name="selectAll">
+               <property name="text">
+                <string>...</string>
+               </property>
+               <property name="icon">
+                <iconset resource="../resources.qrc">
+                 <normaloff>:/icons/qtui/icons/maximize.svg</normaloff>:/icons/qtui/icons/maximize.svg</iconset>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QToolButton" name="copy">
+               <property name="text">
+                <string/>
+               </property>
+               <property name="icon">
+                <iconset resource="../resources.qrc">
+                 <normaloff>:/icons/qtui/icons/copy.svg</normaloff>:/icons/qtui/icons/copy.svg</iconset>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QToolButton" name="clear">
+               <property name="text">
+                <string>...</string>
+               </property>
+               <property name="icon">
+                <iconset resource="../resources.qrc">
+                 <normaloff>:/icons/qtui/icons/eraser.svg</normaloff>:/icons/qtui/icons/eraser.svg</iconset>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QToolButton" name="show_hide_grass_layers">
+               <property name="text">
+                <string>db</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+           <item>
+            <widget class="QTextEdit" name="gis_tool_report"/>
+           </item>
+          </layout>
+         </widget>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="verticalLayoutWidget_2">
+      <layout class="QVBoxLayout" name="grass_layers_layout">
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_3">
          <item>
-          <spacer name="horizontalSpacer">
+          <widget class="QLabel" name="filterLineEdit_label">
+           <property name="text">
+            <string>Filter:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="filterLineEdit"/>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QTableWidget" name="grass_layers"/>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <spacer name="horizontalSpacer_2">
            <property name="orientation">
             <enum>Qt::Horizontal</enum>
            </property>
@@ -72,70 +198,26 @@
           </spacer>
          </item>
          <item>
-          <widget class="QToolButton" name="zoom_in">
+          <widget class="QToolButton" name="reload_grass_layers">
            <property name="text">
-            <string>...</string>
-           </property>
-           <property name="icon">
-            <iconset resource="../resources.qrc">
-             <normaloff>:/icons/qtui/icons/mActionIncreaseFont.svg</normaloff>:/icons/qtui/icons/mActionIncreaseFont.svg</iconset>
-           </property>
-           <property name="autoRepeat">
-            <bool>true</bool>
+            <string>O</string>
            </property>
           </widget>
          </item>
          <item>
-          <widget class="QToolButton" name="zoom_out">
-           <property name="text">
-            <string>...</string>
+          <spacer name="horizontalSpacer_3">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
            </property>
-           <property name="icon">
-            <iconset resource="../resources.qrc">
-             <normaloff>:/icons/qtui/icons/mActionDecreaseFont.svg</normaloff>:/icons/qtui/icons/mActionDecreaseFont.svg</iconset>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
            </property>
-           <property name="autoRepeat">
-            <bool>true</bool>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QToolButton" name="selectAll">
-           <property name="text">
-            <string>...</string>
-           </property>
-           <property name="icon">
-            <iconset resource="../resources.qrc">
-             <normaloff>:/icons/qtui/icons/maximize.svg</normaloff>:/icons/qtui/icons/maximize.svg</iconset>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QToolButton" name="copy">
-           <property name="text">
-            <string/>
-           </property>
-           <property name="icon">
-            <iconset resource="../resources.qrc">
-             <normaloff>:/icons/qtui/icons/copy.svg</normaloff>:/icons/qtui/icons/copy.svg</iconset>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QToolButton" name="clear">
-           <property name="text">
-            <string>...</string>
-           </property>
-           <property name="icon">
-            <iconset resource="../resources.qrc">
-             <normaloff>:/icons/qtui/icons/eraser.svg</normaloff>:/icons/qtui/icons/eraser.svg</iconset>
-           </property>
-          </widget>
+          </spacer>
          </item>
         </layout>
-       </item>
-       <item>
-        <widget class="QTextEdit" name="gis_tool_report"/>
        </item>
       </layout>
      </widget>
