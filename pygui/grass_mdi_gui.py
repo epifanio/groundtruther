@@ -60,6 +60,14 @@ class GrassTools(QMainWindow):
         self.moduleToolBar.addWidget(self.mdi_view)
         self.mdi_view.insertItems(1,["Tiled","Cascade","Minimize", "Close"])
         self.mdi_view.currentIndexChanged.connect(self.set_mdi_view)
+        self.mdi_view.setToolTip("Change MDI view mode")
+        
+        self.grass_layers_view = QToolButton()
+        grass_layers_view_icon = QIcon(":/icons/qtui/icons/table-list.svg")
+        self.grass_layers_view.setToolTip("Show/Hide GRASS Layers")
+        self.grass_layers_view.setIcon(grass_layers_view_icon)
+        self.moduleToolBar.addWidget(self.grass_layers_view)
+        self.grass_layers_view.clicked.connect(self.toggle_grass_layers_table)     
 
 
 
@@ -67,6 +75,7 @@ class GrassTools(QMainWindow):
         self.r_gemorphon_window = QMdiSubWindow()
         self.r_gemorphon_window.setWindowTitle("r.geomorphon")
         self.r_gemorphon_window.setWidget(self.r_gemorphon)
+        self.r_gemorphon_window.setToolTip("r.geomorphon")
         self.grass_mdi.grassTools.addSubWindow(self.r_gemorphon_window)
         self.r_gemorphon_window.setWindowFlags(Qt.WindowMinimizeButtonHint|Qt.WindowMaximizeButtonHint)
         self.r_gemorphon_window.hide()
@@ -87,6 +96,7 @@ class GrassTools(QMainWindow):
         self.r_paramscale_window = QMdiSubWindow()
         self.r_paramscale_window.setWindowTitle("r.param.scale")
         self.r_paramscale_window.setWidget(self.r_paramscale)
+        self.r_paramscale_window.setToolTip("r.param.scale")
         self.grass_mdi.grassTools.addSubWindow(self.r_paramscale_window)
         self.r_paramscale_window.setWindowFlags(Qt.WindowMinimizeButtonHint|Qt.WindowMaximizeButtonHint)
         self.r_paramscale_window.hide()
@@ -105,6 +115,7 @@ class GrassTools(QMainWindow):
         self.r_grm_lsi_window = QMdiSubWindow()
         self.r_grm_lsi_window.setWindowTitle("r.grm.lsi")
         self.r_grm_lsi_window.setWidget(self.r_grm_lsi)
+        self.r_grm_lsi_window.setToolTip("r.grm.lsi")
         self.grass_mdi.grassTools.addSubWindow(self.r_grm_lsi_window)
         #self.r_grm_lsi_window.setWindowTitle("r.grm.lsi")
         self.r_grm_lsi_window.setWindowFlags(Qt.WindowMinimizeButtonHint|Qt.WindowMaximizeButtonHint)
@@ -142,7 +153,7 @@ class GrassTools(QMainWindow):
         # self.grass_mdi.grass_layers.setHorizontalHeaderLabels(["Layer Name", "Value"])
         self.grass_mdi.grass_layers.hide()
         self.grass_mdi.reload_grass_layers.hide()
-        self.grass_mdi.show_hide_grass_layers.clicked.connect(self.toggle_grass_layers_table)
+        # self.grass_mdi.show_hide_grass_layers.clicked.connect(self.toggle_grass_layers_table)
         self.grass_mdi.reload_grass_layers.clicked.connect(self.load_grass_layers)
         self.grass_mdi.filterLineEdit_label.hide()
         self.grass_mdi.filterLineEdit.hide()
