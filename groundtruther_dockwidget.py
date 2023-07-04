@@ -237,7 +237,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         #
         self.w.tools.insertTab(1, self.savekml, "Report Builder")
         self.querybuilder = QueryBuilder(self)
-        self.w.tools.insertTab(2, self.querybuilder, "Query Builder")
+        self.w.tools.insertTab(2, self.querybuilder, "BS Query Builder")
         #
 
         # self.qgis_widget_gui = myMainClass(self)
