@@ -23,13 +23,6 @@ class Export(BaseModel):
     vrtdir: DirectoryPath = None
 
 
-class Broadcast(BaseModel):
-    """docstring"""
-
-    ip: IPvAnyAddress = "127.0.0.1"
-    port: int = 7000
-
-
 class Processing(BaseModel):
     """docstring"""
     gpu_avaibility: bool = False
@@ -53,7 +46,6 @@ class HabcamSettings(BaseModel):
     HabCam: Union[HabCam]
     Mbes: Mbes
     Export: Union[Export]
-    Broadcast: Broadcast
     # Mapviewer: Mapviewer
     Processing: Union[Processing]
     Filesystem: Filesystem

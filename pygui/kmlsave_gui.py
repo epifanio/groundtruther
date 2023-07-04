@@ -54,7 +54,8 @@ class SaveKml(QWidget, Ui_Form):
     # procDone = pyqtSignal(str)
     def __init__(self, parent=None):
         super(SaveKml, self).__init__(parent)
-        self.config =config # os.environ.get('HBC_CONFIG')
+        # print(" +++++++++++++ config: ", config)
+        self.config = config # os.environ.get('HBC_CONFIG')
         self.settings = get_settings(self.config)
         self.setupUi(self)
         self.lon = 0

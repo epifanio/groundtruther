@@ -16,8 +16,6 @@ class AppSettings(QWidget, Ui_appsettings):
         self.select_metadata_path.clicked.connect(self.set_metadata_path)
         self.select_mbes_path.clicked.connect(self.set_mbes_path)
         self.setOption.clicked.connect(self.print_val)
-        self.broadcast_config_box.setVisible(False)
-        self.broadcast_config_box.hide()
         self.vrt_label.hide()
         self.vrt_path.hide()
         self.select_vrt_path.hide()

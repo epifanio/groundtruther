@@ -7,9 +7,6 @@ HabCam:
     imageannotation: {{imageannotation}}
 Mbes:
     soundings: {{soundings}}
-Broadcast: 
-    ip: {{ip}}
-    port: {{port}}
 Export:
     kmldir: {{kmldir}}
     vrtdir: {{vrtdir}}

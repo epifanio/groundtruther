@@ -2,17 +2,14 @@
 Filesystem:
     filemanager: /usr/bin/nautilus
 HabCam:
-    imagepath: /home/epinux/dev/PHD/Groundtruther/data/imgs_jpg
-    imagemetadata: /home/epinux/dev/PHD/Groundtruther/data/imagemetadata.pq
-    imageannotation: /home/epinux/dev/PHD/Groundtruther/data/detector_output.csv
+    imagepath: /home/epinux/dev/PHD/letsmoveon/HBC-browser_desktop/data/imgs_jpg
+    imagemetadata: /home/epinux/dev/PHD/letsmoveon/HBC-browser_desktop/data/imagemetadata.pq
+    imageannotation: /home/epinux/Desktop/test_datasets/groundtruther_test_dataset/ccom_detector.csv
 Mbes:
-    soundings: /home/epinux/dev/PHD/Groundtruther/data/mbes_2015.parquet
-Broadcast:
-    ip: 127.0.0.1
-    port: 7000
+    soundings: /home/epinux/Desktop/test_datasets/groundtruther_test_dataset/mbes_2015.parquet
 Export:
     kmldir: /home/epinux/Downloads
     vrtdir: /home/epinux/Downloads
 Processing:
     gpu_avaibility: False
-    grass_api_endpoint: http://localhost/docs
+    grass_api_endpoint: https://grassapi.wps.met.no

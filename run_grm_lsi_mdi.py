@@ -57,6 +57,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         print("Multithreading with maximum %d threads" %
               self.threadpool.maxThreadCount())
         self.setupUi(self)
+        self.add_output.hide()
         self.module_name = 'GRMLSI'
         self.reload_layers.clicked.connect(self.get_rvr_list)
         #self.exit.clicked.connect(self.close)
@@ -122,7 +123,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
                                 self.parent.region_response['west'], 
                                 self.parent.region_response['east']])
         self.parent.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(str('... running ...'))
-        print(headers, params)
+        # print(headers, params)
         self.worker = Worker(self.run_grassapi, headers, params)
         self.worker.signal.module_output.connect(self.show_module_output_mem)
         self.threadpool.start(self.worker)
@@ -197,6 +198,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         if self.add_output.isChecked():
             layer_name = str(uuid.uuid1())
             newsrc = f'/vsimem/newsrc_{layer_name}'
+            # print("self.response.content : ", self.response.content.keys())
             gdal.FileFromMemBuffer(newsrc, self.response.content)
             ds = gdal.Open(newsrc)
             layer_name_warp = str(uuid.uuid1())

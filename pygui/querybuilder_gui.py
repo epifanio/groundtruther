@@ -70,6 +70,12 @@ except ImportError:
 from pip_cpu import get_spatial_selection_cpu
 # self.send_image_path.connect(self.savekml.from_main_signal)
 
+from qgis.core import (Qgis, QgsApplication, QgsMessageLog, QgsTask, QgsRasterLayer, QgsVectorLayer)
+import uuid
+from osgeo import ogr
+import geojson
+
+
 dpi = 72
 size_inches = (11, 8)                                       # size in inches (for the plot)
 size_px = int(size_inches[0]*dpi), int(size_inches[1]*dpi) 
@@ -138,6 +144,7 @@ class QueryBuilder(QWidget, Ui_Form):
     def __init__(self, parent=None):
         super(QueryBuilder, self).__init__(parent)
         self.setupUi(self)
+        self.parent = parent
         #self.config = os.environ.get('HBC_CONFIG')
         #print(os.path.join(os.path.dirname(__file__), '../config/config.yaml'))
         #self.config = os.path.join(os.path.dirname(__file__), 'config/config.yaml')
@@ -514,6 +521,58 @@ class QueryBuilder(QWidget, Ui_Form):
                 self.crosshair_v.setPos(mousePoint.x())
                 self.crosshair_h.setPos(mousePoint.y())
 
+    def send_shape_to_canvas(self, geom):
+        # Create an in-memory OGR datasource
+        # driver = ogr.GetDriverByName('Memory')
+        # datasource = driver.CreateDataSource('/vsimem/polygon_data')
+        # # Create a new layer in the datasource
+        # layer = datasource.CreateLayer('polygon', geom_type=ogr.wkbPolygon)
+        # # Create a feature and set the geometry
+        # feature_defn = layer.GetLayerDefn()
+        # feature = ogr.Feature(feature_defn)
+        # geometry = ogr.Geometry(ogr.wkbPolygon)
+        # ring = ogr.Geometry(ogr.wkbLinearRing)
+        # for point in geom:
+        #     ring.AddPoint(point[0], point[1])
+        # ring.CloseRings()
+        # geometry.AddGeometry(ring)
+        # feature.SetGeometry(geometry)
+        # # Add the feature to the layer
+        # layer.CreateFeature(feature)
+        # layer_name = str(uuid.uuid1())
+        # Path to the GeoJSON file
+        
+        polygon = geojson.Polygon([geom])
+        # Create a GeoJSON Feature
+        feature = geojson.Feature(geometry=polygon, properties={})
+        # Create a GeoJSON Feature Collection
+        feature_collection = geojson.FeatureCollection([feature])
+        # Write the GeoJSON to a file
+        with open("/tmp/sampling_ellipse.geojson", "w") as geojson_file:
+            geojson.dump(feature, geojson_file)
+
+        geojson_file = "/tmp/sampling_ellipse.geojson"
+        
+        # Create an in-memory OGR datasource
+        # driver = ogr.GetDriverByName('Memory')
+        # datasource = driver.CreateDataSource('/vsimem/geojson_data')
+
+        # # Open the GeoJSON file
+        # geojson_datasource = ogr.Open(geojson_file)
+
+        # # Get the layer from the GeoJSON datasource
+        # layer = geojson_datasource.GetLayer()
+
+        # # Copy the layer to the in-memory datasource
+        # driver.CopyDataSource(layer, datasource)
+        try:
+            layer_to_remove = self.parent.project.instance().mapLayersByName('GT sampling shape')[0]
+            self.parent.project.instance().removeMapLayer(layer_to_remove)
+        except IndexError:
+            print('no layer to remove')
+        vlayer = QgsVectorLayer(geojson_file, 'GT sampling shape', 'ogr')
+        self.parent.project.instance().addMapLayer(vlayer)
+
     def get_shape_geom(self):
         if self.shape == "Ellipse":
             geom = getEllipseCoords(
@@ -523,16 +582,28 @@ class QueryBuilder(QWidget, Ui_Form):
                 int(self.qb_ellipseorientation.text()),
                 out_proj=4326,
             )  # 32619
-        print(self.shape)
+            print("+++++++++++++++++++++++++++++++++")
+            print("ELLIPSE: ", geom)
+            print(type(geom))
+            print("+++++++++++++++++++++++++++++++++")
         if self.shape == "Rectangle":
             print('calling it')
-            geom = getRectangleCoords((float(self.qb_longitude.text()), 
+            geom_tuple = getRectangleCoords((float(self.qb_longitude.text()), 
                                       float(self.qb_latitude.text())),
                                       float(self.qb_rectangle_l1.text()), 
                                       float(self.qb_rectangle_l2.text()),
                                       in_proj=None, utmzone=self.utmzone_string)
-            print(geom)
+            geom = [list(values) + [values[0]] for values in zip(*geom_tuple)]
+            geom = [list(i) for i in zip(*geom_tuple)]
+            geom.append(geom[0])
+            print("+++++++++++++++++++++++++++++++++")
+            # print("RECTANGLE tuple: ", geom_tuple)
+            # print("\n")
+            print("RECTANGLE: ", geom)
+            print(type(geom))
+            print("+++++++++++++++++++++++++++++++++")
         geom_array = np.array(geom)
+        self.send_shape_to_canvas(geom_array.tolist())
         pp = Proj(
             proj="utm", zone=self.utmzone_string, ellps="WGS84", preserve_units=False
         )
@@ -686,8 +757,6 @@ class QueryBuilder(QWidget, Ui_Form):
         except KeyError:
             print("invalid field name for Easting/Northing parameters")
             self.point_selection = []
-
-
 
     def set_table_view(self):
         self.df_model = pandasModel(self.point_selection_pd.describe())
