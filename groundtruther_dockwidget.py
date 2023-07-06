@@ -426,6 +426,9 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self.r.setColor(QColor(255, 0, 0))
         self.r.setFillColor(QColor(0, 0, 0, 0))
         
+    # placeholder to select a grass region from a combobox in the main toolbar
+    # def select_grass_cpr(self, index):
+    #     print(index)
     
     def get_query_message(self, stringa):
         print('stringa', stringa)

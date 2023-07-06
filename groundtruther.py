@@ -26,7 +26,7 @@ sys.path.append(os.path.dirname(__file__))
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QComboBox
 # Initialize Qt resources from file resources.py
 from .resources_rc import *
 from qgis.gui import QgsMapToolEmitPoint
@@ -198,15 +198,19 @@ class GroundTruther:
         # return action
         if hasmaptools:
             return mapTool
-  
+
+
+    def select_grass_cpr(self, index):
+        if self.pluginIsActive:
+            self.dockwidget.select_grass_cpr(index)   
   
     def set_grass_cpr(self, minlat: float, maxlat: float, minlon: float, maxlon: float):
         if self.pluginIsActive:
             self.dockwidget.set_grass_cpr(minlat, maxlat, minlon, maxlon)     
   
-    def print_bounds(self, minlat: float, maxlat: float, minlon: float, maxlon: float):
-        if self.pluginIsActive:
-            self.dockwidget.set_grass_cpr(minlat, maxlat, minlon, maxlon)
+    # def print_bounds(self, minlat: float, maxlat: float, minlon: float, maxlon: float):
+    #     if self.pluginIsActive:
+    #         self.dockwidget.set_grass_cpr(minlat, maxlat, minlon, maxlon)
         
     def set_image_index(self, lat: float, lon: float):
         #print(lat, lon)    
@@ -303,13 +307,29 @@ class GroundTruther:
         self.grass_cpr_tool = GCRTool(self.iface.mapCanvas())# QueryTool(self.iface.mapCanvas())
         self.grass_cpr_tool.setAction(grass_cpr_action)
         #
-        self.grass_cpr_tool.grass_computational_region.connect(self.print_bounds)
+        # self.grass_cpr_tool.grass_computational_region.connect(self.print_bounds)
+        self.grass_cpr_tool.grass_computational_region.connect(self.set_grass_cpr)
         
         self.toolbar.addAction(grass_cpr_action)
+        
+        # the code below will be useful when we have a method to select a saved region
+        # first we need to have a method to save a region
+        # then we need to have a list of saved regions and pass it into the combo box
+        #
+        # self.select_region = QComboBox()
+        # self.toolbar.addWidget(self.select_region)
+        # self.select_region.insertItems(1,["Region 1","Region 2","Region 3", "Region 4"])
+        # self.select_region.currentIndexChanged.connect(self.select_grass_region)
+        # self.select_region.setToolTip("select_grass_region")
+        
         self.iface.addPluginToMenu(
             self.menu,
             grass_cpr_action)
         self.actions.append(grass_cpr_action)
+        
+        
+    # def select_grass_region(self, index):
+    #     print(index)
         
     
     # def grquery(self):
