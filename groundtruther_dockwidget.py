@@ -49,7 +49,7 @@ from groundtruther.ioutils import parse_annotation
 
 from groundtruther.pygui.Ui_groundtruther_dockwidget_base import Ui_GroundTrutherDockWidgetBase  
 from groundtruther.pygui.hbc_browser_gui import HBCBrowserGui
-from groundtruther.pygui.image_metadata_gui import ImageMetadata
+from groundtruther.pygui.image_metadata_gui import ImageMetadata, ExtendedDateTimeEdit
 from groundtruther.pygui.app_settings_gui import AppSettings
 from groundtruther.pygui.kmlsave_gui import SaveKml
 from groundtruther.pygui.querybuilder_gui import QueryBuilder
@@ -284,115 +284,6 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         # create the widget for grass which goes into the splitter
         self.grassWidgetContents = GrassTools(self) #QtWidgets.QWidget()
         self.grassWidgetContents.setObjectName("grassDockWidgetContents")
-        # assign a vertical lyout to the grass widget
-        #self.grass_tool_layout = QtWidgets.QVBoxLayout(
-        #    self.grassWidgetContents)
-        #
-        #self.grass_tool_layout.setObjectName("grass_tool_layout")
-        # create text editor to add query results
-        
-        #self.gis_tool_report = QtWidgets.QTextEdit()
-        #self.gis_tool_report.setObjectName("gis_tool_report")
-        
-        
-        # self.grass_mdi = GrassMdi()
-        # layout1 = QHBoxLayout()
-        # #layout2 = QVBoxLayout()
-        # #layout2.addWidget(self.gis_tool_report)
-        # layout1.addWidget(self.grass_mdi)
-        # #layout1.addLayout( layout2 )
-        # self.grass_widget = QWidget()
-        # self.grass_widget.setLayout(layout1)
-        
-        # #self.grassWidgetContents.setCentralWidget(self.gis_tool_report)
-        # self.grassWidgetContents.setCentralWidget(self.grass_widget)
-
-        # self.moduleToolBar = self.grassWidgetContents.addToolBar("GrassModules")
-        # self.moduleToolBar.toggleViewAction().setEnabled(False)
-        
-        # self.mdi_view = QtWidgets.QComboBox()
-        # self.moduleToolBar.addWidget(self.mdi_view)
-        # self.mdi_view.insertItems(1,["Tiled","Cascade","Minimize", "Close"])
-        # self.mdi_view.currentIndexChanged.connect(self.set_mdi_view)
-
-
-
-        # self.r_gemorphon = GeoMorphonWidget(self)    
-        # self.r_gemorphon_window = QMdiSubWindow()
-        # self.r_gemorphon_window.setWindowTitle("r.geomorphon")
-        # self.r_gemorphon_window.setWidget(self.r_gemorphon)
-        # self.grass_mdi.grassTools.addSubWindow(self.r_gemorphon_window)
-        # self.r_gemorphon_window.setWindowFlags(Qt.WindowMinimizeButtonHint|Qt.WindowMaximizeButtonHint)
-        # self.r_gemorphon_window.hide()
-        # self.r_gemorphon.exit.clicked.connect(self.view_r_gemorphon)
-        # gemorphon_icon_path = ':/icons/qtui/icons/element-cell.gif'
-        # gemorphon_icon = QIcon(gemorphon_icon_path)
-        # gemorphon_action = QAction(gemorphon_icon, self.tr(u'r.gemorphon'), self.grassWidgetContents)
-        # #
-        # gemorphon_action.triggered.connect(self.view_r_gemorphon)
-        # gemorphon_action.setEnabled(True)
-        # gemorphon_action.setCheckable(True)
-        # #
-        # self.moduleToolBar.addAction(gemorphon_action)
-        
-        
-        
-        # self.r_paramscale = ParamScaleWidget(self)    
-        # self.r_paramscale_window = QMdiSubWindow()
-        # self.r_paramscale_window.setWindowTitle("r.param.scale")
-        # self.r_paramscale_window.setWidget(self.r_paramscale)
-        # self.grass_mdi.grassTools.addSubWindow(self.r_paramscale_window)
-        # self.r_paramscale_window.setWindowFlags(Qt.WindowMinimizeButtonHint|Qt.WindowMaximizeButtonHint)
-        # self.r_paramscale_window.hide()
-        # self.r_paramscale.exit.clicked.connect(self.view_r_paramscale)
-        # paramscale_icon_path = ':/icons/qtui/icons/element-cell.gif'
-        # paramscale_icon = QIcon(paramscale_icon_path)
-        # paramscale_action = QAction(paramscale_icon, self.tr(u'r.param.scale'), self.grassWidgetContents)
-        # #
-        # paramscale_action.triggered.connect(self.view_r_paramscale)
-        # paramscale_action.setEnabled(True)
-        # paramscale_action.setCheckable(True)
-        
-        
-        
-        # self.r_grm_lsi = GrmLsiWidget(self)    
-        # self.r_grm_lsi_window = QMdiSubWindow()
-        # self.r_grm_lsi_window.setWindowTitle("r.grm.lsi")
-        # self.r_grm_lsi_window.setWidget(self.r_grm_lsi)
-        # self.grass_mdi.grassTools.addSubWindow(self.r_grm_lsi_window)
-        # #self.r_grm_lsi_window.setWindowTitle("r.grm.lsi")
-        # self.r_grm_lsi_window.setWindowFlags(Qt.WindowMinimizeButtonHint|Qt.WindowMaximizeButtonHint)
-        # self.r_grm_lsi_window.hide()
-        # self.r_grm_lsi.exit.clicked.connect(self.view_r_grm_lsi)
-        # grm_lsi_icon_path = ':/icons/qtui/icons/element-cell.gif'
-        # grm_lsi_icon = QIcon(grm_lsi_icon_path)
-        # grm_lsi_action = QAction(grm_lsi_icon, self.tr(u'r.grm.lsi'), self.grassWidgetContents)
-        # #
-        # grm_lsi_action.triggered.connect(self.view_r_grm_lsi)
-        # grm_lsi_action.setEnabled(True)
-        # grm_lsi_action.setCheckable(True)
-
-        # #
-        # self.moduleToolBar.addAction(gemorphon_action)
-        # self.moduleToolBar.addAction(paramscale_action)
-        # self.moduleToolBar.addAction(grm_lsi_action)
-        
-        # # Using a QToolBar object
-        # # editToolBar = QToolBar("Edit", self.grassWidgetContents)
-        # # self.grassWidgetContents.addToolBar(editToolBar)
-        # # Using a QToolBar object and a toolbar area
-        # # helpToolBar = QToolBar("Help", self.grassWidgetContents)
-        # # self.grassWidgetContents.addToolBar(Qt.LeftToolBarArea, helpToolBar)
-        
-        # #
-        # # self.geomorphon_dialog = GeoMorphonDialog(self)
-        # self.grass_mdi.zoom_in.clicked.connect(self.onZoomInClicked)
-        # self.grass_mdi.zoom_out.clicked.connect(self.onZoomOutClicked)
-        # self.grass_mdi.copy.clicked.connect(self.grass_mdi.gis_tool_report.copy)
-        # self.grass_mdi.selectAll.clicked.connect(self.grass_mdi.gis_tool_report.selectAll)
-        
-        # self.grass_mdi.clear.clicked.connect(self.onClearClicked)
-        
         self.w.gisToolSplitter.insertWidget(0, self.grassWidgetContents)
 
     def onZoomInClicked(self):
@@ -445,13 +336,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                     i.hide()
                     #i.close()
             
-    # def show_module(self):
-    #     print('show module')
 
-    # def show_geomorphon(self):
-    #     """docstring"""
-    #     self.geomorphon_dialog.get_rvr_list()
-    #     self.geomorphon_dialog.exec_()
 
     def set_settings(self):
         """docstring"""
@@ -527,15 +412,19 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
     
     def set_grass_cpr(self, minlat, maxlat, minlon, maxlon):
         print('set_grass_cpr: ', minlat, maxlat, minlon, maxlon)
-        print(self.set_grass_region(float(minlat), float(maxlat), float(minlon), float(maxlon)).json())
+        # print(self.set_grass_region(float(minlat), float(maxlat), float(minlon), float(maxlon)).json())
         self.region_response = self.set_grass_region(float(minlat), float(maxlat), float(minlon), float(maxlon)).json()['data']['region']
         print(self.region_response)
         if self.r:
             self.canvas.scene().removeItem(self.r)
         self.r = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)  # polygon
+        #self.r = QgsRubberBand(self.canvas)  # polyline
         points = [[QgsPointXY(maxlon, maxlat), QgsPointXY(minlon, maxlat), QgsPointXY(minlon, minlat), QgsPointXY(maxlon, minlat)]]
         self.r.setToGeometry(QgsGeometry.fromPolygonXY(points), None)
+        #self.r.setToGeometry(QgsGeometry.fromPolyline(points), None)
         self.r.setWidth(3)
+        self.r.setColor(QColor(255, 0, 0))
+        self.r.setFillColor(QColor(0, 0, 0, 0))
         
     
     def get_query_message(self, stringa):
@@ -812,7 +701,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self.canvas.setExtent(rect)
         self.canvas.refresh()
         
-        
+        # REMOVE VERTEX MARKER
         # self.w.gisToolSplitter.widget(1).canvas.scene().removeItem(self.m1)
         # self.m1 = qgis_gui.QgsVertexMarker(
         #     self.w.gisToolSplitter.widget(1).canvas)
@@ -913,6 +802,12 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             print("no annotation found")
             self.clear_image_annotation()
 
+    def count_string_occurrences(self, string_list):
+        count_dict = {}
+        for string in string_list:
+            count_dict[string] = count_dict.get(string, 0) + 1
+        return count_dict
+
     def add_image(self):
         
         """docstring"""
@@ -950,9 +845,75 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                 #     self.imageMetadata["Imagename"]
                 #     == self.imagelist[self.imageindex][:-4]
                 # ]
-
+                # TODO: check if the record is empty
+                # TODO: ideally we need to dynamically generate the widgets to host metadata
+                # maybe no worth to display all of them - add some fields ina white/black list
                 record = self.imageMetadata.iloc[self.imageindex]
+                print(" #################### " )
+                print("record:", record)
+                print(" #################### " )
+                
+                self.imagemetadata_gui.metadata_scroll_area.setEnabled(True)
+            
                 if len(record) != 0:
+                    main_layout = QVBoxLayout()
+                    time_layout = QHBoxLayout()
+                    time_label = QLabel("Time")
+                    data_time = ExtendedDateTimeEdit()
+                    data_time.setDateTime(record.name)
+                    data_time.setMaximumSize(QSize(250, 16777215))
+                    data_time.setMinimumWidth(160)
+                    data_time.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
+                    data_time.setReadOnly(True)
+                    data_time.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
+                    time_layout.addWidget(time_label)
+                    spacer = QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+                    time_layout.addItem(spacer)
+                    time_layout.addWidget(data_time)
+                    main_layout.addLayout(time_layout)
+                    for i in self.imageMetadata.columns:
+                        print(i, record[i], type(record[i]))
+                        item_layout = QHBoxLayout()
+                        label = QLabel(i)
+                        if i == "Imagename":
+                            line_edit = QLabel()
+                            line_edit.setText(
+                                '<a href="file://%s">%s</a>'
+                                % (
+                                    os.path.join(
+                                        self.dirname, self.imageMetadata["Imagename"].iloc[self.imageindex]+".jpg"),
+                                    str(record["Imagename"]),
+                                )
+                            )
+                            line_edit.setOpenExternalLinks(True)
+                        else:
+                            if i == "Annotation" and isinstance(record[i], dict):
+                                occurrences = self.count_string_occurrences(record[i]["Species"])
+                                line_edit = QTextEdit()
+                                line_edit.setReadOnly(True)
+                                line_edit.setPlainText("\n".join([f"{string}: {count}" for string, count in occurrences.items()]))
+                            else:
+                                line_edit = QLineEdit(str(record[i]))
+                                line_edit.setReadOnly(True)
+                        line_edit.setMaximumSize(QSize(250, 16777215))
+                        
+                        line_edit.setMinimumWidth(160)
+                        line_edit.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
+                        item_layout.addWidget(label)
+                        spacer = QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
+                        item_layout.addItem(spacer)
+                        item_layout.addWidget(line_edit)
+                        main_layout.addLayout(item_layout)
+                        
+                        
+                        
+                    print(record.name, type(record.name))
+                
+                    self.imagemetadata_gui.metadata_scroll_area.setWidgetResizable(True)
+                    scroll_widget = QWidget()
+                    scroll_widget.setLayout(main_layout)
+                    self.imagemetadata_gui.metadata_scroll_area.setWidget(scroll_widget)
+                    
                     self.w.longitude.setText(
                         str(round(record["habcam_lon"], 8))
                     )
@@ -960,53 +921,53 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                         str(round(record["habcam_lat"], 8))
                     )
 
-                    # METADATA
-                    self.imagemetadata_gui.imageeast.setText(
-                        str(round(record["Xutm_adj"], 2))
-                    )
-                    self.imagemetadata_gui.imagenorth.setText(
-                        str(round(record["Yutm_adj"], 2))
-                    )
-                    self.imagemetadata_gui.hbcdepth.setText(
-                        str(record["V_Depth"])
-                    )
-                    self.imagemetadata_gui.waterdepth.setText(
-                        str(record["Water_Depth"])
-                    )
-                    self.imagemetadata_gui.altimeter.setText(
-                        str(record["Altimeter"])
-                    )
-                    self.imagemetadata_gui.salinity.setText(
-                        str(record["Salinity"])
-                    )
-                    self.imagemetadata_gui.temperature.setText(
-                        str(record["Temp"])
-                    )
-                    self.imagemetadata_gui.O2.setText(
-                        str(record["O2"]))
-                    self.imagemetadata_gui.CDOM.setText(
-                        str(record["Cdom"])
-                    )
-                    self.imagemetadata_gui.chlorophyll.setText(
-                        str(record["Chlorophyll"])
-                    )
-                    self.imagemetadata_gui.turbidity.setText(
-                        str(record["Turb"])
-                    )
-                    # test QtDateTime
+                    # # Hardcoded for Habcam METADATA
+                    # self.imagemetadata_gui.imageeast.setText(
+                    #     str(round(record["Xutm_adj"], 2))
+                    # )
+                    # self.imagemetadata_gui.imagenorth.setText(
+                    #     str(round(record["Yutm_adj"], 2))
+                    # )
+                    # self.imagemetadata_gui.hbcdepth.setText(
+                    #     str(record["V_Depth"])
+                    # )
+                    # self.imagemetadata_gui.waterdepth.setText(
+                    #     str(record["Water_Depth"])
+                    # )
+                    # self.imagemetadata_gui.altimeter.setText(
+                    #     str(record["Altimeter"])
+                    # )
+                    # self.imagemetadata_gui.salinity.setText(
+                    #     str(record["Salinity"])
+                    # )
+                    # self.imagemetadata_gui.temperature.setText(
+                    #     str(record["Temp"])
+                    # )
+                    # self.imagemetadata_gui.O2.setText(
+                    #     str(record["O2"]))
+                    # self.imagemetadata_gui.CDOM.setText(
+                    #     str(record["Cdom"])
+                    # )
+                    # self.imagemetadata_gui.chlorophyll.setText(
+                    #     str(record["Chlorophyll"])
+                    # )
+                    # self.imagemetadata_gui.turbidity.setText(
+                    #     str(record["Turb"])
+                    # )
+                    # # test QtDateTime
 
-                    self.imagemetadata_gui.dateTimeEdit.setDateTime(
-                        record.name)
-                    self.imagemetadata_gui.linklabel.setText(
-                        '<a href="file://%s">%s</a>'
-                        % (
-                            os.path.join(
-                                self.dirname, self.imageMetadata["Imagename"].iloc[self.imageindex]+".jpg"),
-                            str(record["Imagename"]),
-                        )
-                    )
-                    self.imagemetadata_gui.linklabel.setOpenExternalLinks(
-                        True)
+                    # self.imagemetadata_gui.dateTimeEdit.setDateTime(
+                    #     record.name)
+                    # self.imagemetadata_gui.linklabel.setText(
+                    #     '<a href="file://%s">%s</a>'
+                    #     % (
+                    #         os.path.join(
+                    #             self.dirname, self.imageMetadata["Imagename"].iloc[self.imageindex]+".jpg"),
+                    #         str(record["Imagename"]),
+                    #     )
+                    # )
+                    # self.imagemetadata_gui.linklabel.setOpenExternalLinks(
+                    #     True)
 
                     self.w.statusbar.showMessage(
                         "Image : %s" % self.imageindex)
@@ -1190,5 +1151,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
     def closeEvent(self, event):
         if self.r is not None:
             self.canvas.scene().removeItem(self.r)
+        if self.m1 is not None:
+            self.canvas.scene().removeItem(self.m1)
         self.closingPlugin.emit()
         event.accept()
