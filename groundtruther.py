@@ -398,3 +398,10 @@ class GroundTruther:
             # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.RightDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
+            if self.dockwidget != None:
+                if self.dockwidget.m1 != None:
+                    print(self.dockwidget.m1)
+                    self.iface.mapCanvas().scene().addItem(self.dockwidget.m1)
+                if self.dockwidget.r != None:
+                    print(self.dockwidget.r)
+                    self.iface.mapCanvas().scene().addItem(self.dockwidget.r)
