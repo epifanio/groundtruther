@@ -24,11 +24,11 @@ class SolveDependencies():
     except:
         print('pyqtgraph is not installed')
         pip.main(['install', 'pyqtgraph'])
-    try:
-        import pyopengl
-    except:
-        print('pyopengl is not installed')
-        pip.main(['install', 'pyopengl'])
+    # try:
+    #     import pyopengl
+    # except:
+    #     print('pyopengl is not installed')
+    #     pip.main(['install', 'pyopengl'])
     try:
         import pydantic
     except:
@@ -64,3 +64,8 @@ class SolveDependencies():
     except:
         print('simplekml is not installed')
         pip.main(['install', 'simplekml'])
+    try:
+        import geojson
+    except:
+        print('geojson is not installed')
+        pip.main(['install', 'geojson'])
