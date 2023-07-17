@@ -135,11 +135,11 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         #self.config = os.environ.get('HBC_CONFIG')
         self.config = os.path.join(os.path.dirname(__file__), 'config/config.yaml')
         self.dialog = ConfigDialog()
-        self.grass_dialog = GrassConfigDialog()
         self.settings = get_settings(self.config)
         if not self.settings:
             self.show_dialog()
             self.settings = get_settings(self.config)
+        self.grass_dialog = GrassConfigDialog()
         self.imagelist = []
         self.imageindex = 1
         self.rangevalue = self.w.range.value()

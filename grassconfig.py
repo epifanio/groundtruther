@@ -10,8 +10,10 @@ import json
 
 from search_epsg import SearchEpsgDialog
 
-from configure import get_settings
+# from configure import get_settings
 from groundtruther.config.config import config
+
+from groundtruther.configure import get_settings
 
 class GrassConfigDialog(QDialog, GrassSettings):
     """docstring"""
@@ -22,9 +24,13 @@ class GrassConfigDialog(QDialog, GrassSettings):
         self.setupUi(self)
         # access to the settings
         self.config = config # os.environ.get('HBC_CONFIG')
-        self.settings = get_settings(self.config)
+        if not self.settings:
+            self.show_dialog()
+            self.settings = get_settings(self.config)
         #
         # set the grass api from config
+        # print("self.settings['Processing']['grass_api_endpoint']: ", self.settings["Processing"]["grass_api_endpoint"])
+        # print(self.grass_api_endpoint)
         self.grass_api_endpoint.setText(self.settings["Processing"]["grass_api_endpoint"])
         #
         self.searchepsg_dialog = SearchEpsgDialog()
