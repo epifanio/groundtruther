@@ -57,7 +57,7 @@ class ConfigDialog(QDialog, AppSettings):
             )
             self.mbes_path.setText(self.settings_value["Mbes"]["soundings"])
             self.kml_path.setText(self.settings_value["Export"]["kmldir"])
-            self.vrt_path.setText(self.settings_value["Export"]["vrtdir"])            
+            # self.vrt_path.setText(self.settings_value["Export"]["vrtdir"])            
             if self.settings_value["Processing"]["gpu_avaibility"]:
                 self.gpu_avaibility.setCurrentText('Enabled')
             else:
@@ -75,7 +75,8 @@ class ConfigDialog(QDialog, AppSettings):
                     "imageannotation": self.imageannotation_path,
                 },
                 "Mbes": {"soundings": self.mbes_path},
-                "Export": {"kmldir": self.kml_path, "vrtdir": self.vrt_path},
+                # "Export": {"kmldir": self.kml_path, "vrtdir": self.vrt_path},
+                "Export": {"kmldir": self.kml_path},
                 "Processing": {"gpu_avaibility": False, "grass_api_endpoint": "http://localhost/docs"},
             }
 
@@ -87,7 +88,7 @@ class ConfigDialog(QDialog, AppSettings):
                 self.settings["HabCam"]["imagemetadata"])
             self.mbes_path.setText(self.settings["Mbes"]["soundings"])
             self.kml_path.setText(self.settings["Export"]["kmldir"])
-            self.vrt_path.setText(self.settings["Export"]["vrtdir"])
+            # self.vrt_path.setText(self.settings["Export"]["vrtdir"])
             if self.settings["Processing"]["gpu_avaibility"]:
                 self.gpu_avaibility.setCurrentText('Enabled')
             else:
@@ -158,7 +159,7 @@ class ConfigDialog(QDialog, AppSettings):
                 },
                 Export={
                     "kmldir": self.settings["Export"]["kmldir"],
-                    "vrtdir": self.settings["Export"]["vrtdir"],
+                    # "vrtdir": self.settings["Export"]["vrtdir"],
                 },
                 # Mapviewer={"basemap": self.settings["Mapviewer"]["basemap"]},
                 Filesystem={
@@ -196,7 +197,7 @@ class ConfigDialog(QDialog, AppSettings):
                     "imageannotation": self.imageannotation_path.text(),
                     "soundings": self.mbes_path.text(),
                     "kmldir": self.kml_path.text(),
-                    "vrtdir": self.vrt_path.text(),
+                    # "vrtdir": self.vrt_path.text(),
                     "gpu_avaibility": self.gpu_avaibility_value,
                     "grass_api_endpoint": self.grass_api_endpoint.text(),
                 }
@@ -288,7 +289,8 @@ class ConfigDialog(QDialog, AppSettings):
                 "imagemetadata": self.metadata_path.text(),
                 "imageannotation": self.imageannotation_path.text(),
             },
-            "Export": {"kmldir": self.kml_path.text(), "vrtdir": self.vrt_path.text()},
+            "Export": {"kmldir": self.kml_path.text()},
+            # "Export": {"kmldir": self.kml_path.text(), "vrtdir": self.vrt_path.text()},
             "Processing": {"gpu_avaibility": self.gpu_avaibility_value,
                            "grass_api_endpoint": self.grass_api_endpoint.text()},
             "Filesystem": {"filemanager": self.filemanager.text()},
@@ -315,7 +317,7 @@ def validate_config2(settings, get_bad_keys=False):
             },
             Export={
                 "kmldir": settings["Export"]["kmldir"],
-                "vrtdir": settings["Export"]["vrtdir"],
+                # "vrtdir": settings["Export"]["vrtdir"],
             },
             Processing={
                 "gpu_avaibility": settings["Processing"]["gpu_avaibility"],
