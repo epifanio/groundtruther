@@ -1,3 +1,7 @@
-## GroundTruther
+## GroundTruther: A QGIS plug-in for seafloor characterization
 
-a software system for concurrently analyzing co-located multibeam echosounder (MBES) datasets (bathymetry and backscatter) and co-registered seafloor imagery.
+
+
+This work focuses on developing a software system for concurrently analyzing co-located multibeam echo sounder (MBES) datasets and seafloor imagery, fulfilling the need for a unified seafloor data exploration and analysis platform. The system comprises a graphical user interface where image browsing and geospatial data are linked and several toolboxes for extracting backscatter distribution, its angular response, and bathymetric derivatives to ultimately build detailed quantitative reports. The overall objective is to provide an efficient means of understanding the relationships between morphology, backscatter, and the observed biota and, thus, understanding the relationship between the physical and ecological elements of the seafloor. In addition, Groundtruther provides new ways to interpret remotely sensed information derived from MBES and aid the development of spatial distribution models. Furthermore, it could lead to the enrichment of ground-truth databases used to develop formal geophysical models that link acoustic backscatter observations to intrinsic properties of the seafloor.
+
+This plugin has been tested on Linux and available at https://plugins.qgis.org/plugins/groundtruther/ - An experimental version that aims at being compatible with Windows is available at:  https://qgis.geohab.org/#GroundTruther - A sample dataset was also produced to test the application and has been made available under a ccby4 open license - https://zenodo.org/records/7995674/ 
