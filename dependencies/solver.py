@@ -20,6 +20,10 @@ class SolveDependencies():
         except:
             self.install_package('pyopengl')
         try:
+            import geojson
+        except:
+            self.install_package('geojson')
+        try:
             import pydantic
         except:
             self.install_package('pydantic')
