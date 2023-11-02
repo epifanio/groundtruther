@@ -43,6 +43,7 @@ import pyqtgraph as pg
 from skimage.io import imread
 import numpy as np
 from scipy import spatial
+import pyarrow
 
 from groundtruther.configure import get_settings, ConfigDialog, error_message
 from groundtruther.ioutils import parse_annotation
