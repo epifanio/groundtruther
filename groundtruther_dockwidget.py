@@ -140,7 +140,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         if not self.settings:
             self.show_dialog()
             self.settings = get_settings(self.config)
-        self.grass_dialog = GrassConfigDialog()
+        self.grass_dialog = GrassConfigDialog(self)
         self.imagelist = []
         self.imageindex = 1
         self.rangevalue = self.w.range.value()
@@ -228,7 +228,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         #
         self.imagemetadata_gui = ImageMetadata()
         self.w.tools.insertTab(0, self.imagemetadata_gui, "Image Metadata")
-        self.savekml = SaveKml()
+        self.savekml = SaveKml(self)
         # emit image path to savekml widget
         self.send_image_path.connect(self.savekml.from_main_imagepath_signal)
         # self.send_image_path.connect(self.savekml.from_main_imagepath_signal)
@@ -853,9 +853,9 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                 # TODO: ideally we need to dynamically generate the widgets to host metadata
                 # maybe no worth to display all of them - add some fields ina white/black list
                 record = self.imageMetadata.iloc[self.imageindex]
-                print(" #################### " )
-                print("record:", record)
-                print(" #################### " )
+                #print(" #################### " )
+                #print("record:", record)
+                #print(" #################### " )
                 
                 self.imagemetadata_gui.metadata_scroll_area.setEnabled(True)
             
@@ -876,7 +876,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                     time_layout.addWidget(data_time)
                     main_layout.addLayout(time_layout)
                     for i in self.imageMetadata.columns:
-                        print(i, record[i], type(record[i]))
+                        # print(i, record[i], type(record[i]))
                         item_layout = QHBoxLayout()
                         label = QLabel(i)
                         if i == "Imagename":
@@ -985,7 +985,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                         len(record),
                         "for image index: ",
                         self.imageindex,
-                        self.imageMetadata["Imagename"].iloc[self.imageindex],
+                        # self.imageMetadata["Imagename"].iloc[self.imageindex],
                     )
                     #
                 # except:

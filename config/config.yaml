@@ -1,15 +1,14 @@
 ---
 Filesystem:
-    filemanager: /usr/bin/nautilus
+    filemanager: C:/Users/Field/Downloads/groundtruther_test_dataset/groundtruther_test_dataset/mbes_2015.parquet
 HabCam:
-    imagepath: /home/epinux/dev/PHD/letsmoveon/HBC-browser_desktop/data/imgs_jpg
-    imagemetadata: /home/epinux/dev/PHD/letsmoveon/HBC-browser_desktop/data/imagemetadata.pq
-    imageannotation: /home/epinux/Desktop/test_datasets/groundtruther_test_dataset/ccom_detector.csv
+    imagepath: C:/Users/Field/Downloads/groundtruther_test_dataset/groundtruther_test_dataset/image_subset
+    imagemetadata: C:/Users/Field/Downloads/groundtruther_test_dataset/groundtruther_test_dataset/test_imagemetadata.pq
+    imageannotation: C:/Users/Field/Downloads/groundtruther_test_dataset/groundtruther_test_dataset/test_detector_output.csv
 Mbes:
-    soundings: /home/epinux/Desktop/test_datasets/groundtruther_test_dataset/mbes_2015.parquet
+    soundings: C:/Users/Field/Downloads/groundtruther_test_dataset/groundtruther_test_dataset/mbes_2015.parquet
 Export:
-    kmldir: /home/epinux/Downloads
-    vrtdir: /home/epinux/Downloads
+    kmldir: C:/Users/Field/Desktop/kml
 Processing:
     gpu_avaibility: False
-    grass_api_endpoint: https://grassapi.wps.met.no
+    grass_api_endpoint: https://mbapi.wps.met.no

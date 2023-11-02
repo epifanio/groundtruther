@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 import sys
 import os
+# import tempfile
+import pathlib
 
 # getting the name of the directory
 # where the this file is present.
@@ -548,10 +550,15 @@ class QueryBuilder(QWidget, Ui_Form):
         # Create a GeoJSON Feature Collection
         feature_collection = geojson.FeatureCollection([feature])
         # Write the GeoJSON to a file
-        with open("/tmp/sampling_ellipse.geojson", "w") as geojson_file:
+        
+        geojson_file_path = str(pathlib.Path(self.settings["Export"]["kmldir"]) / 'sampling_ellipse.geojson')
+        
+        # geojson_file_path = pathlib.Path(__file__).parent / 'tmp' / 'sampling_ellipse.geojson'
+        print(geojson_file_path)
+        with open(f"{geojson_file_path}", "w") as geojson_file:
             geojson.dump(feature, geojson_file)
 
-        geojson_file = "/tmp/sampling_ellipse.geojson"
+        # geojson_file = f"{os.path.dirname(os.path.realpath(__file__))}/sampling_ellipse.geojson"
         
         # Create an in-memory OGR datasource
         # driver = ogr.GetDriverByName('Memory')
@@ -570,7 +577,7 @@ class QueryBuilder(QWidget, Ui_Form):
             self.parent.project.instance().removeMapLayer(layer_to_remove)
         except IndexError:
             print('no layer to remove')
-        vlayer = QgsVectorLayer(geojson_file, 'GT sampling shape', 'ogr')
+        vlayer = QgsVectorLayer(geojson_file_path, 'GT sampling shape', 'ogr')
         self.parent.project.instance().addMapLayer(vlayer)
 
     def get_shape_geom(self):
@@ -583,7 +590,7 @@ class QueryBuilder(QWidget, Ui_Form):
                 out_proj=4326,
             )  # 32619
             print("+++++++++++++++++++++++++++++++++")
-            print("ELLIPSE: ", geom)
+            # print("ELLIPSE: ", geom)
             print(type(geom))
             print("+++++++++++++++++++++++++++++++++")
         if self.shape == "Rectangle":
@@ -599,7 +606,7 @@ class QueryBuilder(QWidget, Ui_Form):
             print("+++++++++++++++++++++++++++++++++")
             # print("RECTANGLE tuple: ", geom_tuple)
             # print("\n")
-            print("RECTANGLE: ", geom)
+            # print("RECTANGLE: ", geom)
             print(type(geom))
             print("+++++++++++++++++++++++++++++++++")
         geom_array = np.array(geom)
@@ -639,9 +646,9 @@ class QueryBuilder(QWidget, Ui_Form):
             image_selection_index = get_spatial_selection_cpu(
                 image_points, polygon)
             self.image_selection_pd = self.image_df[image_selection_index]
-        print(self.image_selection_pd.describe())
+        # print(self.image_selection_pd.describe())
         # self.point_selection = self.point_df[point_selection_index]
-        print("length of image_selection ", len(self.image_selection_pd))
+        # print("length of image_selection ", len(self.image_selection_pd))
         self.add_image_link()
         # self.point_selection_pd = self.point_selection.to_pandas()
 
@@ -721,9 +728,9 @@ class QueryBuilder(QWidget, Ui_Form):
             (x.max() - x.min()) * resampling_factor))
         yy = np.linspace(y.min(), y.max(), int(
             (y.max() - y.min()) * resampling_factor))
-        print(
-            f"x spacing: {int((x.max() - x.min()) * resampling_factor)}, \n y spacing: {int((y.max() - y.min()) * resampling_factor)}"
-        )
+        #print(
+        #    f"x spacing: {int((x.max() - x.min()) * resampling_factor)}, \n y spacing: {int((y.max() - y.min()) * resampling_factor)}"
+        #)
         X, Y = np.meshgrid(xx, yy)
         Z = sp.interpolate.griddata(
             (x, y), z, (X, Y), method="nearest", rescale=True, fill_value=0
@@ -735,7 +742,7 @@ class QueryBuilder(QWidget, Ui_Form):
         self.glw.addItem(self.p)
         # print(self.glw.cameraPosition())
         # self.glw.opts["center"] += QVector3D(xx[0], yy[0], Z[0][0])
-        print(self.glw.cameraPosition())
+        # print(self.glw.cameraPosition())
         self.g = gl.GLGridItem()
         self.glw.addItem(self.g)
 
@@ -808,7 +815,7 @@ class QueryBuilder(QWidget, Ui_Form):
         self.screen = QApplication.primaryScreen()
         self.screenshot = self.screen.grabWindow(self.tabWidget.winId())
         # self.screenshot.save("shot.jpg", "jpg")
-        print(self.tabWidget.currentIndex())
+        # print(self.tabWidget.currentIndex())
         # self.screenshot_save()
         # TODO: check which tab is in use (self.tabWidget.currentindex() )
         # and use some logic to save the 2d or 3d plot

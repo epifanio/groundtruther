@@ -22,11 +22,14 @@ class GrassConfigDialog(QDialog, GrassSettings):
         super().__init__()
         QDialog.__init__(self, parent)
         self.setupUi(self)
+        self.parent = parent
         # access to the settings
         self.config = config # os.environ.get('HBC_CONFIG')
-        if not self.settings:
+        if not self.parent.settings:
             self.show_dialog()
             self.settings = get_settings(self.config)
+        else:
+            self.settings = self.parent.settings
         #
         # set the grass api from config
         # print("self.settings['Processing']['grass_api_endpoint']: ", self.settings["Processing"]["grass_api_endpoint"])

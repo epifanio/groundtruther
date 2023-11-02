@@ -55,8 +55,15 @@ class SaveKml(QWidget, Ui_Form):
     def __init__(self, parent=None):
         super(SaveKml, self).__init__(parent)
         # print(" +++++++++++++ config: ", config)
+        self.parent = parent
         self.config = config # os.environ.get('HBC_CONFIG')
-        self.settings = get_settings(self.config)
+        if not self.parent.settings:
+            self.show_dialog()
+            self.settings = get_settings(self.config)
+        else:
+            self.settings = self.parent.settings
+        
+        # self.settings = get_settings(self.config)
         self.setupUi(self)
         self.lon = 0
         self.lat = 0

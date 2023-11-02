@@ -36,7 +36,7 @@ class ConfigDialog(QDialog, AppSettings):
         self.select_imageannotation_path.clicked.connect(
             self.set_imageannotation_path)
         self.select_mbes_path.clicked.connect(self.set_mbes_path)
-        self.select_vrt_path.clicked.connect(self.set_vrt_path)
+        #self.select_vrt_path.clicked.connect(self.set_vrt_path)
         self.select_kml_path.clicked.connect(self.set_kml_path)
 
         self.gpu_avaibility.currentIndexChanged.connect(
@@ -57,7 +57,7 @@ class ConfigDialog(QDialog, AppSettings):
             )
             self.mbes_path.setText(self.settings_value["Mbes"]["soundings"])
             self.kml_path.setText(self.settings_value["Export"]["kmldir"])
-            # self.vrt_path.setText(self.settings_value["Export"]["vrtdir"])            
+            
             if self.settings_value["Processing"]["gpu_avaibility"]:
                 self.gpu_avaibility.setCurrentText('Enabled')
             else:
@@ -75,7 +75,6 @@ class ConfigDialog(QDialog, AppSettings):
                     "imageannotation": self.imageannotation_path,
                 },
                 "Mbes": {"soundings": self.mbes_path},
-                # "Export": {"kmldir": self.kml_path, "vrtdir": self.vrt_path},
                 "Export": {"kmldir": self.kml_path},
                 "Processing": {"gpu_avaibility": False, "grass_api_endpoint": "http://localhost/docs"},
             }
@@ -88,7 +87,6 @@ class ConfigDialog(QDialog, AppSettings):
                 self.settings["HabCam"]["imagemetadata"])
             self.mbes_path.setText(self.settings["Mbes"]["soundings"])
             self.kml_path.setText(self.settings["Export"]["kmldir"])
-            # self.vrt_path.setText(self.settings["Export"]["vrtdir"])
             if self.settings["Processing"]["gpu_avaibility"]:
                 self.gpu_avaibility.setCurrentText('Enabled')
             else:
@@ -159,7 +157,6 @@ class ConfigDialog(QDialog, AppSettings):
                 },
                 Export={
                     "kmldir": self.settings["Export"]["kmldir"],
-                    # "vrtdir": self.settings["Export"]["vrtdir"],
                 },
                 # Mapviewer={"basemap": self.settings["Mapviewer"]["basemap"]},
                 Filesystem={
@@ -174,7 +171,7 @@ class ConfigDialog(QDialog, AppSettings):
             bad_keys = []
             # error_msg = "The following Parameters have invalid values: \n"
             for i in msg.errors():
-                # print(i)
+                print(i)
                 # error_msg = error_msg+f"""{i['loc'][0]} : {i['loc'][1]} \n"""
                 bad_keys.append({i["loc"][0]: i["loc"][1]})
             # error_message(error_msg)
@@ -197,7 +194,6 @@ class ConfigDialog(QDialog, AppSettings):
                     "imageannotation": self.imageannotation_path.text(),
                     "soundings": self.mbes_path.text(),
                     "kmldir": self.kml_path.text(),
-                    # "vrtdir": self.vrt_path.text(),
                     "gpu_avaibility": self.gpu_avaibility_value,
                     "grass_api_endpoint": self.grass_api_endpoint.text(),
                 }
@@ -290,11 +286,11 @@ class ConfigDialog(QDialog, AppSettings):
                 "imageannotation": self.imageannotation_path.text(),
             },
             "Export": {"kmldir": self.kml_path.text()},
-            # "Export": {"kmldir": self.kml_path.text(), "vrtdir": self.vrt_path.text()},
             "Processing": {"gpu_avaibility": self.gpu_avaibility_value,
                            "grass_api_endpoint": self.grass_api_endpoint.text()},
             "Filesystem": {"filemanager": self.filemanager.text()},
         }
+        print(gui_settings)
         return gui_settings
 
 
@@ -317,7 +313,6 @@ def validate_config2(settings, get_bad_keys=False):
             },
             Export={
                 "kmldir": settings["Export"]["kmldir"],
-                # "vrtdir": settings["Export"]["vrtdir"],
             },
             Processing={
                 "gpu_avaibility": settings["Processing"]["gpu_avaibility"],
@@ -340,6 +335,9 @@ def validate_config2(settings, get_bad_keys=False):
             return bad_keys
         else:
             return False
+    except KeyError as msg:
+        print(msg)
+        return False
 
 
 def get_settings2(config):
@@ -347,6 +345,7 @@ def get_settings2(config):
     try:
         with open(config, "r", encoding="utf8") as config_file:
             settings = yaml.safe_load(config_file)
+            print(settings)
             return settings
     except FileNotFoundError as notfound:
         return False
