@@ -1,0 +1,11 @@
+pandas
+pyqtgraph
+pyopengl
+geojson
+pydantic
+starlette
+skimage
+plotnine
+pyarrow
+numba
+simplekml
