@@ -9,7 +9,6 @@ Mbes:
     soundings: {{soundings}}
 Export:
     kmldir: {{kmldir}}
-    vrtdir: {{vrtdir}}
 Processing:
     gpu_avaibility: {{gpu_avaibility}}
     grass_api_endpoint: {{grass_api_endpoint}}

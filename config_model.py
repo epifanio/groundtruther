@@ -20,7 +20,6 @@ class Export(BaseModel):
     """docstring"""
 
     kmldir: DirectoryPath = None
-    # vrtdir: DirectoryPath = None
 
 
 class Processing(BaseModel):

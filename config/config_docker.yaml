@@ -9,7 +9,6 @@ Mbes:
     soundings: /home/jovyan/hbc_browser/data/mbes_2015.parquet
 Export:
     kmldir: /home/jovyan/hbc_browser/export/kml
-    vrtdir: /home/jovyan/hbc_browser/data
 Processing:
     GPU: False
     GRASS_API: http://localhost/docs
