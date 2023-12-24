@@ -34,14 +34,13 @@ A list of dependencies is included in the `[requirements.txt](../../dependencies
 
 * create a virtual environment and install the requirements:
 
-.. code-block:: bash
-  :linenos:
+.. code-block:: console
   
-  mamba create -n groundtruther python=3.10
-  conda activate groundtruther
-  mamba install -c conda-forge ocl-icd-system
-  mamba install -c conda-forge qgis 
-  mamba install -c conda-forge --file dependencies/requirements.txt 
+  $ mamba create -n groundtruther python=3.10
+  $ conda activate groundtruther
+  $ mamba install -c conda-forge ocl-icd-system
+  $ mamba install -c conda-forge qgis 
+  $ mamba install -c conda-forge --file dependencies/requirements.txt 
 
 
 
