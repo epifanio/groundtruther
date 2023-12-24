@@ -22,7 +22,23 @@ If interested in contributing, please contact: Massimo Di Stefano (epiesasha@.co
 Installation
 ------------
 
-A list of dependencies is included in the `requirements.txt <link URL>`_ - use this file to create a python virtual environment and make sure it is accessible by `QGIS`, then install the plugin via the `QGIS` plugin interface.
+A list of dependencies is included in the `[requirements.txt](../../dependencies/requirements.txt)`_ - use this file to create a python virtual environment and make sure it is accessible by `QGIS`, then install the plugin via the `QGIS` plugin interface.
+
+* Download a python distribution (e.g. Anaconda) and install it:
+
+```bash
+wget https://github.com/conda-forge/miniforge/releases/download/23.3.1-1/Mambaforge-23.3.1-1-Linux-x86_64.sh
+sh Mambaforge-23.3.1-1-Linux-x86_64.sh
+```
+* create a virtual environment and install the requirements:
+
+```bash
+mamba create -n groundtruther python=3.10
+conda activate groundtruther
+mamba install -c conda-forge ocl-icd-system
+mamba install -c conda-forge qgis 
+mamba install -c conda-forge --file dependencies/requirements.txt 
+```
 
 
 

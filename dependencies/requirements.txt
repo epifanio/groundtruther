@@ -4,7 +4,7 @@ pyopengl
 geojson
 pydantic
 starlette
-skimage
+scikit-image
 plotnine
 pyarrow
 numba
