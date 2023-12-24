@@ -27,14 +27,13 @@ A list of dependencies is included in the `[requirements.txt](../../dependencies
 * Download a python distribution (e.g. Anaconda) and install it:
 
 .. code-block:: bash
-  :linenos:
 
-  wget https://github.com/conda-forge/miniforge/releases/download/23.3.1-1/Mambaforge-23.3.1-1-Linux-x86_64.sh
-  sh Mambaforge-23.3.1-1-Linux-x86_64.sh
+  $ wget https://github.com/conda-forge/miniforge/releases/download/23.3.1-1/Mambaforge-23.3.1-1-Linux-x86_64.sh
+  $ sh Mambaforge-23.3.1-1-Linux-x86_64.sh
 
 * create a virtual environment and install the requirements:
 
-.. code-block:: console
+.. code-block:: bash
   
   $ mamba create -n groundtruther python=3.10
   $ conda activate groundtruther
