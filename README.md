@@ -28,3 +28,9 @@ mamba install -c conda-forge ocl-icd-system
 mamba install -c conda-forge qgis 
 mamba install -c conda-forge --file dependencies/requirements.txt 
 ```
+
+On Windows, Groundtruther has been tested in a conda environemt running with python 3.10 and QGIS v3.34 - an [example environment](https://gist.github.com/epifanio/ed8eeb681e23a7cb7a27ce0568a04e44) is available as reference
+
+```
+conda create --name groundtruther --file groundtruther.txt
+```
