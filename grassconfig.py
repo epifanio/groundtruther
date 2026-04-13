@@ -111,23 +111,26 @@ class GrassConfigDialog(QDialog, GrassSettings):
 
     def create_new_grass_mapset(self):
         endpoint = self.grass_api_endpoint.text()
-        headers = {
-            'accept': 'application/json',
-        }
-
+        headers = {'accept': 'application/json'}
         params = {
             'location_name': self.grass_location_list2.currentText(),
             'mapset_name': self.new_mapset.text(),
             'gisdb': self.grass_gisdb.text(),
             'overwrite_mapset': 'false',
         }
-
-        response = requests.get(
-            f'{endpoint}/api/create_mapset', params=params, headers=headers, timeout=30)
-        self.command_output.setText(json.dumps(
-            response.json(), sort_keys=True, indent=4))
-        self.set_status_color(response.json()['status'])
-        return response.json()
+        try:
+            response = requests.get(
+                f'{endpoint}/api/create_mapset', params=params, headers=headers, timeout=30)
+            payload = response.json()
+        except ConnectionError as exc:
+            payload = {'status': 'FAILED', 'data': str(exc)}
+        except requests.exceptions.Timeout:
+            payload = {'status': 'FAILED', 'data': 'Request timed out'}
+        except ValueError:
+            payload = {'status': 'FAILED', 'data': 'Invalid JSON response'}
+        self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
+        self.set_status_color(payload['status'])
+        return payload
 
     def get_location_list(self):
         """_summary_
@@ -186,10 +189,7 @@ class GrassConfigDialog(QDialog, GrassSettings):
 
     def create_location_epsg(self):
         endpoint = self.grass_api_endpoint.text()
-        headers = {
-            'accept': 'application/json',
-        }
-
+        headers = {'accept': 'application/json'}
         params = {
             'location_name': self.new_location_name.text(),
             'mapset_name': 'PERMANENT',
@@ -198,13 +198,19 @@ class GrassConfigDialog(QDialog, GrassSettings):
             'overwrite_location': 'false',
             'overwrite_mapset': 'false',
         }
-        response = requests.get(
-            f'{endpoint}/api/create_location_epsg', params=params, headers=headers)
-        print(response.json())
-        self.command_output.setText(json.dumps(
-            response.json(), sort_keys=True, indent=4))
-        self.set_status_color(response.json()['status'])
-        return response.json()
+        try:
+            response = requests.get(
+                f'{endpoint}/api/create_location_epsg', params=params, headers=headers, timeout=60)
+            payload = response.json()
+        except ConnectionError as exc:
+            payload = {'status': 'FAILED', 'data': str(exc)}
+        except requests.exceptions.Timeout:
+            payload = {'status': 'FAILED', 'data': 'Request timed out'}
+        except ValueError:
+            payload = {'status': 'FAILED', 'data': 'Invalid JSON response'}
+        self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
+        self.set_status_color(payload['status'])
+        return payload
 
     def create_location_georef(self):
         endpoint = self.grass_api_endpoint.text()
@@ -264,10 +270,9 @@ class GrassConfigDialog(QDialog, GrassSettings):
                 self.update_location()
                 self.grassenabled = False
             return response.json()
-        except ConnectionError as error:
+        except (ConnectionError, requests.exceptions.Timeout) as error:
             self.grassenabled = False
-            # self.update_location()
-            return {'status': 'FAILED', 'data': error}
+            return {'status': 'FAILED', 'data': str(error)}
 
     def show_hide_output_log(self):
         """docstring"""

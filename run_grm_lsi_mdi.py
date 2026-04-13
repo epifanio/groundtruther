@@ -1,21 +1,9 @@
-from PyQt5.QtWidgets import QDialog, QWidget
-from PyQt5.QtCore import QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject, pyqtSlot
-# from pygui.geomorphon_gui import GeoMorphon
+from PyQt5.QtWidgets import QWidget
+from PyQt5.QtCore import QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
 from groundtruther.pygui.Ui_grm_lsi_ui import Ui_grm_lsi
 
-
 import requests
-from requests.exceptions import ConnectionError
-import json
-
-import random
-from time import sleep
-
-from qgis.core import (QgsApplication, QgsTask, QgsMessageLog, Qgis)
-MESSAGE_CATEGORY = 'TaskFromFunction'
-
-import requests
-from qgis.core import (Qgis, QgsApplication, QgsMessageLog, QgsTask, QgsRasterLayer)
+from qgis.core import Qgis, QgsMessageLog, QgsTask, QgsRasterLayer
 import uuid
 from osgeo import gdal
 
@@ -54,8 +42,9 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         super(GrmLsiWidget, self).__init__(parent)
         # QWidget.__init__(self, parent)
         self.threadpool = QThreadPool()
-        print("Multithreading with maximum %d threads" %
-              self.threadpool.maxThreadCount())
+        QgsMessageLog.logMessage(
+            f"GrmLsi: thread pool ready ({self.threadpool.maxThreadCount()} threads)",
+            'GroundTruther', Qgis.Info)
         self.setupUi(self)
         self.add_output.hide()
         self.module_name = 'GRMLSI'
@@ -67,24 +56,50 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         
         
     def get_rvr_list(self):
-        self.gisenv = self.parent.grass_dialog.set_grass_location()['data']['gisenv']
+        grass_settings = self.parent.grass_dialog.set_grass_location()
+        if grass_settings.get('status') != 'SUCCESS':
+            QgsMessageLog.logMessage(
+                f"GRASS location unavailable: {grass_settings.get('data', '')}",
+                'GroundTruther', Qgis.Warning,
+            )
+            return
+        self.gisenv = grass_settings['data']['gisenv']
+
         headers = {
             'accept': 'application/json',
             'content-type': 'application/x-www-form-urlencoded',
-            }
-        params = {
-            'location_name':  self.gisenv['LOCATION_NAME'],
-            'mapset_name':  self.gisenv['MAPSET'],
-            'gisdb':  self.gisenv['GISDBASE'],
         }
+        params = {
+            'location_name': self.gisenv['LOCATION_NAME'],
+            'mapset_name':   self.gisenv['MAPSET'],
+            'gisdb':         self.gisenv['GISDBASE'],
+        }
+        endpoint = self.parent.settings['Processing']['grass_api_endpoint']
+        try:
+            response = requests.get(
+                f'{endpoint}/api/get_rvg_list', params=params, headers=headers, timeout=30)
+            raster_list = response.json().get('data', {}).get('raster', [])
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+            QgsMessageLog.logMessage(
+                f"GRASS API unreachable: {exc}", 'GroundTruther', Qgis.Warning)
+            return
+        except (ValueError, KeyError) as exc:
+            QgsMessageLog.logMessage(
+                f"Unexpected GRASS API response in get_rvr_list: {exc}",
+                'GroundTruther', Qgis.Warning)
+            return
 
-        response = requests.get(f'{self.parent.settings["Processing"]["grass_api_endpoint"]}/api/get_rvg_list', params=params, headers=headers)
         actual_item = self.elevation.currentText()
         self.elevation.clear()
-        self.elevation.addItems(response.json()['data']['raster'])
+        self.elevation.addItems(raster_list)
         self.elevation.setCurrentText(actual_item)
   
     def exec_grm(self):
+        if not hasattr(self, 'gisenv'):
+            QgsMessageLog.logMessage(
+                "Click 'Reload' to load the raster list before running.",
+                'GroundTruther', Qgis.Warning)
+            return
         headers = {
             'accept': 'application/json',
             'content-type': 'application/x-www-form-urlencoded',
@@ -147,11 +162,12 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         
     @pyqtSlot(dict)
     def show_module_output_mem(self, module_output):
-        #print(module_output)
-        #print(self.parent)
-        # print(self.parent.grass_dialog.set_grass_location())
-        self.parent.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(str(module_output))
-        # dict_keys(['max_dist', 
+        if module_output.get('status') == 'FAILED':
+            self.parent.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(
+                f"<b>GRASS module failed:</b> {module_output.get('data', module_output)}"
+            )
+            return
+        # dict_keys(['max_dist',
         #            'max_3d_dist', 
         #            'H', 
         #            'W', 
@@ -214,10 +230,15 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         
         
     def run_grassapi(self, headers, params):
-        self.response = requests.post(f'{self.parent.settings["Processing"]["grass_api_endpoint"]}/api/{self.module_name}', headers=headers, params=params)
+        endpoint = self.parent.settings['Processing']['grass_api_endpoint']
         try:
+            self.response = requests.post(
+                f'{endpoint}/api/{self.module_name}',
+                headers=headers, params=params, timeout=300)
             self.returned_item = self.response.json()
-        except:
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+            self.returned_item = {'status': 'FAILED', 'data': str(exc)}
+        except ValueError:
             self.returned_item = {'status': 'SUCCESS'}
         return self.returned_item
         
