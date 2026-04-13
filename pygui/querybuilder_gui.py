@@ -41,7 +41,7 @@ import sip
 try:
     import cudf
 except ImportError:
-    print('no gpu')
+    pass  # cudf not available – GPU acceleration disabled
 import pandas as pd
 from pyarrow.lib import ArrowInvalid
 
@@ -74,7 +74,7 @@ from plotnine import (
 try:
     from pip_cuda import get_spatial_selection_gpu
 except ImportError:
-    print('cuspatial not available - querybuilder_gui.py')
+    pass  # cuspatial not available – GPU spatial selection disabled
 from pip_cpu import get_spatial_selection_cpu
 # self.send_image_path.connect(self.savekml.from_main_signal)
 
@@ -119,7 +119,7 @@ class Window(QWidget):
 
     def plot(self):
         if self.data is not None:
-            print(self.data)
+            QgsMessageLog.logMessage(f"Window.plot data: {self.data}", 'GroundTruther', Qgis.Info)
             self.figure.clear()
             self.figure.clf()
             if self.plot_hist_type == 'density_plot':
@@ -139,8 +139,8 @@ class Window(QWidget):
             # refresh canvas
             self.canvas.draw()
             if os.getenv("HBC_DEBUG") and os.getenv("HBC_DEBUG") == 'VERBOSE':
-                print(dir(self.canvas))
-                print(dir(self.figure))
+                QgsMessageLog.logMessage(f"canvas attrs: {dir(self.canvas)}", 'GroundTruther', Qgis.Info)
+                QgsMessageLog.logMessage(f"figure attrs: {dir(self.figure)}", 'GroundTruther', Qgis.Info)
             # close the figure so that we don't create too many figure instances
             plt.close(fig)
         
@@ -345,17 +345,19 @@ class QueryBuilder(QWidget, Ui_Form):
         self.sender().valueChanged.emit(self.sender().value())
 
     def validate_fields(self):
-        print(list(self.point_df.keys()))
+        available = list(self.point_df.keys())
         setting_fields = [
             self.logitude_field,
             self.latitude_field,
             self.xutm_field,
             self.yutm_field,
         ]
-        print(setting_fields)
-        check = all(item in list(self.point_df.keys())
-                    for item in setting_fields)
-        print(check)
+        check = all(item in available for item in setting_fields)
+        if not check:
+            missing = [f for f in setting_fields if f not in available]
+            QgsMessageLog.logMessage(
+                f"validate_fields: missing columns {missing} in {available}",
+                'GroundTruther', Qgis.Warning)
         return check
 
     def refresh_settings(self):
@@ -431,7 +433,7 @@ class QueryBuilder(QWidget, Ui_Form):
 
     def getshape(self, index):
         self.shape = self.qb_shapeselection.itemText(index)
-        print(self.shape)
+        QgsMessageLog.logMessage(f"shape selected: {self.shape}", 'GroundTruther', Qgis.Info)
         if self.shape == "Ellipse":
             self.qb_ellipsemajoraxis.show()
             self.qb_ellipseminoraxis.show()
@@ -458,7 +460,6 @@ class QueryBuilder(QWidget, Ui_Form):
             self.qb_minoraxis_lablel.hide()
             self.qb_majoraxis_label.hide()
         if self.shape == "- - -":
-            print("presente")
             self.qb_rectangle_l1_label.hide()
             self.qb_rectangle_l2_label.hide()
             self.qb_rectangle_l1.hide()
@@ -475,7 +476,7 @@ class QueryBuilder(QWidget, Ui_Form):
             self.draw_graph.setEnabled(True)
             self.tabWidget.setEnabled(True)
         except ValueError:
-            print("no data selected yet")
+            QgsMessageLog.logMessage("no data selected yet – reset shape selection", 'GroundTruther', Qgis.Warning)
             self.qb_shapeselection.setCurrentIndex(0)
         
 
@@ -483,21 +484,16 @@ class QueryBuilder(QWidget, Ui_Form):
         if self.image_df is not None:
             del self.image_df
         if self.settings['Processing']['gpu_avaibility']:
-            print('############## USE GPU #################')
             self.image_df = cudf.read_parquet(self.image_metadata)
         else:
-            print('############## USE CPU #################')
-            self.image_df = pd.read_parquet(self.image_metadata)    
-
+            self.image_df = pd.read_parquet(self.image_metadata)
 
     def get_point(self, index):
         if self.point_df is not None:
             del self.point_df
         if self.settings['Processing']['gpu_avaibility']:
-            print('############## USE GPU #################')
             self.point_df = cudf.read_parquet(self.pointdatasource)
         else:
-            print('############## USE CPU #################')
             self.point_df = pd.read_parquet(self.pointdatasource)
 
     def get_backscatter_field(self, index):
@@ -554,9 +550,8 @@ class QueryBuilder(QWidget, Ui_Form):
         # Write the GeoJSON to a file
         
         geojson_file_path = str(pathlib.Path(self.settings["Export"]["kmldir"]) / 'sampling_ellipse.geojson')
-        
+        QgsMessageLog.logMessage(f"writing sampling shape to: {geojson_file_path}", 'GroundTruther', Qgis.Info)
         # geojson_file_path = pathlib.Path(__file__).parent / 'tmp' / 'sampling_ellipse.geojson'
-        print(geojson_file_path)
         with open(f"{geojson_file_path}", "w") as geojson_file:
             geojson.dump(feature, geojson_file)
 
@@ -578,7 +573,7 @@ class QueryBuilder(QWidget, Ui_Form):
             layer_to_remove = self.parent.project.instance().mapLayersByName('GT sampling shape')[0]
             self.parent.project.instance().removeMapLayer(layer_to_remove)
         except IndexError:
-            print('no layer to remove')
+            pass  # no existing sampling shape layer to remove
         vlayer = QgsVectorLayer(geojson_file_path, 'GT sampling shape', 'ogr')
         self.parent.project.instance().addMapLayer(vlayer)
 
@@ -591,26 +586,17 @@ class QueryBuilder(QWidget, Ui_Form):
                 int(self.qb_ellipseorientation.text()),
                 out_proj=4326,
             )  # 32619
-            print("+++++++++++++++++++++++++++++++++")
-            # print("ELLIPSE: ", geom)
-            print(type(geom))
-            print("+++++++++++++++++++++++++++++++++")
+            QgsMessageLog.logMessage(f"Ellipse geom type: {type(geom)}", 'GroundTruther', Qgis.Info)
         if self.shape == "Rectangle":
-            print('calling it')
-            geom_tuple = getRectangleCoords((float(self.qb_longitude.text()), 
+            geom_tuple = getRectangleCoords((float(self.qb_longitude.text()),
                                       float(self.qb_latitude.text())),
-                                      float(self.qb_rectangle_l1.text()), 
+                                      float(self.qb_rectangle_l1.text()),
                                       float(self.qb_rectangle_l2.text()),
                                       in_proj=None, utmzone=self.utmzone_string)
             geom = [list(values) + [values[0]] for values in zip(*geom_tuple)]
             geom = [list(i) for i in zip(*geom_tuple)]
             geom.append(geom[0])
-            print("+++++++++++++++++++++++++++++++++")
-            # print("RECTANGLE tuple: ", geom_tuple)
-            # print("\n")
-            # print("RECTANGLE: ", geom)
-            print(type(geom))
-            print("+++++++++++++++++++++++++++++++++")
+            QgsMessageLog.logMessage(f"Rectangle geom type: {type(geom)}", 'GroundTruther', Qgis.Info)
         geom_array = np.array(geom)
         self.send_shape_to_canvas(geom_array.tolist())
         pp = Proj(
@@ -620,33 +606,27 @@ class QueryBuilder(QWidget, Ui_Form):
         px = self.point_df[self.xutm_field].values
         py = self.point_df[self.yutm_field].values
         if self.settings['Processing']['gpu_avaibility']:
-            print('############## USE GPU #################')
             point_selection_index = get_spatial_selection_gpu(px, py, xx, yy)
             self.point_selection = self.point_df[point_selection_index]
             self.point_selection_pd = self.point_selection.to_pandas()
         else:
-            print('############## USE CPU #################')
             points = np.array([px, py]).T
             polygon = np.array([xx, yy]).T
-            point_selection_index = get_spatial_selection_cpu(
-                points, polygon)
+            point_selection_index = get_spatial_selection_cpu(points, polygon)
             self.point_selection_pd = self.point_df[point_selection_index]
-        print("length of point_selection ", len(self.point_selection_pd))
+        QgsMessageLog.logMessage(f"point selection: {len(self.point_selection_pd)} points", 'GroundTruther', Qgis.Info)
         # self.image_df
         img_x = self.image_df['Xutm_adj'].values
         img_y = self.image_df['Yutm_adj'].values
-        
+
         if self.settings['Processing']['gpu_avaibility']:
-            print('############## USE GPU #################')
             image_selection_index = get_spatial_selection_gpu(img_x, img_y, xx, yy)
             self.image_selection_cudf = self.image_df[image_selection_index]
             self.image_selection_pd = self.image_selection_cudf.to_pandas()
         else:
-            print('############## USE CPU #################')
             image_points = np.array([img_x, img_y]).T
             polygon = np.array([xx, yy]).T
-            image_selection_index = get_spatial_selection_cpu(
-                image_points, polygon)
+            image_selection_index = get_spatial_selection_cpu(image_points, polygon)
             self.image_selection_pd = self.image_df[image_selection_index]
         # print(self.image_selection_pd.describe())
         # self.point_selection = self.point_df[point_selection_index]
@@ -671,14 +651,7 @@ class QueryBuilder(QWidget, Ui_Form):
         # self.tableView.setModel(self.proxy_model)
         # self.tableView.setSortingEnabled(False)
 
-        if self.raw_beam.isChecked():
-            print("do nothing")
-        if self.left_beam.isChecked():
-            print("remove positive angles from the df")
-        if self.right_beam.isChecked():
-            print("remove negative angles from df")
         if self.fold_beam.isChecked():
-            print("multiply by -1 negative angles")
             self.point_selection_pd["True Angle"] = self.point_selection_pd[
                 "True Angle"
             ].abs()
@@ -761,10 +734,12 @@ class QueryBuilder(QWidget, Ui_Form):
                 yy,
             )
             self.point_selection = self.point_df[result["geom"]]
-            print("length of point_selection ", len(self.point_selection))
+            QgsMessageLog.logMessage(f"point selection (GPU): {len(self.point_selection)} points", 'GroundTruther', Qgis.Info)
             self.point_selection_pd = self.point_selection.to_pandas()
         except KeyError:
-            print("invalid field name for Easting/Northing parameters")
+            QgsMessageLog.logMessage(
+                f"invalid field name for Easting/Northing – check xutm_field='{self.xutm_field}' yutm_field='{self.yutm_field}'",
+                'GroundTruther', Qgis.Warning)
             self.point_selection = []
 
     def set_table_view(self):
@@ -858,11 +833,9 @@ class QueryBuilder(QWidget, Ui_Form):
 
     def get_xy(df, longitude="Longitude", latitude="Latitude"):
         if self.settings['Processing']['gpu_avaibility']:
-            print('############## USE GPU #################')
             x = df[longitude].dropna().values.get()
             y = df[latitude].dropna().values.get()
         else:
-            print('############## USE CPU #################')
             x = df[longitude].dropna().values
             y = df[latitude].dropna().values
 

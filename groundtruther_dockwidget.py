@@ -79,9 +79,9 @@ class MyImageView1(pg.ImageView):
         
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            print("Left mouse button pressed at position:", event.pos())
+            QgsMessageLog.logMessage(f"Left mouse button pressed at position: {event.pos()}", 'GroundTruther', Qgis.Info)
         elif event.button() == Qt.RightButton:
-            print("Right mouse button pressed at position:", event.pos())
+            QgsMessageLog.logMessage(f"Right mouse button pressed at position: {event.pos()}", 'GroundTruther', Qgis.Info)
             
 
 class CustomGraphItem(pg.GraphItem):
@@ -108,8 +108,8 @@ class MyImageView(pg.ImageView):
             
             for item in self.plot_items:
                 if item.sceneBoundingRect().contains(pos):
-                    print("Mouse position intersects GraphItem:", item)
-                    print("Mouse position intersects GraphItem:", item.getCustomAttribute())
+                    QgsMessageLog.logMessage(f"Mouse position intersects GraphItem: {item}", 'GroundTruther', Qgis.Info)
+                    QgsMessageLog.logMessage(f"GraphItem attribute: {item.getCustomAttribute()}", 'GroundTruther', Qgis.Info)
                     self.mousePressEventSignal.emit(item.getCustomAttribute())
                     item.setPen('w')
                 else:
@@ -181,8 +181,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self.r = None
         self.annotation_box_linewidth = 1
         self.annotation_box_vertexsize = 15
-        print(self.actions)
-        print(iface)
+        QgsMessageLog.logMessage(f"GroundTruther dock widget initialised (iface: {iface})", 'GroundTruther', Qgis.Info)
 
 
 
@@ -293,7 +292,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
     def show_grass_dialog(self):
         """docstring"""
         self.grass_dialog.exec_()
-        print(self.grass_dialog.grassenabled)   
+        QgsMessageLog.logMessage(f"GRASS dialog closed, grassenabled={self.grass_dialog.grassenabled}", 'GroundTruther', Qgis.Info)
         if self.grass_dialog.grassenabled:
             self.init_grass_contextual_menu()
     
@@ -324,14 +323,10 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             
             
     def set_grass_region_from_raster(self):
-        print('raster action triggered - set region')
-        print(iface.activeLayer())
-        print(get_layer_info(iface.activeLayer()))
-        
+        QgsMessageLog.logMessage(f"set_grass_region_from_raster: layer={iface.activeLayer()}, info={get_layer_info(iface.activeLayer())}", 'GroundTruther', Qgis.Info)
+
     def set_grass_region_from_vector(self):
-        print('vector action triggered - set region')
-        print(iface.activeLayer())
-        print(get_layer_info(iface.activeLayer()))
+        QgsMessageLog.logMessage(f"set_grass_region_from_vector: layer={iface.activeLayer()}, info={get_layer_info(iface.activeLayer())}", 'GroundTruther', Qgis.Info)
         
         selected_features = iface.activeLayer().selectedFeatures()
     
@@ -351,10 +346,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             # Get attributes of the feature
             attrs = feature.attributes()
         
-            # Print feature ID, geometry, and attributes
-            print(f"Feature ID: {feature_id}")
-            print(f"Geometry: {geom.asWkt()}")  # Print geometry as WKT
-            print(f"Attributes: {attrs}")
+            QgsMessageLog.logMessage(f"Feature ID: {feature_id}, Geometry: {geom.asWkt()}, Attributes: {attrs}", 'GroundTruther', Qgis.Info)
             rect = geom.boundingBox()
             x_min.append(rect.xMinimum())
             y_min.append(rect.yMinimum())
@@ -368,22 +360,21 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         xx_max = max(x_max)
         yy_max = max(y_max)
         bbox_selection = [xx_min, yy_min, xx_max, yy_max]
-        print(bbox_selection)
+        QgsMessageLog.logMessage(f"bbox_selection: {bbox_selection}", 'GroundTruther', Qgis.Info)
         # add a vector layer to the map, showing the computed bounding box
         
         
     def import_active_raster_layer_to_grass(self):
-        print('raster action triggered - import raster')
-        print(iface.activeLayer()) 
-        print(get_layer_info(iface.activeLayer()))
+        QgsMessageLog.logMessage(f"import_active_raster_layer_to_grass: layer={iface.activeLayer()}, info={get_layer_info(iface.activeLayer())}", 'GroundTruther', Qgis.Info)
         
     def import_active_vector_layer_to_grass(self):
         # TODO: implement actual import – convert layer to GeoJSON then POST to
         # self.grass_api_endpoint + '/api/import_vector'
         geojson = convert_to_geojson_using_gdal(iface.activeLayer().source())
-        print("import_active_vector_layer_to_grass – geojson ready, endpoint:",
-              self.grass_api_endpoint)
-        print(geojson[:200] if isinstance(geojson, str) else geojson)
+        QgsMessageLog.logMessage(
+            f"import_active_vector_layer_to_grass – geojson ready, endpoint: {self.grass_api_endpoint}\n"
+            f"{geojson[:200] if isinstance(geojson, str) else geojson}",
+            'GroundTruther', Qgis.Info)
 
     def init_grass_ui(self):
         # create the widget for grass which goes into the splitter
@@ -430,13 +421,11 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             self.grassWidgetContents.grass_mdi.grassTools.tileSubWindows()
         if self.mdi_view.itemText(index) == 'Minimize':
             for i in self.grassWidgetContents.grass_mdi.grassTools.subWindowList():
-                print(i)
                 if i.isVisible():
                     #i.hide()
                     i.showMinimized()
         if self.mdi_view.itemText(index) == 'Close':
             for i in self.grassWidgetContents.grass_mdi.grassTools.subWindowList():
-                print(i)
                 if i.isVisible():
                     i.hide()
                     #i.close()
@@ -478,12 +467,12 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                 self.w.ImageIndexSlider.setMaximum(len(self.imageMetadata) - 1)
 
                 if os.getenv("HBC_DEBUG") == "VERBOSE":
-                    print("image metadata columns:", self.imageMetadata.columns.tolist())
+                    QgsMessageLog.logMessage(f"image metadata columns: {self.imageMetadata.columns.tolist()}", 'GroundTruther', Qgis.Info)
 
                 self.imagemetadata_gui.metadata_scroll_area.setEnabled(True)
 
                 if Path(self.imageannotationfile).is_file():
-                    print("Annotation file loaded")
+                    QgsMessageLog.logMessage("Annotation file loaded", 'GroundTruther', Qgis.Info)
                     self.w.actionAnnotation.setEnabled(True)
                     annotations_by_image = parse_annotation(self.imageannotationfile)
                     self.imageMetadata["Annotation"] = self.imageMetadata.Imagename.map(
@@ -496,7 +485,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                     self.imageMetadata[["habcam_lon", "habcam_lat"]].values
                 )
             except OSError:
-                print("OS error reading metadata")
+                QgsMessageLog.logMessage("OS error reading metadata", 'GroundTruther', Qgis.Warning)
             except pyarrow.lib.ArrowInvalid as message:
                 error_message(f"Error reading {self.metadatafile}:\n{message}")
                 self.imageMetadata = None
@@ -546,16 +535,14 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
     #     print(index)
     
     def get_query_message(self, stringa):
-        print('stringa', stringa)
         # self.grass_mdi.gis_tool_report.setHtml(stringa)
         self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(stringa)
-        
+
     def get_query_position(self, lat, lon):
-        print('position', lat, lon)
         self.set_image_index(lat, lon)
-        
+
     def set_image_index(self, lat: float, lon: float):
-        print("vquery at", lat, lon)
+        QgsMessageLog.logMessage(f"vquery at {lat}, {lon}", 'GroundTruther', Qgis.Info)
         index = self.getImageIndex(lon, lat)
         self.w.ImageIndexSlider.setValue(index)
         # self.w.gisTools_logger.setText(
@@ -586,7 +573,6 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             point = response.json()['data']
         else:
             point = [[lon, lat]]
-        print(point)
         self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(str(point))
 
 
@@ -941,16 +927,15 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             # for i, v in enumerate(annotation.values[0]["bbox"]):
             for i, bbox in enumerate(annotation["bbox"]):
 
-                print("annotation_confidence_treshold: ",
-                      self.annotation_confidence_treshold)
                 if (
                     annotation["Confidence"][i]
                     >= self.annotation_confidence_treshold
                 ):
-                    print("annotation bbox", bbox)
-                    print("annotation label", annotation["Species"][i])
-                    print("annotation confidence treshold",
-                          annotation["Confidence"][i])
+                    QgsMessageLog.logMessage(
+                        f"annotation bbox={bbox}, label={annotation['Species'][i]}, "
+                        f"confidence={annotation['Confidence'][i]} "
+                        f"(threshold={self.annotation_confidence_treshold})",
+                        'GroundTruther', Qgis.Info)
                     self.g = CustomGraphItem()
                     self.g.setCustomAttribute(annotation["Species"][i])
                     # self.g = pg.GraphItem()
@@ -971,7 +956,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                     self.g.setZValue(10)  # make sure ROI is drawn above image
                     self.graph_items.append(self.g)
         else:
-            print("no annotation found")
+            QgsMessageLog.logMessage("no annotation found for current image", 'GroundTruther', Qgis.Info)
             self.clear_image_annotation()
 
     def count_string_occurrences(self, string_list):
@@ -1079,8 +1064,6 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                         
                         
                         
-                    print(record.name, type(record.name))
-                
                     self.imagemetadata_gui.metadata_scroll_area.setWidgetResizable(True)
                     scroll_widget = QWidget()
                     scroll_widget.setLayout(main_layout)
@@ -1148,28 +1131,19 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                         self.zoom_to()
                     self.on_send()
                 else:
-                    print(
-                        "record lenght:",
-                        len(record),
-                        "for image index: ",
-                        self.imageindex,
-                        # self.imageMetadata["Imagename"].iloc[self.imageindex],
-                    )
-                    #
-                # except:
-                #     error_message(
-                #         f"image metadata not set properly- check settings \n \n image metadata widget will be disabled"
-                #     )
-                #     self.imageMetadata = None
-                #     self.imagemetadata_gui.metadata_scroll_area.setEnabled(
-                #         False)
+                    QgsMessageLog.logMessage(
+                        f"record length {len(record)} for image index {self.imageindex}",
+                        'GroundTruther', Qgis.Warning)
             else:
-                print("image metadata disabled - reconfigure the settings")
+                QgsMessageLog.logMessage(
+                    "image metadata disabled – reconfigure the settings",
+                    'GroundTruther', Qgis.Warning)
                 self.imagemetadata_gui.metadata_scroll_area.setEnabled(False)
 
         else:
-            print("both image path not be set")
-            print(" --- ")
+            QgsMessageLog.logMessage(
+                "image path or metadata path not set – check settings",
+                'GroundTruther', Qgis.Warning)
 
     @pyqtSlot()
     def on_send(self):
