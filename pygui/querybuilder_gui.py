@@ -17,9 +17,15 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
+from PyQt5.QtGui import QColor, QPixmap, QScreen
+from PyQt5.QtWidgets import (
+    QWidget, QApplication, QFileDialog,
+    QVBoxLayout, QHBoxLayout, QGridLayout,
+    QSize, QSizePolicy, QSpacerItem,
+    QPushButton, QLineEdit, QTextEdit,
+    QGroupBox, QRadioButton, QSortFilterProxyModel,
+)
 
 from groundtruther.pygui.Ui_query_builder_ui import Ui_Form
 from groundtruther.config.config import config
@@ -49,7 +55,7 @@ import pyqtgraph.opengl as gl
 import pyqtgraph.exporters
 import scipy as sp
 import uuid
-from PyQt5.QtGui import QPixmap, QScreen
+
 import random
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -353,10 +359,28 @@ class QueryBuilder(QWidget, Ui_Form):
         return check
 
     def refresh_settings(self):
-        # get the settings
-        print("getting settings")
-        self.settings = get_settings(self.config)
-        print("settings loaded: ", self.settings)
+        """Reload settings from disk and re-initialise data sources.
+
+        Falls back to the parent dockwidget's already-validated settings when
+        the config file cannot be read or fails validation.  Disables the
+        query tools if no usable settings are available.
+        """
+        fresh = get_settings(self.config)
+        if fresh:
+            self.settings = fresh
+        elif self.parent is not None and getattr(self.parent, "settings", None):
+            # Parent (dockwidget) already has valid settings – reuse them
+            self.settings = self.parent.settings
+
+        if not self.settings:
+            error_message(
+                "No valid configuration found.\n"
+                "Open Settings (wizard icon) to set the required paths."
+            )
+            self.query_builder_tools.setEnabled(False)
+            self.draw_graph.setEnabled(False)
+            return
+
         self.logitude_field = self.logitude.text()
         self.latitude_field = self.latitude.text()
         self.xutm_field = self.xutm.text()
@@ -364,70 +388,45 @@ class QueryBuilder(QWidget, Ui_Form):
         self.backscatter_field = self.set_backscatter_field.currentText()
         self.utmzone_string = int(self.utmzone.text())
         self.dirname = self.settings["HabCam"]["imagepath"]
+
         try:
-            print(self.settings["HabCam"]["imagemetadata"])
             self.image_metadata = self.settings["HabCam"]["imagemetadata"]
             if self.image_df is not None:
                 del self.image_df
-            print(self.settings["Mbes"]["soundings"])
             self.pointdatasource = self.settings["Mbes"]["soundings"]
             if self.point_df is not None:
                 del self.point_df
-            if self.settings['Processing']['gpu_avaibility']:
-                print('############## USE GPU #################')
+
+            if self.settings["Processing"]["gpu_avaibility"]:
                 self.point_df = cudf.read_parquet(self.pointdatasource)
                 self.image_df = cudf.read_parquet(self.image_metadata)
             else:
-                print('############## USE CPU #################')
                 self.point_df = pd.read_parquet(self.pointdatasource)
                 self.image_df = pd.read_parquet(self.image_metadata)
 
-            # validate MBES data
             if self.pointdatasource not in self.qb_pointdatasource.allItems():
                 self.qb_pointdatasource.addItem(self.pointdatasource)
-                
-            if self.validate_fields() == True:
+
+            if self.validate_fields():
                 self.query_builder_tools.setEnabled(True)
                 self.draw_graph.setEnabled(True)
             else:
-                print("tell the fields are not correct")
                 self.draw_graph.setEnabled(False)
                 error_message(
-                    f"error fields in the MBES data not match \n"
-                    + str(f"available fieds are:  \n {list(self.point_df.keys())} \n")
-                    + str("disabling plot widget")
-                )        
+                    "MBES data fields do not match the configured field names.\n"
+                    f"Available fields: {list(self.point_df.keys())}\n"
+                    "Disabling plot widget."
+                )
+
         except ArrowInvalid:
             error_message(
-                f"error MBES data not a valid parquet file \n"
-                + str("disabling query widget")
+                "MBES data is not a valid Parquet file.\n"
+                "Disabling query widget."
             )
             self.pointdatasource = None
             self.query_builder_tools.setEnabled(False)
             self.point_df = None
             self.image_df = None
-        # at this point we load the image metadata 
-        # lat and lon which we will use to query images in the fiven elliptical shape
-        # try:
-        #     print(self.settings["HabCam"]["imagemetadata"])
-        #     self.image_metadata = self.settings["HabCam"]["imagemetadata"]
-        #     if self.image_df is not None:
-        #         del self.image_df
-        #     if self.settings['Processing']['GPU']:
-        #         print('############## USE GPU #################')
-        #         self.image_df = cudf.read_parquet(self.image_metadata)
-        #     else:
-        #         print('############## USE CPU #################')
-        #         self.image_df = pd.read_parquet(self.image_metadata)
-        # except ArrowInvalid:
-        #     error_message(
-        #         f"error Image metadata not a valid parquet file \n"
-        #         + str("disabling query widget")
-        #     )
-        #     self.image_metadata = None
-        #     self.query_builder_tools.setEnabled(False)
-        #     self.image_df = None
-        print(self.settings)
         
 
     def getshape(self, index):

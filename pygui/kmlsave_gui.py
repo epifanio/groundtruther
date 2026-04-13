@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 import sys
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
+from PyQt5.QtGui import QColor, QFont
+from PyQt5.QtWidgets import QWidget, QFileDialog, QColorDialog
 from PyQt5.QtPrintSupport import QPrinter
 from groundtruther.pygui.Ui_kmlsave_ui import Ui_Form
 import os
@@ -25,7 +25,7 @@ parent = os.path.dirname(current)
 # the sys.path.
 sys.path.append(parent)
 
-from configure import get_settings
+from configure import get_settings, error_message
 
 # from xml.dom import minidom
 import codecs
@@ -56,12 +56,13 @@ class SaveKml(QWidget, Ui_Form):
         super(SaveKml, self).__init__(parent)
         # print(" +++++++++++++ config: ", config)
         self.parent = parent
-        self.config = config # os.environ.get('HBC_CONFIG')
-        if not self.parent.settings:
-            self.show_dialog()
-            self.settings = get_settings(self.config)
-        else:
-            self.settings = self.parent.settings
+        self.config = config
+        # Use the parent dockwidget's already-validated settings.
+        # If for some reason the parent has no settings yet, try to load from
+        # disk.  SaveKml does not own a config dialog – that lives on the
+        # dockwidget – so there is nothing more we can do here.
+        parent_settings = getattr(self.parent, "settings", None)
+        self.settings = parent_settings or get_settings(self.config) or {}
         
         # self.settings = get_settings(self.config)
         self.setupUi(self)
@@ -242,12 +243,16 @@ class SaveKml(QWidget, Ui_Form):
         self.selected_points_path = selected_points_path
 
     def filemanager(self):
-        self.settings = get_settings(self.config)
-        filemanager = self.settings["Filesystem"]["filemanager"]
-        kmldir = self.settings["Export"]["kmldir"]
-        output = subprocess.Popen(
-            [filemanager, str(kmldir)], stdout=subprocess.PIPE
-        ).communicate()[0]
+        # Refresh settings in case the user has just saved a new config
+        fresh = get_settings(self.config)
+        if fresh:
+            self.settings = fresh
+        filemanager = self.settings.get("Filesystem", {}).get("filemanager", "")
+        kmldir = self.settings.get("Export", {}).get("kmldir", "")
+        if not filemanager:
+            error_message("No file manager configured.\nSet one in Settings.")
+            return
+        subprocess.Popen([filemanager, str(kmldir)], stdout=subprocess.PIPE)
 
     def compress_kml(self, outfile, icon):
         directory = os.path.dirname(str(outfile))
@@ -298,7 +303,6 @@ class SaveKml(QWidget, Ui_Form):
         self.Headchange = Headchange
 
     def aggiorna(self):
-        self.settings = get_settings(self.config)
         newlon = str(self.lon)
         newlat = str(self.lat)
         self.longitude.setText(newlon)
@@ -452,8 +456,13 @@ class SaveKml(QWidget, Ui_Form):
         colorpolygon = str(polalpha) + colorpolygon
         tessellate = 0
         extrude = 0
-        self.settings = get_settings(self.config)
-        kmldirectory = self.settings["Export"]["kmldir"]
+        fresh = get_settings(self.config)
+        if fresh:
+            self.settings = fresh
+        kmldirectory = self.settings.get("Export", {}).get("kmldir", "")
+        if not kmldirectory:
+            error_message("No KML export directory configured.\nSet one in Settings.")
+            return
         if self.Tessellate.isChecked():
             tessellate = 1
         if self.Extrude.isChecked():

@@ -32,9 +32,13 @@ from qgis.gui import QgsVertexMarker, QgsMapToolEmitPoint, QgsRubberBand
 
 from sys import platform
 
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+from PyQt5.QtWidgets import (
+    QAction, QLabel, QLineEdit,
+    QHBoxLayout, QVBoxLayout, QWidget,
+    QAbstractSpinBox, QSizePolicy, QSpacerItem, QSize, QTextEdit,
+)
+from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
+from PyQt5.QtGui import QColor, QPixmap
 
 import requests
 import pandas as pd
@@ -67,9 +71,6 @@ from groundtruther.run_geomorphon_mdi import GeoMorphonWidget
 from groundtruther.run_paramscale_mdi import ParamScaleWidget
 from groundtruther.run_grm_lsi_mdi import GrmLsiWidget
 import groundtruther.resources_rc
-
- 
-from PyQt5.QtCore import Qt
 
 # Create a subclass of pg.ImageView
 class MyImageView1(pg.ImageView):
