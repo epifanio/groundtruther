@@ -12,4 +12,3 @@ Export:
 Processing:
     gpu_avaibility: False
     grass_api_endpoint: https://mbapi.wps.met.no
-    grass_api_endpoint: https://mbapi.wps.met.no

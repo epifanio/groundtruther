@@ -13,7 +13,7 @@ from search_epsg import SearchEpsgDialog
 # from configure import get_settings
 from groundtruther.config.config import config
 
-from groundtruther.configure import get_settings
+from groundtruther.configure import load_config
 
 class GrassConfigDialog(QDialog, GrassSettings):
     """docstring"""
@@ -24,15 +24,12 @@ class GrassConfigDialog(QDialog, GrassSettings):
         self.setupUi(self)
         self.parent = parent
         # access to the settings
-        self.config = config # os.environ.get('HBC_CONFIG')
-        #if not self.settings:
-        #    self.show_dialog()
-        self.settings = get_settings(self.config)
-        #
-        # set the grass api from config
-        # print("self.settings['Processing']['grass_api_endpoint']: ", self.settings["Processing"]["grass_api_endpoint"])
-        # print(self.grass_api_endpoint)
-        self.grass_api_endpoint.setText(self.settings["Processing"]["grass_api_endpoint"])
+        self.config = config
+        # Use load_config (no validation) so init never triggers error dialogs.
+        # GrassConfigDialog only needs the endpoint URL, not file-path fields.
+        self.settings = load_config(self.config) or {}
+        endpoint = self.settings.get("Processing", {}).get("grass_api_endpoint", "")
+        self.grass_api_endpoint.setText(endpoint)
         #
         self.searchepsg_dialog = SearchEpsgDialog()
         self.search_epsg.clicked.connect(self.show_searchepsg_dialog)

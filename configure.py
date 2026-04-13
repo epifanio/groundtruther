@@ -1,379 +1,300 @@
-""" docstring """
-import yaml
-from pydantic.error_wrappers import ValidationError
-from PyQt5.QtCore import QRegExp
-from PyQt5.QtGui import QRegExpValidator
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
-from starlette.templating import Jinja2Templates
-from groundtruther.pygui.app_settings_gui import AppSettings
-from groundtruther.config_model import HabcamSettings
-from groundtruther.config.config import config
+""" Configuration loading, validation, and settings dialog for GroundTruther. """
 import os
 from pathlib import Path
 
-import groundtruther.resources_rc
-# root_dir = os.environ.get("HBC_ROOT_DIR")
+import yaml
+from starlette.templating import Jinja2Templates
+
+from pydantic.error_wrappers import ValidationError
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+
+from groundtruther.pygui.app_settings_gui import AppSettings
+from groundtruther.config_model import HabcamSettings
+from groundtruther.config.config import config as DEFAULT_CONFIG_PATH
+import groundtruther.resources_rc  # noqa: F401 – registers Qt resources
+
 root_dir = os.path.dirname(__file__)
 
-class ConfigDialog(QDialog, AppSettings):
-    """docstring"""
 
-    def __init__(self, parent=None):
-        super().__init__()
-        QDialog.__init__(self, parent)
+# ---------------------------------------------------------------------------
+# Low-level helpers – no GUI side-effects
+# ---------------------------------------------------------------------------
 
-        self.setupUi(self)
-        # toot_dir from environment var
-        self.root_dir = os.path.dirname(__file__) # os.environ.get("HBC_ROOT_DIR")
-        self.config = config # os.environ.get('HBC_CONFIG')
-        self.gpu_avaibility_value = False
-        self.templates_path = Path.joinpath(
-            Path(self.root_dir), 'config/templates')
-        self.templates = Jinja2Templates(directory=self.templates_path)
+def load_config(config_path):
+    """Load YAML config from *config_path* without any validation.
 
-        self.select_image_path.clicked.connect(self.set_image_path)
-        self.select_metadata_path.clicked.connect(self.set_metadata_path)
-        self.select_imageannotation_path.clicked.connect(
-            self.set_imageannotation_path)
-        self.select_mbes_path.clicked.connect(self.set_mbes_path)
-        #self.select_vrt_path.clicked.connect(self.set_vrt_path)
-        self.select_kml_path.clicked.connect(self.set_kml_path)
-
-        self.gpu_avaibility.currentIndexChanged.connect(
-            self.set_gpu_avaibility)
-
-        self.setOption.clicked.connect(self.write_config)
-        self.quit.clicked.connect(self.close)
-        self.settings_value = self.get_settings()
-        print("self.settings_value", self.settings_value)
-        if self.settings_value:
-            self.filemanager.setText(
-                self.settings_value["Filesystem"]["filemanager"])
-            self.image_path.setText(self.settings_value["HabCam"]["imagepath"])
-            self.metadata_path.setText(
-                self.settings_value["HabCam"]["imagemetadata"])
-            self.imageannotation_path.setText(
-                self.settings_value["HabCam"]["imageannotation"]
-            )
-            self.mbes_path.setText(self.settings_value["Mbes"]["soundings"])
-            self.kml_path.setText(self.settings_value["Export"]["kmldir"])
-            # self.vrt_path.setText(self.settings_value["Export"]["vrtdir"])            
-            if self.settings_value["Processing"]["gpu_avaibility"]:
-                self.gpu_avaibility.setCurrentText('Enabled')
-            else:
-                self.gpu_avaibility.setCurrentText('Disabled')
-            self.grass_api_endpoint.setText(
-                self.settings_value["Processing"]["grass_api_endpoint"])
-            # self.mapviewer_basemap.setText(
-            #     self.settings_value["Mapviewer"]["basemap"])
-        else:
-            widget_container = {
-                "Filesystem": {"filemanager": self.filemanager},
-                "HabCam": {
-                    "imagepath": self.image_path,
-                    "imagemetadata": self.metadata_path,
-                    "imageannotation": self.imageannotation_path,
-                },
-                "Mbes": {"soundings": self.mbes_path},
-                "Export": {"kmldir": self.kml_path},
-                # "vrtdir": self.vrt_path
-                "Processing": {"gpu_avaibility": False, "grass_api_endpoint": "http://localhost/docs"},
-            }
-
-            self.settings = self.get_settings2()
-            self.filemanager.setText(
-                self.settings["Filesystem"]["filemanager"])
-            self.image_path.setText(self.settings["HabCam"]["imagepath"])
-            self.metadata_path.setText(
-                self.settings["HabCam"]["imagemetadata"])
-            self.mbes_path.setText(self.settings["Mbes"]["soundings"])
-            self.kml_path.setText(self.settings["Export"]["kmldir"])
-            # self.vrt_path.setText(self.settings["Export"]["vrtdir"])
-            if self.settings["Processing"]["gpu_avaibility"]:
-                self.gpu_avaibility.setCurrentText('Enabled')
-            else:
-                self.gpu_avaibility.setCurrentText('Disabled')
-            self.grass_api_endpoint.setText(
-                self.settings["Processing"]["grass_api_endpoint"])
-
-            bad_keys = self.validate_config(get_bad_keys=True)
-            bad_key = [str(list(i.keys())[0]) for i in bad_keys]
-            bad_values = [i[list(i.keys())[0]] for i in bad_keys]
-            print(bad_key, bad_values)
-            for i in bad_values:
-                print("bad value for: ", i)
-            for i in bad_keys:
-                widget_container[str(list(i.keys())[0])][
-                    str(i[list(i.keys())[0]])
-                ].setText("")
-        # if os.environ['RAPIDSAI'] == 'enabled':
-        #     pass
-        # else:
-        #     self.gpu_avaibility.setEnabled(False)
-        self.gpu_avaibility.setEnabled(False)
-        self.vrt_label.hide()
-        self.vrt_path.hide()
-        self.select_vrt_path.hide()
-
-    def get_settings2(self):
-        """docstring"""
-        try:
-            with open(self.config, "r", encoding="utf8") as config:
-                settings = yaml.safe_load(config)
-                return settings
-        except FileNotFoundError as notfound:
-            return False
-
-    def get_settings(self):
-        """docstring"""
-        try:
-            with open(self.config, "r", encoding="utf8") as config:
-                settings = yaml.safe_load(config)
-                if validate_config2(settings):
-                    return settings
-                else:
-                    return False
-        except FileNotFoundError as notfound:
-            error_message(str(notfound))
-            # show_dialog()
-            options = QFileDialog.Options()
-            file_name, _ = QFileDialog.getOpenFileName(
-                self,
-                "Set Config file",
-                self.metadata_path.text(),
-                "All Files (*);;Text Files (*.yaml)",
-                options=options,
-            )
-            if file_name:
-                self.settings = self.get_settings2()
-            return self.settings
-
-    def validate_config(self, get_bad_keys=False):
-        """docstring"""
-        try:
-            m = HabcamSettings(
-                Mbes={"soundings": self.settings["Mbes"]["soundings"]},
-                HabCam={
-                    "imagepath": self.settings["HabCam"]["imagepath"],
-                    "imagemetadata": self.settings["HabCam"]["imagemetadata"],
-                },
-                Export={
-                    "kmldir": self.settings["Export"]["kmldir"],
-                    # "vrtdir": self.settings["Export"]["vrtdir"],
-                },
-                # Mapviewer={"basemap": self.settings["Mapviewer"]["basemap"]},
-                Filesystem={
-                    "filemanager": self.settings["Filesystem"]["filemanager"]},
-                Processing={
-                    "gpu_avaibility": self.settings["Processing"]["gpu_avaibility"],
-                    "grass_api_endpoint": self.settings["Processing"]["grass_api_endpoint"],
-                }
-            )
-            return True
-        except ValidationError as msg:
-            bad_keys = []
-            # error_msg = "The following Parameters have invalid values: \n"
-            for i in msg.errors():
-                print(i)
-                # error_msg = error_msg+f"""{i['loc'][0]} : {i['loc'][1]} \n"""
-                bad_keys.append({i["loc"][0]: i["loc"][1]})
-            # error_message(error_msg)
-            if get_bad_keys:
-                return bad_keys
-            else:
-                return False
-
-    def write_config(self):
-        """docstring"""
-        gui_settings = self.get_gui_settings()
-        if validate_config2(gui_settings):
-            # if self.validate_config():
-            # check if the template exist first
-            hbc_config = self.templates.get_template("config_template.yaml").render(
-                {
-                    "filemanager": self.filemanager.text(),
-                    "imagepath": self.image_path.text(),
-                    "imagemetadata": self.metadata_path.text(),
-                    "imageannotation": self.imageannotation_path.text(),
-                    "soundings": self.mbes_path.text(),
-                    "kmldir": self.kml_path.text(),
-                    # "vrtdir": self.vrt_path.text(),
-                    "gpu_avaibility": self.gpu_avaibility_value,
-                    "grass_api_endpoint": self.grass_api_endpoint.text(),
-                }
-            )
-            # config = Path.joinpath(Path(self.root_dir), 'config/config.yaml')
-            
-            with open(self.config, "w+", encoding="utf8") as yaml_file:
-                yaml_file.write(hbc_config)
-                print(f"wrote new config: \n {hbc_config}")
-
-    def set_gpu_avaibility(self, index):
-        if self.gpu_avaibility.itemText(index) == 'Enabled':
-            self.gpu_avaibility_value = True
-        else:
-            self.gpu_avaibility_value = False
-
-    def set_metadata_path(self):
-        """docstring"""
-        options = QFileDialog.Options()
-        file_name, _ = QFileDialog.getOpenFileName(
-            self,
-            "Set HabCam Image Metadata",
-            self.metadata_path.text(),
-            "All Files (*);;Text Files (*.txt)",
-            options=options,
-        )
-        if file_name:
-            self.metadata_path.setText(file_name)
-
-    def set_imageannotation_path(self):
-        """docstring"""
-        options = QFileDialog.Options()
-        file_name, _ = QFileDialog.getOpenFileName(
-            self,
-            "Set HabCam Image Metadata",
-            self.imageannotation_path.text(),
-            "All Files (*);;Text Files (*.txt)",
-            options=options,
-        )
-        if file_name:
-            self.imageannotation_path.setText(file_name)
-
-    def set_image_path(self):
-        """docstring"""
-        options = QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly
-        directory = QFileDialog.getExistingDirectory(
-            self, "Set HabCam Image directory", self.image_path.text(), options=options
-        )
-        if directory:
-            self.image_path.setText(directory)
-
-    def set_kml_path(self):
-        """docstring"""
-        options = QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly
-        directory = QFileDialog.getExistingDirectory(
-            self, "Set KML export directory", self.kml_path.text(), options=options
-        )
-        if directory:
-            self.kml_path.setText(directory)
-
-    def set_vrt_path(self):
-        """docstring"""
-        options = QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly
-        directory = QFileDialog.getExistingDirectory(
-            self, "Set VRT export directory", self.vrt_path.text(), options=options
-        )
-        if directory:
-            self.vrt_path.setText(directory)
-
-    def set_mbes_path(self):
-        """docstring"""
-        options = QFileDialog.Options()
-        file_name, _ = QFileDialog.getOpenFileName(
-            self,
-            "Set MBES datasource",
-            self.metadata_path.text(),
-            "All Files (*);;Text Files (*.txt)",
-            options=options,
-        )
-        if file_name:
-            self.mbes_path.setText(file_name)
-
-    def get_gui_settings(self):
-        """docstring"""
-        gui_settings = {
-            "Mbes": {"soundings": self.mbes_path.text()},
-            "HabCam": {
-                "imagepath": self.image_path.text(),
-                "imagemetadata": self.metadata_path.text(),
-                "imageannotation": self.imageannotation_path.text(),
-            },
-            "Export": {"kmldir": self.kml_path.text()},
-            # "vrtdir": self.vrt_path.text()
-            "Processing": {"gpu_avaibility": self.gpu_avaibility_value,
-                           "grass_api_endpoint": self.grass_api_endpoint.text()},
-            "Filesystem": {"filemanager": self.filemanager.text()},
-        }
-        print(gui_settings)
-        return gui_settings
-
-
-def show_dialog():
-    """docstring"""
-    # dialog = QDialogClass()
-    dialog = ConfigDialog()
-    dialog.exec_()
-
-
-def validate_config2(settings, get_bad_keys=False):
-    """docstring"""
+    Returns the settings dict on success, or ``None`` if the file is missing
+    or cannot be parsed.  Never shows any dialog.
+    """
     try:
-        m = HabcamSettings(
+        with open(config_path, "r", encoding="utf8") as fh:
+            return yaml.safe_load(fh)
+    except FileNotFoundError:
+        return None
+    except yaml.YAMLError:
+        return None
+
+
+def validate_config(settings):
+    """Validate *settings* against the Pydantic model.
+
+    Returns a ``(is_valid: bool, error_message: str)`` tuple.
+    Never shows any dialog – the caller decides how to present errors.
+    """
+    if not settings:
+        return False, "No settings provided"
+    try:
+        HabcamSettings(
             Mbes={"soundings": settings["Mbes"]["soundings"]},
             HabCam={
                 "imagepath": settings["HabCam"]["imagepath"],
                 "imagemetadata": settings["HabCam"]["imagemetadata"],
                 "imageannotation": settings["HabCam"]["imageannotation"],
             },
-            Export={
-                "kmldir": settings["Export"]["kmldir"],
-                # "vrtdir": settings["Export"]["vrtdir"],
-            },
+            Export={"kmldir": settings["Export"]["kmldir"]},
             Processing={
                 "gpu_avaibility": settings["Processing"]["gpu_avaibility"],
                 "grass_api_endpoint": settings["Processing"]["grass_api_endpoint"],
             },
             Filesystem={"filemanager": settings["Filesystem"]["filemanager"]},
         )
-        return True
-    except ValidationError as msg:
-        bad_keys = []
-        error_msg = f"For the provided settings: \n {settings} \n the following Parameters have invalid values: \n"
-        print(error_msg)
-        print(msg.errors())
-        for i in msg.errors():
-            print(i)
-            error_msg = error_msg + f"""{i['loc'][0]} : {i['loc'][1]} \n"""
-            bad_keys.append({i["loc"][0]: i["loc"][0]})
-        error_message(error_msg)
-        if get_bad_keys:
-            return bad_keys
-        else:
-            return False
-    except KeyError as msg:
-        print(msg)
-        return False
+        return True, ""
+    except ValidationError as exc:
+        lines = [
+            f"  {'.'.join(str(l) for l in err['loc'])}: {err['msg']}"
+            for err in exc.errors()
+        ]
+        return False, "Invalid settings:\n" + "\n".join(lines)
+    except KeyError as exc:
+        return False, f"Missing required config key: {exc}"
 
 
-def get_settings2(config):
-    """docstring"""
-    try:
-        with open(config, "r", encoding="utf8") as config_file:
-            settings = yaml.safe_load(config_file)
-            print(settings)
-            return settings
-    except FileNotFoundError as notfound:
-        return False
+def get_settings(config_path):
+    """Load *and* validate the config file at *config_path*.
+
+    Returns the settings dict when valid, or ``None`` otherwise.
+    Never shows any dialog – callers are responsible for user feedback.
+    """
+    settings = load_config(config_path)
+    is_valid, _ = validate_config(settings)
+    return settings if is_valid else None
 
 
-def get_settings(config):
-    """docstring"""
-    try:
-        with open(config, "r", encoding="utf8") as config_file:
-            settings = yaml.safe_load(config_file)
-            if validate_config2(settings):
-                return settings
-            else:
-                return False
-    except FileNotFoundError as notfound:
-        error_message(str(notfound))
-        # show_dialog()
-        return False
-
+# ---------------------------------------------------------------------------
+# GUI helper
+# ---------------------------------------------------------------------------
 
 def error_message(message):
-    """docstring"""
+    """Show a modal error message dialog."""
     alert = QMessageBox()
     alert.setText(message)
     alert.exec()
+
+
+# ---------------------------------------------------------------------------
+# Settings dialog
+# ---------------------------------------------------------------------------
+
+class ConfigDialog(QDialog, AppSettings):
+    """Dialog for editing the GroundTruther YAML configuration.
+
+    Emits ``settings_saved`` after a valid configuration has been written to
+    disk so that other widgets can react without needing a plugin restart.
+    """
+
+    settings_saved = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__()
+        QDialog.__init__(self, parent)
+        self.setupUi(self)
+
+        self.root_dir = os.path.dirname(__file__)
+        self.config = DEFAULT_CONFIG_PATH
+        self.gpu_avaibility_value = False
+
+        templates_path = Path(self.root_dir) / "config" / "templates"
+        self.templates = Jinja2Templates(directory=str(templates_path))
+
+        # Wire buttons
+        self.select_image_path.clicked.connect(self.set_image_path)
+        self.select_metadata_path.clicked.connect(self.set_metadata_path)
+        self.select_imageannotation_path.clicked.connect(self.set_imageannotation_path)
+        self.select_mbes_path.clicked.connect(self.set_mbes_path)
+        self.select_kml_path.clicked.connect(self.set_kml_path)
+        self.gpu_avaibility.currentIndexChanged.connect(self._on_gpu_index_changed)
+        self.setOption.clicked.connect(self.write_config)
+        self.quit.clicked.connect(self.close)
+
+        # Populate fields from disk – silently, no validation dialogs
+        self._populate_fields()
+
+        # GPU toggle disabled until RAPIDS detection is implemented
+        self.gpu_avaibility.setEnabled(False)
+        self.vrt_label.hide()
+        self.vrt_path.hide()
+        self.select_vrt_path.hide()
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+
+    def _populate_fields(self):
+        """Read the current config file and fill in the form fields.
+
+        Uses ``load_config`` (no validation) so that a config with invalid
+        paths can still be displayed and corrected by the user.
+        """
+        settings = load_config(self.config) or {}
+
+        fs = settings.get("Filesystem", {})
+        hbc = settings.get("HabCam", {})
+        mbes = settings.get("Mbes", {})
+        export = settings.get("Export", {})
+        proc = settings.get("Processing", {})
+
+        self.filemanager.setText(fs.get("filemanager", ""))
+        self.image_path.setText(hbc.get("imagepath", ""))
+        self.metadata_path.setText(hbc.get("imagemetadata", ""))
+        self.imageannotation_path.setText(hbc.get("imageannotation", ""))
+        self.mbes_path.setText(mbes.get("soundings", ""))
+        self.kml_path.setText(export.get("kmldir", ""))
+
+        gpu = proc.get("gpu_avaibility", False)
+        self.gpu_avaibility_value = bool(gpu)
+        self.gpu_avaibility.setCurrentText("Enabled" if gpu else "Disabled")
+        self.grass_api_endpoint.setText(proc.get("grass_api_endpoint", ""))
+
+    def _on_gpu_index_changed(self, index):
+        self.gpu_avaibility_value = self.gpu_avaibility.itemText(index) == "Enabled"
+
+    # ------------------------------------------------------------------
+    # File/directory pickers
+    # ------------------------------------------------------------------
+
+    def set_image_path(self):
+        directory = QFileDialog.getExistingDirectory(
+            self, "Set HabCam image directory", self.image_path.text(),
+            QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly,
+        )
+        if directory:
+            self.image_path.setText(directory)
+
+    def set_metadata_path(self):
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Set image metadata file", self.metadata_path.text(),
+            "Parquet files (*.parquet);;All files (*)",
+        )
+        if file_name:
+            self.metadata_path.setText(file_name)
+
+    def set_imageannotation_path(self):
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Set image annotation file", self.imageannotation_path.text(),
+            "CSV files (*.csv);;All files (*)",
+        )
+        if file_name:
+            self.imageannotation_path.setText(file_name)
+
+    def set_mbes_path(self):
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Set MBES soundings file", self.mbes_path.text(),
+            "Parquet files (*.parquet);;All files (*)",
+        )
+        if file_name:
+            self.mbes_path.setText(file_name)
+
+    def set_kml_path(self):
+        directory = QFileDialog.getExistingDirectory(
+            self, "Set KML export directory", self.kml_path.text(),
+            QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly,
+        )
+        if directory:
+            self.kml_path.setText(directory)
+
+    def set_vrt_path(self):
+        directory = QFileDialog.getExistingDirectory(
+            self, "Set VRT export directory", self.vrt_path.text(),
+            QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly,
+        )
+        if directory:
+            self.vrt_path.setText(directory)
+
+    # ------------------------------------------------------------------
+    # Settings read-back
+    # ------------------------------------------------------------------
+
+    def get_gui_settings(self):
+        """Return a settings dict built from the current form field values."""
+        return {
+            "Filesystem": {"filemanager": self.filemanager.text()},
+            "HabCam": {
+                "imagepath": self.image_path.text(),
+                "imagemetadata": self.metadata_path.text(),
+                "imageannotation": self.imageannotation_path.text(),
+            },
+            "Mbes": {"soundings": self.mbes_path.text()},
+            "Export": {"kmldir": self.kml_path.text()},
+            "Processing": {
+                "gpu_avaibility": self.gpu_avaibility_value,
+                "grass_api_endpoint": self.grass_api_endpoint.text(),
+            },
+        }
+
+    # ------------------------------------------------------------------
+    # Save
+    # ------------------------------------------------------------------
+
+    def write_config(self):
+        """Validate the form and write the config file.
+
+        Shows an error dialog if validation fails.  On success writes the
+        YAML file, emits ``settings_saved``, and closes the dialog.
+        """
+        gui_settings = self.get_gui_settings()
+        is_valid, err_msg = validate_config(gui_settings)
+        if not is_valid:
+            error_message(f"Cannot save – please fix the following:\n\n{err_msg}")
+            return
+
+        hbc_config = self.templates.get_template("config_template.yaml").render({
+            "filemanager": self.filemanager.text(),
+            "imagepath": self.image_path.text(),
+            "imagemetadata": self.metadata_path.text(),
+            "imageannotation": self.imageannotation_path.text(),
+            "soundings": self.mbes_path.text(),
+            "kmldir": self.kml_path.text(),
+            "gpu_avaibility": self.gpu_avaibility_value,
+            "grass_api_endpoint": self.grass_api_endpoint.text(),
+        })
+        with open(self.config, "w+", encoding="utf8") as yaml_file:
+            yaml_file.write(hbc_config)
+
+        self.settings_saved.emit()
+        self.close()
+
+
+# ---------------------------------------------------------------------------
+# Backward-compatibility shims
+# ---------------------------------------------------------------------------
+
+def validate_config2(settings, get_bad_keys=False):
+    """Deprecated shim – use ``validate_config()`` instead.
+
+    Returns ``True``/``False`` for valid/invalid settings.
+    No longer shows any error dialog.
+    """
+    is_valid, _ = validate_config(settings)
+    return is_valid
+
+
+def get_settings2(config_path):
+    """Deprecated shim – use ``load_config()`` instead."""
+    return load_config(config_path)
+
+
+def show_dialog():
+    """Show a standalone configuration dialog (used outside the plugin)."""
+    dialog = ConfigDialog()
+    dialog.exec_()

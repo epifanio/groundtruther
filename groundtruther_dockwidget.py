@@ -47,7 +47,7 @@ import pyarrow
 
 from qgis.core import QgsMapLayerType
 
-from groundtruther.configure import get_settings, ConfigDialog, error_message
+from groundtruther.configure import get_settings, load_config, ConfigDialog, error_message
 from groundtruther.ioutils import parse_annotation, get_layer_info, send_layer_as_geojson, convert_to_geojson_using_gdal
 
 from groundtruther.pygui.Ui_groundtruther_dockwidget_base import Ui_GroundTrutherDockWidgetBase  
@@ -137,11 +137,22 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self.setWidget(self.w)
         #self.config = os.environ.get('HBC_CONFIG')
         self.config = os.path.join(os.path.dirname(__file__), 'config/config.yaml')
-        self.dialog = ConfigDialog()
         self.settings = get_settings(self.config)
         if not self.settings:
-            self.show_dialog()
+            # Config missing or invalid on first load – show dialog once, no
+            # error dialogs beforehand (get_settings is now side-effect free).
+            self._open_config_dialog()
             self.settings = get_settings(self.config)
+        # Provide safe defaults if user closed the dialog without saving valid
+        # settings, so the rest of __init__ doesn't crash.
+        if not self.settings:
+            self.settings = {
+                "HabCam": {"imagepath": "", "imagemetadata": "", "imageannotation": ""},
+                "Mbes": {"soundings": ""},
+                "Export": {"kmldir": ""},
+                "Processing": {"gpu_avaibility": False, "grass_api_endpoint": ""},
+                "Filesystem": {"filemanager": ""},
+            }
         self.grass_dialog = GrassConfigDialog(self)
         self.imagelist = []
         self.imageindex = 1
@@ -430,69 +441,64 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
 
 
     def set_settings(self):
-        """docstring"""
-        # self.dialog.exec_()
-        self.settings = get_settings(self.config)
+        """Reload settings from disk and apply them to the UI."""
+        self._apply_settings()
+
+    def _apply_settings(self):
+        """Load settings from disk and refresh all data-dependent state.
+
+        Safe to call at any time – re-reads the config file, updates paths,
+        reloads image metadata and rebuilds the KDTree.  Shows the config
+        dialog if the metadata file is missing so the user can correct it.
+        """
+        fresh = get_settings(self.config)
+        if fresh:
+            self.settings = fresh
+
+        if not self.settings:
+            return
+
         self.dirname = self.settings["HabCam"]["imagepath"]
         self.metadatafile = self.settings["HabCam"]["imagemetadata"]
         self.imageannotationfile = self.settings["HabCam"]["imageannotation"]
         self.grass_api_endpoint = self.settings["Processing"]["grass_api_endpoint"]
-        # self.annotation_confidence_treshold = 0.5  #
 
-        #
-        # self.imagelist = os.listdir(self.dirname)
-        # self.imagelist.sort()
-        # self.w.ImageIndexspinBox.setMaximum(len(self.imagelist) - 1)
-        # self.w.ImageIndexSlider.setMaximum(len(self.imagelist) - 1)
-        #
         try:
             self.imagemetadata_gui
         except AttributeError:
             self.imagemetadata_gui = ImageMetadata()
+
         if Path(self.metadatafile).is_file():
             try:
                 self.imageMetadata = pd.read_parquet(self.metadatafile)
-                # self.imageMetadata.index = pd.to_datetime(
-                #    self.imageMetadata["index"])
-                # self.imageMetadata = self.imageMetadata.loc[
-                #    self.imageMetadata["Imagename"].isin(
-                #        (i.replace(".jpg", "") for i in self.imagelist)
-                #    )
-                # ]
-
-                self.w.ImageIndexspinBox.setMaximum(
-                    len(self.imageMetadata) - 1)
+                self.w.ImageIndexspinBox.setMaximum(len(self.imageMetadata) - 1)
                 self.w.ImageIndexSlider.setMaximum(len(self.imageMetadata) - 1)
 
-                if os.getenv("HBC_DEBUG") and os.getenv("HBC_DEBUG") == 'VERBOSE':
-                    print("image metadata columns")
-                    print(self.imageMetadata.columns)
+                if os.getenv("HBC_DEBUG") == "VERBOSE":
+                    print("image metadata columns:", self.imageMetadata.columns.tolist())
+
                 self.imagemetadata_gui.metadata_scroll_area.setEnabled(True)
+
                 if Path(self.imageannotationfile).is_file():
-                    # check the annotation file
-                    # merge the info in the metadata and
-                    # enable annotation tool
                     print("Annotation file loaded")
                     self.w.actionAnnotation.setEnabled(True)
-                    annotations_by_image = parse_annotation(
-                        self.imageannotationfile)
+                    annotations_by_image = parse_annotation(self.imageannotationfile)
                     self.imageMetadata["Annotation"] = self.imageMetadata.Imagename.map(
                         annotations_by_image
                     )
                 else:
                     self.w.actionAnnotation.setEnabled(False)
+
                 self.kdt = spatial.KDTree(
-                    self.imageMetadata[["habcam_lon", "habcam_lat"]].values)
+                    self.imageMetadata[["habcam_lon", "habcam_lat"]].values
+                )
             except OSError:
                 print("OS error reading metadata")
             except pyarrow.lib.ArrowInvalid as message:
-                error_message(
-                    f"error reading {self.metadatafile}: \n" + str(message))
+                error_message(f"Error reading {self.metadatafile}:\n{message}")
                 self.imageMetadata = None
-                # self.show_dialog()
         else:
             self.show_dialog()
-            print(f"ther new path is {self.dialog.image_path.text()}")
 
     # def get_vquey_position(self, lat: float, lon: float):
     #     print("vquery at", lat, lon)
@@ -1120,66 +1126,25 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             self.querybuilder.qb_longitude.setText(self.w.longitude.text())
             self.querybuilder.qb_latitude.setText(self.w.latitude.text())
             
+    def _open_config_dialog(self):
+        """Open the config dialog without connecting to _apply_settings.
+
+        Used during __init__ before the UI is fully constructed.  The caller
+        is responsible for re-reading settings afterwards.
+        """
+        dialog = ConfigDialog()
+        dialog.exec_()
+
     def show_dialog(self):
-        """docstring"""
-        self.dialog.exec_()
-        self.settings = get_settings(self.config)
-        self.dirname = self.settings["HabCam"]["imagepath"]
-        self.metadatafile = self.settings["HabCam"]["imagemetadata"]
-        self.imageannotationfile = self.settings["HabCam"]["imageannotation"]
-        self.grass_api_endpoint = self.settings["Processing"]["grass_api_endpoint"]
-        #
-        # self.imagelist = os.listdir(self.dirname)
-        # self.imagelist.sort()
-        # self.w.ImageIndexspinBox.setMaximum(len(self.imagelist) - 1)
-        # self.w.ImageIndexSlider.setMaximum(len(self.imagelist) - 1)
-        #
-        try:
-            self.imagemetadata_gui
-        except AttributeError:
-            self.imagemetadata_gui = ImageMetadata()
-        if Path(self.metadatafile).is_file():
-            try:
-                self.imageMetadata = pd.read_parquet(self.metadatafile)
-                self.w.ImageIndexspinBox.setMaximum(
-                    len(self.imageMetadata) - 1)
-                self.w.ImageIndexSlider.setMaximum(len(self.imageMetadata) - 1)
-                # self.imageMetadata.index = pd.to_datetime(
-                #     self.imageMetadata["index"])
-                # self.imageMetadata = self.imageMetadata.loc[
-                #     self.imageMetadata["Imagename"].isin(
-                #         (i.replace(".jpg", "") for i in self.imagelist)
-                #     )
-                # ]
-                if os.getenv("HBC_DEBUG") and os.getenv("HBC_DEBUG") == 'VERBOSE':
-                    print("image metadata columns")
-                    print(self.imageMetadata.columns)
-                self.imagemetadata_gui.metadata_scroll_area.setEnabled(True)
-                if Path(self.imageannotationfile).is_file():
-                    # check the annotation file
-                    # merge the info in the metadata and
-                    # enable annotation tool
-                    print("Annotation file loaded")
-                    self.w.actionAnnotation.setEnabled(True)
-                    annotations_by_image = parse_annotation(
-                        self.imageannotationfile)
-                    self.imageMetadata["Annotation"] = self.imageMetadata.Imagename.map(
-                        annotations_by_image
-                    )
-                else:
-                    self.w.actionAnnotation.setEnabled(False)
-                self.kdt = spatial.KDTree(
-                    self.imageMetadata[["habcam_lon", "habcam_lat"]].values)
-            except OSError:
-                print("OS error reading metadata")
-            except pyarrow.lib.ArrowInvalid as message:
-                error_message(
-                    f"error reading {self.metadatafile}: \n" + str(message))
-                self.imageMetadata = None
-                # self.show_dialog()
-        else:
-            self.show_dialog()
-            print(f"ther new path is {self.dialog.image_path.text()}")
+        """Open the config dialog and apply settings when the user saves.
+
+        Creates a fresh ConfigDialog each time so the form always reflects
+        the current on-disk config.  Connects ``settings_saved`` so that
+        applying new settings happens automatically without a plugin restart.
+        """
+        dialog = ConfigDialog()
+        dialog.settings_saved.connect(self._apply_settings)
+        dialog.exec_()
 
     def showTools(self):
         """docstring"""
