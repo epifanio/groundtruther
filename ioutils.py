@@ -243,61 +243,45 @@ def send_layer_as_geojson_using_gdal_(layer, api_endpoint):
         return {"error": f"Failed to send GeoJSON to API. Status code: {response.status_code}", "response": response.text}
     
     
-def convert_to_geojson_using_gdal(input_path, output_path=None):
-    """
-    Converts a vector file to GeoJSON format using GDAL/OGR Python bindings.
+def convert_to_geojson_using_gdal(input_path):
+    """Convert a vector file to a GeoJSON string using GDAL/OGR.
 
     :param input_path: Path to the input vector file.
-    :param output_path: Path to the output GeoJSON file. If None, a temporary file will be used.
-    :return: Path to the GeoJSON file or an error message.
+    :return: GeoJSON string on success, or an error string on failure.
+
+    The function is intentionally limited to conversion only.  Callers that
+    need to POST the result to an API endpoint should do so themselves, passing
+    the appropriate endpoint URL explicitly.
     """
-    output_path = uuid.uuid4().hex + ".geojson" if output_path is None else output_path
+    tmp_path = uuid.uuid4().hex + ".geojson"
 
     input_ds = ogr.Open(input_path)
     if input_ds is None:
         return f"Failed to open input file: {input_path}"
-    
-    # Create the output data source with GeoJSON format
-    geojson_driver = ogr.GetDriverByName('GeoJSON')
+
+    geojson_driver = ogr.GetDriverByName("GeoJSON")
     if geojson_driver is None:
         return "GDAL GeoJSON driver not found"
-    
-    output_ds = geojson_driver.CreateDataSource(output_path)
-    if output_ds is None:
-        return f"Failed to create output GeoJSON file: {output_path}"
 
-    # Copy all layers from the input data source to the GeoJSON output
+    output_ds = geojson_driver.CreateDataSource(tmp_path)
+    if output_ds is None:
+        return f"Failed to create temporary GeoJSON file: {tmp_path}"
+
     for i in range(input_ds.GetLayerCount()):
         input_layer = input_ds.GetLayerByIndex(i)
         output_layer = output_ds.CreateLayer(
             input_layer.GetName(),
-            geom_type=input_layer.GetGeomType()
+            geom_type=input_layer.GetGeomType(),
         )
-        
-        # Copy layer schema
         output_layer.CreateFields(input_layer.schema)
-        
-        # Copy features
         for feature in input_layer:
             output_layer.CreateFeature(feature)
-    
-    # Cleanup
+
     del output_ds
     del input_ds
-    
-    # Read the GeoJSON data from the temporary file
-    with open(output_path, 'r', encoding='utf-8') as f:
-        geojson_data = f.read()
-    
-    # Clean up the temporary file
-    os.remove(output_path)
-    
-    # Send the GeoJSON string as a JSON payload to the API endpoint
-    headers = {'Content-Type': 'application/json'}
-    response = requests.post(api_endpoint, data=geojson_data, headers=headers)
-    
-    # Return the API response
-    if response.status_code == 200:
-        return {"success": "Layer successfully sent to the API", "response": response.json()}
-    else:
-        return {"error": f"Failed to send GeoJSON to API. Status code: {response.status_code}", "response": response.text}
+
+    with open(tmp_path, "r", encoding="utf-8") as fh:
+        geojson_data = fh.read()
+
+    os.remove(tmp_path)
+    return geojson_data

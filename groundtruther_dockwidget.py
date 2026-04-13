@@ -376,11 +376,13 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         print(iface.activeLayer()) 
         print(get_layer_info(iface.activeLayer()))
         
-    def import_active_vector_layer_to_grass(self): 
-        print('vector action triggered - import vector')
-        print(iface.activeLayer())
-        print(get_layer_info(iface.activeLayer()))
-        print(convert_to_geojson_using_gdal(iface.activeLayer().source()), self.grass_api_endpoint)
+    def import_active_vector_layer_to_grass(self):
+        # TODO: implement actual import – convert layer to GeoJSON then POST to
+        # self.grass_api_endpoint + '/api/import_vector'
+        geojson = convert_to_geojson_using_gdal(iface.activeLayer().source())
+        print("import_active_vector_layer_to_grass – geojson ready, endpoint:",
+              self.grass_api_endpoint)
+        print(geojson[:200] if isinstance(geojson, str) else geojson)
 
     def init_grass_ui(self):
         # create the widget for grass which goes into the splitter
@@ -508,17 +510,32 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
     #         f'Zoom to nearest Image: index # {index}')
     
     def set_grass_cpr(self, minlat, maxlat, minlon, maxlon):
-        print('set_grass_cpr: ', minlat, maxlat, minlon, maxlon)
-        # print(self.set_grass_region(float(minlat), float(maxlat), float(minlon), float(maxlon)).json())
-        self.region_response = self.set_grass_region(float(minlat), float(maxlat), float(minlon), float(maxlon)).json()['data']['region']
-        print(self.region_response)
+        # set_grass_region handles all network errors internally and returns
+        # the parsed JSON dict on success, or None on any failure.
+        payload = self.set_grass_region(
+            float(minlat), float(maxlat), float(minlon), float(maxlon)
+        )
+        if payload is None:
+            return  # error already shown by set_grass_region
+
+        if payload.get("status") != "SUCCESS":
+            error_message(f"GRASS region error: {payload}")
+            return
+
+        try:
+            self.region_response = payload["data"]["region"]
+        except KeyError as exc:
+            error_message(f"Unexpected GRASS region response structure: {exc}")
+            return
+
         if self.r:
             self.canvas.scene().removeItem(self.r)
-        self.r = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)  # polygon
-        #self.r = QgsRubberBand(self.canvas)  # polyline
-        points = [[QgsPointXY(maxlon, maxlat), QgsPointXY(minlon, maxlat), QgsPointXY(minlon, minlat), QgsPointXY(maxlon, minlat)]]
+        self.r = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
+        points = [[
+            QgsPointXY(maxlon, maxlat), QgsPointXY(minlon, maxlat),
+            QgsPointXY(minlon, minlat), QgsPointXY(maxlon, minlat),
+        ]]
         self.r.setToGeometry(QgsGeometry.fromPolygonXY(points), None)
-        #self.r.setToGeometry(QgsGeometry.fromPolyline(points), None)
         self.r.setWidth(3)
         self.r.setColor(QColor(255, 0, 0))
         self.r.setFillColor(QColor(0, 0, 0, 0))
@@ -574,111 +591,168 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
 
 
 
-    def get_grass_query_data(self, lat:float, lon: float):
-        print(lat, lon)
+    def get_grass_query_data(self, lat: float, lon: float):
         headers = {
-            'accept': 'application/json',
-            'Content-Type': 'application/json',
+            "accept": "application/json",
+            "Content-Type": "application/json",
         }
-        grass_settings = self.grass_dialog.set_grass_location()
-        # grass_layers = ['bathy']
-        
-        if grass_settings['status'] == 'SUCCESS':
-            grass_gisenv = grass_settings['data']['gisenv']
-        
-        # params = {
-        #     'location_name': grass_gisenv['LOCATION_NAME'],
-        #     'mapset_name': grass_gisenv['MAPSET'],
-        #     'gisdb': grass_gisenv['GISDBASE'],
-        #     }
-        # # response = requests.get('https://grassapi.wps.met.no/api/get_rvg_list', params=params, headers=headers)
-        # response = requests.get(
-        #     f'{self.grass_api_endpoint}/api/get_rvg_list',params=params, headers=headers, timeout=60)
-        # grass_layers = response.json()['data']['raster']
+        try:
+            grass_settings = self.grass_dialog.set_grass_location()
+        except requests.exceptions.ConnectionError:
+            error_message(
+                "Cannot reach the GRASS API server.\n"
+                "Check the endpoint URL in Settings."
+            )
+            return
+        except requests.exceptions.Timeout:
+            error_message("GRASS API request timed out.")
+            return
+
+        if grass_settings.get("status") != "SUCCESS":
+            self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(
+                f"<b>GRASS location error:</b> {grass_settings}"
+            )
+            return
+
+        grass_gisenv = grass_settings["data"]["gisenv"]
         self.grassWidgetContents.get_checked_items()
         grass_layers = self.grassWidgetContents.checked_layers
-        
-        if int(grass_settings['data']['region']['projection'].split(' ')[0]) == 1:
-            params = {'lonlat': 'true'}
-        else:
-            params = {'lonlat': 'false'}
-        # corner = [[minlon, maxlat], [maxlon, minlat]]
+
+        try:
+            projection_code = int(
+                grass_settings["data"]["region"]["projection"].split(" ")[0]
+            )
+        except (KeyError, ValueError, IndexError):
+            projection_code = 0
+        params = {"lonlat": "true" if projection_code == 1 else "false"}
 
         json_data = {
-            'location': {
-                'location_name': grass_gisenv['LOCATION_NAME'],
-                'mapset_name': grass_gisenv['MAPSET'],
-                'gisdb': grass_gisenv['GISDBASE'],
+            "location": {
+                "location_name": grass_gisenv["LOCATION_NAME"],
+                "mapset_name": grass_gisenv["MAPSET"],
+                "gisdb": grass_gisenv["GISDBASE"],
             },
-            'coors': [lon, lat],
-            'grass_layers': grass_layers,
+            "coors": [lon, lat],
+            "grass_layers": grass_layers,
         }
 
-        response = requests.post(
-            f'{self.grass_api_endpoint}/api/r_what',params=params, headers=headers, json=json_data, timeout=60)
-        # point = response.json()['data']
-        print('r_what_response: ', response.json())
-        if response.json()['status'] == 'SUCCESS':
-            results = "<br>".join([f"{list(i.keys())[0]}: {i[list(i.keys())[0]]['value']}  <br>" for i in response.json()['data'] if i[list(i.keys())[0]]['value'] != 'No data'])
-            # values = [f"{i}: {response.json()[0][i]['value']}" for i in grass_layers]
-            # value = response.json()[0]['bathy']['value']
-            # print(point)
-            # result = str(lon)+" "+str(lat)+"<br>"+str(values)
-            self.grassWidgetContents.add_query_result(response.json()['data'])
+        try:
+            response = requests.post(
+                f"{self.grass_api_endpoint}/api/r_what",
+                params=params, headers=headers, json=json_data, timeout=60,
+            )
+            payload = response.json()
+        except requests.exceptions.ConnectionError:
+            error_message(
+                "Cannot reach the GRASS API server.\n"
+                "Check the endpoint URL in Settings."
+            )
+            return
+        except requests.exceptions.Timeout:
+            error_message("GRASS API r_what request timed out.")
+            return
+        except ValueError:
+            error_message("GRASS API returned an unexpected (non-JSON) response.")
+            return
+
+        if payload.get("status") == "SUCCESS":
+            results = "<br>".join(
+                f"{list(i.keys())[0]}: {i[list(i.keys())[0]]['value']}<br>"
+                for i in payload["data"]
+                if i[list(i.keys())[0]]["value"] != "No data"
+            )
+            self.grassWidgetContents.add_query_result(payload["data"])
         else:
-            results = str(response.json())
+            results = str(payload)
         self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(results)
 
     def set_grass_region(self, minlat: float, maxlat: float, minlon: float, maxlon: float):
-        grass_settings = self.grass_dialog.set_grass_location()
-        if grass_settings['status'] == 'SUCCESS':
-            grass_gisenv = grass_settings['data']['gisenv']
-        print(grass_settings['data']['region']['projection'])
-        if int(grass_settings['data']['region']['projection'].split(' ')[0]) == 1:
-            # corner = [[minlon, maxlat], [maxlon, minlat]]
-            headers = {
-                'accept': 'application/json',
-                'Content-Type': 'application/json',
-            }
+        """Set the GRASS computational region to the given bounding box.
 
-            json_data = {
-                'location': {
-                    'location_name': grass_gisenv['LOCATION_NAME'],
-                    'mapset_name': grass_gisenv['MAPSET'],
-                    'gisdb': grass_gisenv['GISDBASE'],
-                },
-                'coors': [[minlon, maxlat], [maxlon, minlat]],
-            }
-
-            response = requests.post(
-                f'{self.grass_api_endpoint}/api/m_proj', headers=headers, json=json_data, timeout=60)
-            corners = response.json()['data']
-        else:
-            corners = [[minlon, maxlat], [maxlon, minlat]]
-        print('corners: ', corners)
+        Returns the parsed JSON payload dict on success, or ``None`` on any
+        network / API error (caller must check for None).
+        """
         headers = {
-                'accept': 'application/json',
-                'Content-Type': 'application/json',
-            }
-        json_data = {
-            'location': {
-                'location_name': grass_gisenv['LOCATION_NAME'],
-                'mapset_name': grass_gisenv['MAPSET'],
-                'gisdb': grass_gisenv['GISDBASE'],
-            },
-            'bounds': {
-                'n': corners[0][1],
-                's': corners[1][1],
-                'e': corners[1][0],
-                'w': corners[0][0],
-            },
-            'resolution': {
-                'resolution': 0,
-            },
+            "accept": "application/json",
+            "Content-Type": "application/json",
         }
-        response = requests.post(
-            f'{self.grass_api_endpoint}/api/set_region_bounds', headers=headers, json=json_data, timeout=60)
-        return response
+
+        try:
+            grass_settings = self.grass_dialog.set_grass_location()
+        except requests.exceptions.ConnectionError:
+            error_message(
+                "Cannot reach the GRASS API server.\n"
+                "Check the endpoint URL in Settings."
+            )
+            return None
+        except requests.exceptions.Timeout:
+            error_message("GRASS API request timed out.")
+            return None
+
+        if grass_settings.get("status") != "SUCCESS":
+            error_message(f"GRASS location error: {grass_settings}")
+            return None
+
+        grass_gisenv = grass_settings["data"]["gisenv"]
+
+        try:
+            projection_code = int(
+                grass_settings["data"]["region"]["projection"].split(" ")[0]
+            )
+        except (KeyError, ValueError, IndexError):
+            projection_code = 0
+
+        try:
+            if projection_code == 1:
+                # Reproject lon/lat corners to the GRASS location CRS first
+                proj_data = {
+                    "location": {
+                        "location_name": grass_gisenv["LOCATION_NAME"],
+                        "mapset_name": grass_gisenv["MAPSET"],
+                        "gisdb": grass_gisenv["GISDBASE"],
+                    },
+                    "coors": [[minlon, maxlat], [maxlon, minlat]],
+                }
+                proj_response = requests.post(
+                    f"{self.grass_api_endpoint}/api/m_proj",
+                    headers=headers, json=proj_data, timeout=60,
+                )
+                corners = proj_response.json()["data"]
+            else:
+                corners = [[minlon, maxlat], [maxlon, minlat]]
+
+            region_data = {
+                "location": {
+                    "location_name": grass_gisenv["LOCATION_NAME"],
+                    "mapset_name": grass_gisenv["MAPSET"],
+                    "gisdb": grass_gisenv["GISDBASE"],
+                },
+                "bounds": {
+                    "n": corners[0][1],
+                    "s": corners[1][1],
+                    "e": corners[1][0],
+                    "w": corners[0][0],
+                },
+                "resolution": {"resolution": 0},
+            }
+            response = requests.post(
+                f"{self.grass_api_endpoint}/api/set_region_bounds",
+                headers=headers, json=region_data, timeout=60,
+            )
+            return response.json()
+
+        except requests.exceptions.ConnectionError:
+            error_message(
+                "Cannot reach the GRASS API server.\n"
+                "Check the endpoint URL in Settings."
+            )
+            return None
+        except requests.exceptions.Timeout:
+            error_message("GRASS API request timed out.")
+            return None
+        except (ValueError, KeyError) as exc:
+            error_message(f"Unexpected GRASS API response: {exc}")
+            return None
         # headers = {
         #     'accept': 'application/json',
         # }
@@ -772,29 +846,26 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self.querybuilder.close()
         
     def zoom_to(self):
-        """docstring"""
-        lon = float(self.w.longitude.text())
-        lat = float(self.w.latitude.text())
-        distance = float(self.rangevalue)
-        # print(lon, lat, distance)
-        
+        """Pan and zoom the map canvas to the current image coordinates."""
+        try:
+            lon = float(self.w.longitude.text())
+            lat = float(self.w.latitude.text())
+        except ValueError:
+            # Fields are empty or contain non-numeric text – nothing to zoom to
+            return
+
+        distance = float(self.rangevalue) / 10000
 
         self.w.statusbar.showMessage("System Status | Normal")
 
-        distance = distance/10000
         rect = QgsRectangle(
-            (float(lon)) - float(distance), 
-            (float(lat)) - float(distance), 
-            (float(lon)) + float(distance), 
-            (float(lat)) + float(distance)
-            )
-        # # Get the map canvas
-        # # del self.m1
-        # # try:
+            lon - distance, lat - distance,
+            lon + distance, lat + distance,
+        )
         self.canvas.scene().removeItem(self.m1)
         self.m1 = QgsVertexMarker(self.canvas)
-        self.m1.setCenter(QgsPointXY(float(lon), float(lat)))
-        self.m1.setColor(QColor(255, 0, 0))  # (R,G,B)
+        self.m1.setCenter(QgsPointXY(lon, lat))
+        self.m1.setColor(QColor(255, 0, 0))
         self.m1.setIconSize(10)
         self.m1.setIconType(QgsVertexMarker.ICON_X)
         self.m1.setPenWidth(3)
