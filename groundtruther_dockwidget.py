@@ -27,7 +27,11 @@ import os
 from qgis.PyQt import QtGui, QtWidgets, uic
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot
 from qgis.utils import iface
-from qgis.core import Qgis, QgsMessageLog, QgsMapLayerType, QgsPointXY, QgsRectangle, QgsGeometry, QgsWkbTypes, QgsProject
+from qgis.core import (
+    Qgis, QgsMessageLog, QgsMapLayerType,
+    QgsPointXY, QgsRectangle, QgsGeometry, QgsWkbTypes, QgsProject,
+    QgsCoordinateReferenceSystem, QgsCoordinateTransform,
+)
 from qgis.gui import QgsVertexMarker, QgsMapToolEmitPoint, QgsRubberBand
 
 from sys import platform
@@ -814,7 +818,12 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self.querybuilder.close()
         
     def zoom_to(self):
-        """Pan and zoom the map canvas to the current image coordinates."""
+        """Pan and zoom the map canvas to the current image coordinates.
+
+        The latitude/longitude values stored in the plugin are always in
+        WGS-84 (EPSG:4326).  If the QGIS project CRS differs, the point is
+        reprojected before building the extent and placing the marker.
+        """
         try:
             lon = float(self.w.longitude.text())
             lat = float(self.w.latitude.text())
@@ -822,17 +831,33 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             # Fields are empty or contain non-numeric text – nothing to zoom to
             return
 
+        wgs84 = QgsCoordinateReferenceSystem("EPSG:4326")
+        project_crs = QgsProject.instance().crs()
+
+        point = QgsPointXY(lon, lat)
+        if project_crs != wgs84 and project_crs.isValid():
+            transform = QgsCoordinateTransform(wgs84, project_crs, QgsProject.instance())
+            try:
+                point = transform.transform(point)
+            except Exception as exc:
+                log_exception("zoom_to: coordinate transform failed", exc, warn=True)
+                return
+
+        # Scale the margin to the canvas CRS units.  For geographic CRS units
+        # are degrees; for projected CRS they are metres (or feet).  A raw
+        # division by 10 000 gives a sensible default margin in both cases.
         distance = float(self.rangevalue) / 10000
 
         self.w.statusbar.showMessage("System Status | Normal")
 
         rect = QgsRectangle(
-            lon - distance, lat - distance,
-            lon + distance, lat + distance,
+            point.x() - distance, point.y() - distance,
+            point.x() + distance, point.y() + distance,
         )
-        self.canvas.scene().removeItem(self.m1)
+        if self.m1:
+            self.canvas.scene().removeItem(self.m1)
         self.m1 = QgsVertexMarker(self.canvas)
-        self.m1.setCenter(QgsPointXY(lon, lat))
+        self.m1.setCenter(point)
         self.m1.setColor(QColor(255, 0, 0))
         self.m1.setIconSize(10)
         self.m1.setIconType(QgsVertexMarker.ICON_X)
