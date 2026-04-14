@@ -11,8 +11,9 @@ from groundtruther.run_geomorphon_mdi import GeoMorphonWidget
 from groundtruther.run_paramscale_mdi import ParamScaleWidget
 from groundtruther.run_grm_lsi_mdi import GrmLsiWidget
 
-from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QCheckBox,  QMenu, QAction
+from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QCheckBox, QMenu, QAction
 import requests
+from qgis.core import Qgis, QgsMessageLog
 class GrassLayerTableWidgetItem(QTableWidgetItem):
     def __init__(self, text, layer_enabled):
         super().__init__(text)
@@ -220,7 +221,7 @@ class GrassTools(QMainWindow):
             self.grass_mdi.grass_layers.setItem(row, 1, empty_cell)  
             
     def add_query_result(self, result):
-        print(f'i got {result}')
+        QgsMessageLog.logMessage(f"query result: {result}", 'GroundTruther', Qgis.Info)
         result_dict = {}
         for dictionary in result:
             key = next(iter(dictionary))  # Get the key of the first level dictionary
@@ -233,7 +234,6 @@ class GrassTools(QMainWindow):
                 self.grass_mdi.grass_layers.setItem(row, 1, value_cell)
             
     def get_checked_items(self):
-        print('getting list of checked items')
         self.checked_layers = []
         for row in range(self.grass_mdi.grass_layers.rowCount()):
             checkbox_item = self.grass_mdi.grass_layers.cellWidget(row, 0)
@@ -243,12 +243,10 @@ class GrassTools(QMainWindow):
                 
     def filter_table(self):
         filter_text = self.grass_mdi.filterLineEdit.text().strip().lower()
-        print(self.grass_mdi.grass_layers.rowCount())
         for row in range(self.grass_mdi.grass_layers.rowCount()):
             checkbox_item = self.grass_mdi.grass_layers.cellWidget(row, 0)
             item = checkbox_item.text()
             row_text = item.lower() if item else ""
-            print(row_text)
             if filter_text in row_text:
                 self.grass_mdi.grass_layers.setRowHidden(row, False)
             else:
@@ -275,7 +273,7 @@ class GrassTools(QMainWindow):
         response = requests.get(
             f'{self.grass_api_endpoint}/api/get_rvg_list',params=params, headers=headers, timeout=60)
         grass_layers = response.json()['data']['raster']
-        print(grass_layers)
+        QgsMessageLog.logMessage(f"grass layers: {grass_layers}", 'GroundTruther', Qgis.Info)
         return grass_layers    
         # print(self.settings, grass_settings)
         
@@ -285,7 +283,7 @@ class GrassTools(QMainWindow):
         self.settings = self.parent.settings
         self.region_response = self.parent.region_response
         self.project = self.parent.project
-        print('region_response:', self.region_response)
+        QgsMessageLog.logMessage(f"region_response: {self.region_response}", 'GroundTruther', Qgis.Info)
     
     def onZoomInClicked(self):
         self.grass_mdi.gis_tool_report.zoomIn(1)
@@ -326,13 +324,10 @@ class GrassTools(QMainWindow):
             self.grass_mdi.grassTools.tileSubWindows()
         if self.mdi_view.itemText(index) == 'Minimize':
             for i in self.grass_mdi.grassTools.subWindowList():
-                print(i)
                 if i.isVisible():
-                    #i.hide()
                     i.showMinimized()
         if self.mdi_view.itemText(index) == 'Close':
             for i in self.grass_mdi.grassTools.subWindowList():
-                print(i)
                 if i.isVisible():
                     i.hide()
             

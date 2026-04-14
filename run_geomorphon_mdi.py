@@ -145,8 +145,9 @@ class GeoMorphonWidget(QWidget, Ui_geomorphon):
                                 self.parent.region_response['west'], 
                                 self.parent.region_response['east']])
         else:
-            print('region not set, using default')
-            print(self.parent.region_response)
+            QgsMessageLog.logMessage(
+                f"region not set, using default (region_response={self.parent.region_response})",
+                'GroundTruther', Qgis.Warning)
             
         self.parent.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(str('... running ...'))
         

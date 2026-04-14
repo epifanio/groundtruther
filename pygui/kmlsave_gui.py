@@ -26,6 +26,7 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 from configure import get_settings, error_message
+from qgis.core import Qgis, QgsMessageLog
 
 # from xml.dom import minidom
 import codecs
@@ -137,7 +138,7 @@ class SaveKml(QWidget, Ui_Form):
     def SavetoPDF(self):
         filename = QFileDialog.getSaveFileName(self, 'Save to PDF')
         if filename:
-            print('filename:', filename)
+            QgsMessageLog.logMessage(f"SavetoPDF: {filename}", 'GroundTruther', Qgis.Info)
             printer = QPrinter(QPrinter.HighResolution)
             printer.setPageSize(QPrinter.A4)
             printer.setColorMode(QPrinter.Color)
@@ -165,8 +166,7 @@ class SaveKml(QWidget, Ui_Form):
         #self.description.verticalScrollBar().setValue(
         #    self.description.verticalScrollBar().maximum()
         #)
-        print(self.selected_points_path, self.selected_points_string)
-        pass
+        QgsMessageLog.logMessage(f"selected_points_path={self.selected_points_path}, string={self.selected_points_string}", 'GroundTruther', Qgis.Info)
 
     def font_size(self):
         self.description.setFontPointSize(float(self.fontsize.value()))
@@ -277,8 +277,7 @@ class SaveKml(QWidget, Ui_Form):
     @pyqtSlot(str)
     def testsignal_lat(self, message):
         # if not self.lock_location.isChecked():
-        print("heloooo   $$$$$$$  hello helooo ")
-        print(self.lock_location.isChecked())
+        QgsMessageLog.logMessage(f"testsignal_lat: lock_location={self.lock_location.isChecked()}", 'GroundTruther', Qgis.Info)
         self.latitude.setText(message)
 
     def setLonValue(self, lon):
@@ -494,10 +493,7 @@ class SaveKml(QWidget, Ui_Form):
         # altitudemode = simplekml.AltitudeMode.relativetoground
         kmldir = str(kmldirectory) + "/"
         # kmltosave = kmldir + self.kmlname.text() + ".kml"
-        print('kmldir: ', kmldir)
-        print('kmlname: ',self.kmlname.text())
         kmztosave = kmldir + self.kmlname.text() + ".kmz"
-        # kml.save(kmltosave)
-        print('kmztosave: ', kmztosave)
+        QgsMessageLog.logMessage(f"saving KMZ: {kmztosave}", 'GroundTruther', Qgis.Info)
         kml.savekmz(kmztosave)
         # kmz = self.compress_kml(str(kmltosave), str(self.iconpath))

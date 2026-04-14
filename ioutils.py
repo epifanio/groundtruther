@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from qgis.core import QgsMapLayer, QgsWkbTypes, QgsVectorFileWriter, QgsCoordinateTransformContext, QgsProject, QgsVectorLayerExporter
+from qgis.core import Qgis, QgsMapLayer, QgsMessageLog, QgsWkbTypes, QgsVectorFileWriter, QgsCoordinateTransformContext, QgsProject, QgsVectorLayerExporter
 
 import json
 import requests
@@ -143,7 +143,7 @@ def send_layer_as_geojson(layer, api_endpoint):
                                                     "utf-8", layer.crs(), "GeoJSON")
     
     if error == QgsVectorFileWriter.NoError:
-        print("success again!")
+        QgsMessageLog.logMessage("convert_to_geojson_using_gdal: write succeeded", 'GroundTruther', Qgis.Info)
 
     
     # Read the GeoJSON data from the temporary file

@@ -1,5 +1,5 @@
 from pydantic import AnyUrl, BaseModel, DirectoryPath, FilePath, IPvAnyAddress
-from typing import Union
+from typing import Optional, Union
 
 
 class HabCam(BaseModel):
@@ -7,7 +7,7 @@ class HabCam(BaseModel):
 
     imagepath: DirectoryPath
     imagemetadata: FilePath
-    imageannotation: FilePath
+    imageannotation: Optional[FilePath] = None
 
 
 class Mbes(BaseModel):

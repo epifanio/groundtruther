@@ -7,6 +7,7 @@ from PyQt5.QtWidgets import *
 
 from groundtruther.pygui.Ui_app_settings_ui import Ui_appsettings
 import groundtruther.resources_rc
+from qgis.core import Qgis, QgsMessageLog
 
 class AppSettings(QWidget, Ui_appsettings):
     def __init__(self, parent=None):
@@ -22,7 +23,7 @@ class AppSettings(QWidget, Ui_appsettings):
         
 
     def print_val(self):
-        print(self.image_path.text())
+        QgsMessageLog.logMessage(f"image_path: {self.image_path.text()}", 'GroundTruther', Qgis.Info)
 
     def set_metadata_path(self):    
         options = QFileDialog.Options()

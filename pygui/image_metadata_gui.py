@@ -6,6 +6,7 @@ from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 
 from groundtruther.pygui.Ui_image_metadata_ui import Ui_imagemetadata
+from qgis.core import Qgis, QgsMessageLog
 
 class ExtendedDateTimeEdit(QDateTimeEdit):
     def __init__(self, *args, **kwargs):
@@ -34,7 +35,7 @@ class ImageMetadata(QWidget, Ui_imagemetadata):
         self.copy_image_metadata.hide()
 
     def send_image_metadata_txt(self):
-        print('called send_image_metadata_txt')
+        QgsMessageLog.logMessage("send_image_metadata_txt triggered", 'GroundTruther', Qgis.Info)
 
     def copy_image_metadata_txt(self):
-        print('called copy_image_metadata_txt')
+        QgsMessageLog.logMessage("copy_image_metadata_txt triggered", 'GroundTruther', Qgis.Info)

@@ -37,7 +37,7 @@ import groundtruther.resources_rc
 from groundtruther.dependencies.solver import SolveDependencies
 
 
-from qgis.core import QgsMapLayerType
+from qgis.core import Qgis, QgsMapLayerType, QgsMessageLog
 
 # here I run the solver directly which is not fair...
 # better open a prompt / dialog and ask of it is OK
@@ -264,10 +264,10 @@ class GroundTruther:
         Activate the query tool
         """
         self.iface.mapCanvas().setMapTool(self.pointTool)
-        print(self.pluginIsActive)
-        
+        QgsMessageLog.logMessage(f"query tool active, pluginIsActive={self.pluginIsActive}", 'GroundTruther', Qgis.Info)
+
     def print_message_old(self, grass_raster_query: object):
-        print('grass_raster_query: ', grass_raster_query)    
+        QgsMessageLog.logMessage(f"grass_raster_query: {grass_raster_query}", 'GroundTruther', Qgis.Info)
         if self.pluginIsActive:
             self.dockwidget.get_query_message(grass_raster_query)
     
@@ -390,22 +390,18 @@ class GroundTruther:
         Activate the query tool
         """
         self.iface.mapCanvas().setMapTool(self.grass_cpr_tool)
-        print(self.pluginIsActive)
 
     def image_query(self):
         """
         Activate the query tool
         """
         self.iface.mapCanvas().setMapTool(self.image_query_tool)
-        print(self.pluginIsActive)
-
 
     def grass_query(self):
         """
         Activate the query tool
         """
         self.iface.mapCanvas().setMapTool(self.grass_query_tool)
-        print(self.pluginIsActive)
     #--------------------------------------------------------------------------
 
     def onClosePlugin(self):
@@ -453,7 +449,7 @@ class GroundTruther:
         if not self.pluginIsActive:
             self.pluginIsActive = True
 
-            print("** STARTING GroundTruther")
+            QgsMessageLog.logMessage("** STARTING GroundTruther", 'GroundTruther', Qgis.Info)
 
             # dockwidget may not exist if:
             #    first run of plugin
@@ -471,8 +467,6 @@ class GroundTruther:
             self.dockwidget.show()
             if self.dockwidget is not None:
                 if self.dockwidget.m1 is not None:
-                    print(self.dockwidget.m1)
                     self.iface.mapCanvas().scene().addItem(self.dockwidget.m1)
                 if self.dockwidget.r is not None:
-                    print(self.dockwidget.r)
                     self.iface.mapCanvas().scene().addItem(self.dockwidget.r)

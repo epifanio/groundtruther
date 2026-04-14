@@ -28,6 +28,5 @@ def get_spatial_selection_gpu(px, py, xx, yy):
         )
         point_selection_index = result["geom"]
     except KeyError:
-        print("invalid field name for Easting/Northing parameters")
-        point_selection_index = []
+        point_selection_index = []  # invalid field name for Easting/Northing
     return point_selection_index
