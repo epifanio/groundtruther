@@ -1,0 +1,45 @@
+name: groundtruther
+
+channels:
+  - conda-forge      # all packages come from here; no channel mixing
+  - nodefaults       # suppress the Anaconda defaults channel to avoid conflicts
+
+dependencies:
+  # ── Python & QGIS ────────────────────────────────────────────────────────
+  - python=3.12
+  - qgis>=3.34        # LTR; bump to >=3.38 for the latest stable release
+
+  # ── Core data handling ───────────────────────────────────────────────────
+  - numpy
+  - pandas
+  - pyarrow
+
+  # ── Image I/O and computer vision ────────────────────────────────────────
+  - scikit-image
+  - scipy
+
+  # ── Plotting / visualisation ─────────────────────────────────────────────
+  - pyqtgraph
+  - pyopengl
+  - matplotlib
+  - plotnine
+
+  # ── Geospatial ───────────────────────────────────────────────────────────
+  - pyproj            # coordinate transforms (companion to QGIS / GDAL)
+  - requests
+
+  # ── Config & templating ──────────────────────────────────────────────────
+  - pyyaml
+  - jinja2
+  - starlette
+  - pydantic>=1.9,<2  # plugin uses the v1 error_wrappers API; pin below v2
+
+  # ── Optional: JIT acceleration ───────────────────────────────────────────
+  # numba is available on conda-forge and resolves LLVM automatically,
+  # unlike the pip approach.  Uncomment if you need it.
+  # - numba
+
+  # ── Packages only available via pip ──────────────────────────────────────
+  - pip
+  - pip:
+    - simplekml       # not in conda-forge
