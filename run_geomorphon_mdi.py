@@ -6,6 +6,7 @@ from groundtruther.pygui.Ui_geomorphon_ui import Ui_geomorphon
 
 import requests
 from qgis.core import Qgis, QgsMessageLog, QgsTask, QgsRasterLayer
+from groundtruther.configure import log_exception
 import uuid
 from osgeo import gdal
 
@@ -203,9 +204,11 @@ class GeoMorphonWidget(QWidget, Ui_geomorphon):
                 params=params, headers=headers, timeout=300)
             self.returned_item = self.response.json()
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+            log_exception(f"run_grassapi({self.module_name}): network error", exc, warn=True)
             self.returned_item = {'status': 'FAILED', 'data': str(exc)}
-        except ValueError:
+        except ValueError as exc:
             # Response is not JSON – treat as success (some modules return binary)
+            log_exception(f"run_grassapi({self.module_name}): non-JSON response", exc, warn=True)
             self.returned_item = {'status': 'SUCCESS'}
         return self.returned_item
         

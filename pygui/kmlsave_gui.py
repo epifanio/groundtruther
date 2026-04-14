@@ -25,7 +25,7 @@ parent = os.path.dirname(current)
 # the sys.path.
 sys.path.append(parent)
 
-from configure import get_settings, error_message
+from configure import get_settings, error_message, log_exception
 from qgis.core import Qgis, QgsMessageLog
 
 # from xml.dom import minidom

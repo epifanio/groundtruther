@@ -4,6 +4,7 @@ from groundtruther.pygui.Ui_grm_lsi_ui import Ui_grm_lsi
 
 import requests
 from qgis.core import Qgis, QgsMessageLog, QgsTask, QgsRasterLayer
+from groundtruther.configure import log_exception
 import uuid
 from osgeo import gdal
 
@@ -237,8 +238,10 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
                 headers=headers, params=params, timeout=300)
             self.returned_item = self.response.json()
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+            log_exception(f"run_grassapi({self.module_name}): network error", exc, warn=True)
             self.returned_item = {'status': 'FAILED', 'data': str(exc)}
-        except ValueError:
+        except ValueError as exc:
+            log_exception(f"run_grassapi({self.module_name}): non-JSON response", exc, warn=True)
             self.returned_item = {'status': 'SUCCESS'}
         return self.returned_item
         

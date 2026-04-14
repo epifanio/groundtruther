@@ -14,6 +14,7 @@ from groundtruther.run_grm_lsi_mdi import GrmLsiWidget
 from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QCheckBox, QMenu, QAction
 import requests
 from qgis.core import Qgis, QgsMessageLog
+from groundtruther.configure import log_exception
 class GrassLayerTableWidgetItem(QTableWidgetItem):
     def __init__(self, text, layer_enabled):
         super().__init__(text)
@@ -255,24 +256,39 @@ class GrassTools(QMainWindow):
         
     def get_grass_layers(self):
         self.grass_dialog = self.parent.grass_dialog
-        grass_settings = self.grass_dialog.set_grass_location()
         self.settings = self.parent.settings
         self.grass_api_endpoint = self.settings["Processing"]["grass_api_endpoint"]
-        if grass_settings['status'] == 'SUCCESS':
-            grass_gisenv = grass_settings['data']['gisenv']
-        headers = {
-            'accept': 'application/json',
-            'Content-Type': 'application/json',
-        }
+        try:
+            grass_settings = self.grass_dialog.set_grass_location()
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+            log_exception("get_grass_layers: set_grass_location", exc, warn=True)
+            return []
+
+        if grass_settings.get('status') != 'SUCCESS':
+            QgsMessageLog.logMessage(
+                f"get_grass_layers: GRASS location not set ({grass_settings.get('status')})",
+                'GroundTruther', Qgis.Warning)
+            return []
+
+        grass_gisenv = grass_settings['data']['gisenv']
+        headers = {'accept': 'application/json', 'Content-Type': 'application/json'}
         params = {
             'location_name': grass_gisenv['LOCATION_NAME'],
             'mapset_name': grass_gisenv['MAPSET'],
             'gisdb': grass_gisenv['GISDBASE'],
-            }
-        # response = requests.get('https://grassapi.wps.met.no/api/get_rvg_list', params=params, headers=headers)
-        response = requests.get(
-            f'{self.grass_api_endpoint}/api/get_rvg_list',params=params, headers=headers, timeout=60)
-        grass_layers = response.json()['data']['raster']
+        }
+        try:
+            response = requests.get(
+                f'{self.grass_api_endpoint}/api/get_rvg_list',
+                params=params, headers=headers, timeout=60)
+            grass_layers = response.json()['data']['raster']
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+            log_exception("get_grass_layers: get_rvg_list request", exc, warn=True)
+            return []
+        except (ValueError, KeyError) as exc:
+            log_exception("get_grass_layers: unexpected API response", exc)
+            return []
+
         QgsMessageLog.logMessage(f"grass layers: {grass_layers}", 'GroundTruther', Qgis.Info)
         return grass_layers    
         # print(self.settings, grass_settings)

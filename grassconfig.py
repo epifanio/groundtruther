@@ -15,7 +15,7 @@ from search_epsg import SearchEpsgDialog
 # from configure import get_settings
 from groundtruther.config.config import config
 
-from groundtruther.configure import load_config
+from groundtruther.configure import load_config, log_exception
 
 class GrassConfigDialog(QDialog, GrassSettings):
     """docstring"""
@@ -125,10 +125,13 @@ class GrassConfigDialog(QDialog, GrassSettings):
                 f'{endpoint}/api/create_mapset', params=params, headers=headers, timeout=30)
             payload = response.json()
         except ConnectionError as exc:
+            log_exception("create_new_grass_mapset: connection error", exc, warn=True)
             payload = {'status': 'FAILED', 'data': str(exc)}
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout as exc:
+            log_exception("create_new_grass_mapset: timeout", exc, warn=True)
             payload = {'status': 'FAILED', 'data': 'Request timed out'}
-        except ValueError:
+        except ValueError as exc:
+            log_exception("create_new_grass_mapset: invalid JSON response", exc)
             payload = {'status': 'FAILED', 'data': 'Invalid JSON response'}
         self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
         self.set_status_color(payload['status'])
@@ -204,10 +207,13 @@ class GrassConfigDialog(QDialog, GrassSettings):
                 f'{endpoint}/api/create_location_epsg', params=params, headers=headers, timeout=60)
             payload = response.json()
         except ConnectionError as exc:
+            log_exception("create_location_epsg: connection error", exc, warn=True)
             payload = {'status': 'FAILED', 'data': str(exc)}
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout as exc:
+            log_exception("create_location_epsg: timeout", exc, warn=True)
             payload = {'status': 'FAILED', 'data': 'Request timed out'}
-        except ValueError:
+        except ValueError as exc:
+            log_exception("create_location_epsg: invalid JSON response", exc)
             payload = {'status': 'FAILED', 'data': 'Invalid JSON response'}
         self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
         self.set_status_color(payload['status'])
@@ -239,11 +245,12 @@ class GrassConfigDialog(QDialog, GrassSettings):
                 response.json(), sort_keys=True, indent=4))
             self.set_status_color(response.json()['status'])
             return response.json()
-        except FileNotFoundError as error:
+        except FileNotFoundError as exc:
+            log_exception("create_location_georef: georef file not found", exc, warn=True)
             self.command_output.setText(json.dumps(
-                {'status': 'FAILED', 'data': str(error)}, sort_keys=True, indent=4))
+                {'status': 'FAILED', 'data': str(exc)}, sort_keys=True, indent=4))
             self.set_status_color('FAILED')
-            return {'status': 'FAILED', 'data': str(error)}
+            return {'status': 'FAILED', 'data': str(exc)}
 
     def set_grass_location(self):
         endpoint = self.grass_api_endpoint.text()

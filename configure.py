@@ -1,5 +1,6 @@
 """ Configuration loading, validation, and settings dialog for GroundTruther. """
 import os
+import traceback
 from pathlib import Path
 
 import yaml
@@ -18,6 +19,41 @@ root_dir = os.path.dirname(__file__)
 
 
 # ---------------------------------------------------------------------------
+# Logging helpers
+# ---------------------------------------------------------------------------
+
+def log_exception(context: str, exc: BaseException, warn: bool = False) -> None:
+    """Log *exc* with its full traceback to the QGIS message log.
+
+    Parameters
+    ----------
+    context:
+        Short description of where the error occurred, e.g.
+        ``"_apply_settings: reading parquet"``.
+    exc:
+        The caught exception instance.
+    warn:
+        If ``True``, log at ``Qgis.Warning`` (expected/recoverable errors
+        such as a missing config file or network timeout).  Otherwise logs
+        at ``Qgis.Critical`` for unexpected failures.
+    """
+    try:
+        from qgis.core import Qgis, QgsMessageLog
+        level = Qgis.Warning if warn else Qgis.Critical
+    except ImportError:
+        # Running outside QGIS (e.g. unit tests) – fall back to stdlib
+        import logging
+        logging.exception(context)
+        return
+
+    QgsMessageLog.logMessage(
+        f"{context}: {type(exc).__name__}: {exc}\n{traceback.format_exc()}",
+        'GroundTruther',
+        level,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Low-level helpers – no GUI side-effects
 # ---------------------------------------------------------------------------
 
@@ -30,9 +66,11 @@ def load_config(config_path):
     try:
         with open(config_path, "r", encoding="utf8") as fh:
             return yaml.safe_load(fh)
-    except FileNotFoundError:
+    except FileNotFoundError as exc:
+        log_exception(f"load_config({config_path}): file not found", exc, warn=True)
         return None
-    except yaml.YAMLError:
+    except yaml.YAMLError as exc:
+        log_exception(f"load_config({config_path}): YAML parse error", exc)
         return None
 
 

@@ -51,7 +51,7 @@ import pyarrow
 
 from qgis.core import QgsMapLayerType
 
-from groundtruther.configure import get_settings, load_config, ConfigDialog, error_message
+from groundtruther.configure import get_settings, load_config, ConfigDialog, error_message, log_exception
 from groundtruther.ioutils import parse_annotation, get_layer_info, send_layer_as_geojson, convert_to_geojson_using_gdal
 
 from groundtruther.pygui.Ui_groundtruther_dockwidget_base import Ui_GroundTrutherDockWidgetBase  
@@ -484,10 +484,11 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                 self.kdt = spatial.KDTree(
                     self.imageMetadata[["habcam_lon", "habcam_lat"]].values
                 )
-            except OSError:
-                QgsMessageLog.logMessage("OS error reading metadata", 'GroundTruther', Qgis.Warning)
-            except pyarrow.lib.ArrowInvalid as message:
-                error_message(f"Error reading {self.metadatafile}:\n{message}")
+            except OSError as exc:
+                log_exception(f"_apply_settings: OS error reading {self.metadatafile}", exc, warn=True)
+            except pyarrow.lib.ArrowInvalid as exc:
+                log_exception(f"_apply_settings: invalid Parquet file {self.metadatafile}", exc)
+                error_message(f"Error reading {self.metadatafile}:\n{exc}")
                 self.imageMetadata = None
         else:
             self.show_dialog()
@@ -515,6 +516,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         try:
             self.region_response = payload["data"]["region"]
         except KeyError as exc:
+            log_exception("set_grass_cpr: unexpected region response structure", exc)
             error_message(f"Unexpected GRASS region response structure: {exc}")
             return
 
@@ -585,13 +587,12 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         }
         try:
             grass_settings = self.grass_dialog.set_grass_location()
-        except requests.exceptions.ConnectionError:
-            error_message(
-                "Cannot reach the GRASS API server.\n"
-                "Check the endpoint URL in Settings."
-            )
+        except requests.exceptions.ConnectionError as exc:
+            log_exception("get_grass_query_data: set_grass_location", exc, warn=True)
+            error_message("Cannot reach the GRASS API server.\nCheck the endpoint URL in Settings.")
             return
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout as exc:
+            log_exception("get_grass_query_data: set_grass_location timeout", exc, warn=True)
             error_message("GRASS API request timed out.")
             return
 
@@ -609,7 +610,8 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             projection_code = int(
                 grass_settings["data"]["region"]["projection"].split(" ")[0]
             )
-        except (KeyError, ValueError, IndexError):
+        except (KeyError, ValueError, IndexError) as exc:
+            log_exception("get_grass_query_data: could not parse projection code", exc, warn=True)
             projection_code = 0
         params = {"lonlat": "true" if projection_code == 1 else "false"}
 
@@ -629,16 +631,16 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                 params=params, headers=headers, json=json_data, timeout=60,
             )
             payload = response.json()
-        except requests.exceptions.ConnectionError:
-            error_message(
-                "Cannot reach the GRASS API server.\n"
-                "Check the endpoint URL in Settings."
-            )
+        except requests.exceptions.ConnectionError as exc:
+            log_exception("get_grass_query_data: r_what POST", exc, warn=True)
+            error_message("Cannot reach the GRASS API server.\nCheck the endpoint URL in Settings.")
             return
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout as exc:
+            log_exception("get_grass_query_data: r_what timeout", exc, warn=True)
             error_message("GRASS API r_what request timed out.")
             return
-        except ValueError:
+        except ValueError as exc:
+            log_exception("get_grass_query_data: r_what non-JSON response", exc)
             error_message("GRASS API returned an unexpected (non-JSON) response.")
             return
 
@@ -666,13 +668,12 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
 
         try:
             grass_settings = self.grass_dialog.set_grass_location()
-        except requests.exceptions.ConnectionError:
-            error_message(
-                "Cannot reach the GRASS API server.\n"
-                "Check the endpoint URL in Settings."
-            )
+        except requests.exceptions.ConnectionError as exc:
+            log_exception("set_grass_region: set_grass_location", exc, warn=True)
+            error_message("Cannot reach the GRASS API server.\nCheck the endpoint URL in Settings.")
             return None
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout as exc:
+            log_exception("set_grass_region: set_grass_location timeout", exc, warn=True)
             error_message("GRASS API request timed out.")
             return None
 
@@ -686,7 +687,8 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             projection_code = int(
                 grass_settings["data"]["region"]["projection"].split(" ")[0]
             )
-        except (KeyError, ValueError, IndexError):
+        except (KeyError, ValueError, IndexError) as exc:
+            log_exception("set_grass_region: could not parse projection code", exc, warn=True)
             projection_code = 0
 
         try:
@@ -728,16 +730,16 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             )
             return response.json()
 
-        except requests.exceptions.ConnectionError:
-            error_message(
-                "Cannot reach the GRASS API server.\n"
-                "Check the endpoint URL in Settings."
-            )
+        except requests.exceptions.ConnectionError as exc:
+            log_exception("set_grass_region: API POST", exc, warn=True)
+            error_message("Cannot reach the GRASS API server.\nCheck the endpoint URL in Settings.")
             return None
-        except requests.exceptions.Timeout:
+        except requests.exceptions.Timeout as exc:
+            log_exception("set_grass_region: API timeout", exc, warn=True)
             error_message("GRASS API request timed out.")
             return None
         except (ValueError, KeyError) as exc:
+            log_exception("set_grass_region: unexpected API response structure", exc)
             error_message(f"Unexpected GRASS API response: {exc}")
             return None
         # headers = {

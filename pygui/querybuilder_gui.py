@@ -29,7 +29,7 @@ from PyQt5.QtWidgets import (
 
 from groundtruther.pygui.Ui_query_builder_ui import Ui_Form
 from groundtruther.config.config import config
-from configure import get_settings, error_message
+from configure import get_settings, error_message, log_exception
 from ellipse import getEllipseCoords
 from rectangle import getRectangleCoords
 from pyproj import Proj
