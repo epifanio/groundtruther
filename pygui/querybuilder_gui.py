@@ -17,14 +17,14 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 
-from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, QSize, QSortFilterProxyModel, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QColor, QPixmap, QScreen
 from PyQt5.QtWidgets import (
     QWidget, QApplication, QFileDialog,
     QVBoxLayout, QHBoxLayout, QGridLayout,
     QSizePolicy, QSpacerItem,
     QPushButton, QLineEdit, QTextEdit,
-    QGroupBox, QRadioButton, QSortFilterProxyModel,
+    QGroupBox, QRadioButton,
 )
 
 from groundtruther.pygui.Ui_query_builder_ui import Ui_Form
