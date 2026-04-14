@@ -95,7 +95,7 @@ def validate_config(settings):
                 "gpu_avaibility": settings["Processing"]["gpu_avaibility"],
                 "grass_api_endpoint": settings["Processing"]["grass_api_endpoint"],
             },
-            Filesystem={"filemanager": settings["Filesystem"]["filemanager"]},
+            Filesystem={"filemanager": settings["Filesystem"].get("filemanager") or None},
         )
         return True, ""
     except ValidationError as exc:
@@ -266,7 +266,7 @@ class ConfigDialog(QDialog, AppSettings):
     def get_gui_settings(self):
         """Return a settings dict built from the current form field values."""
         return {
-            "Filesystem": {"filemanager": self.filemanager.text()},
+            "Filesystem": {"filemanager": self.filemanager.text() or None},
             "HabCam": {
                 "imagepath": self.image_path.text(),
                 "imagemetadata": self.metadata_path.text(),
