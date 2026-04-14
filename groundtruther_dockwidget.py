@@ -311,9 +311,19 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self._save_ann_action.triggered.connect(self._save_annotations)
         self._save_ann_action.setVisible(False)
         self.w.toolBar.addAction(self._save_ann_action)
+        # "Draw new box" toggle action (only visible when editor is open)
+        self._draw_ann_action = QtWidgets.QAction("➕ Draw box", self.w)
+        self._draw_ann_action.setCheckable(True)
+        self._draw_ann_action.setToolTip(
+            "Click and drag on the image to draw a new bounding box")
+        self._draw_ann_action.toggled.connect(self._toggle_draw_mode)
+        self._draw_ann_action.setVisible(False)
+        self.w.toolBar.addAction(self._draw_ann_action)
         # Wire editor signals
         self.annotation_editor.annotation_changed.connect(
             self._on_annotation_changed)
+        self.annotation_editor.draw_mode_exited.connect(
+            lambda: self._draw_ann_action.setChecked(False))
 
         self.init_grass_ui()
         self.init_grass_toolbar()
@@ -513,6 +523,8 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                     self.imageMetadata = img_mgr.attach_annotations(
                         self.imageMetadata, annotations_by_image
                     )
+                    # Seed the annotation editor with all unique labels from the CSV
+                    self._refresh_known_labels()
                 else:
                     self.w.actionAnnotation.setEnabled(False)
 
@@ -1302,7 +1314,10 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         """Show or hide the annotation editor dock."""
         self.annotation_editor_dock.setVisible(checked)
         self._save_ann_action.setVisible(checked)
+        self._draw_ann_action.setVisible(checked)
         if checked:
+            # Pass all known labels from the loaded annotation CSV
+            self._refresh_known_labels()
             # Load annotations for the currently displayed image
             if hasattr(self, 'imageMetadata') and self.imageMetadata is not None:
                 annotation = self.imageMetadata["Annotation"].iloc[self.imageindex]
@@ -1312,11 +1327,34 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                     annotation, self.imageannotationfile,
                 )
         else:
+            # Exit draw mode before hiding
+            self._draw_ann_action.setChecked(False)
             # Switching back to view mode: remove ROIs, restore static items
             self.annotation_editor.load_image(
                 self.imageindex, "", None, "")
             if self.w.actionAnnotation.isChecked():
                 self.add_image_annotation()
+
+    def _refresh_known_labels(self):
+        """Extract unique species labels from the loaded annotations and
+        push them to the annotation editor's known-labels pool."""
+        if not (hasattr(self, 'imageMetadata') and self.imageMetadata is not None):
+            return
+        all_species: set[str] = set()
+        if "Annotation" not in self.imageMetadata.columns:
+            return
+        for ann in self.imageMetadata["Annotation"]:
+            if isinstance(ann, dict) and "Species" in ann:
+                all_species.update(ann["Species"])
+        if all_species:
+            self.annotation_editor.set_known_labels(sorted(all_species))
+
+    def _toggle_draw_mode(self, checked: bool):
+        """Enable or disable rubber-band draw mode on the image view."""
+        if checked:
+            self.annotation_editor.start_draw_mode()
+        else:
+            self.annotation_editor.stop_draw_mode()
 
     def _on_annotation_changed(self, image_index: int):
         """Push edited annotation from the editor back into the DataFrame."""

@@ -8,6 +8,7 @@ view so the user can:
   - drag its corner/edge handles to reshape it
   - rename its label via a dialog
   - delete it
+  - draw a completely new bounding box by clicking and dragging
   - save all annotations for the current session back to a CSV file
 
 The widget never modifies the parent DataFrame directly; it emits
@@ -18,6 +19,7 @@ from __future__ import annotations
 
 import copy
 import csv
+import json
 import numpy as np
 
 from PyQt5.QtWidgets import (
@@ -25,8 +27,11 @@ from PyQt5.QtWidgets import (
     QPushButton, QListWidget, QListWidgetItem,
     QLabel, QInputDialog, QMessageBox, QFileDialog,
     QAbstractItemView, QSizePolicy,
+    QDialog, QDialogButtonBox, QComboBox, QLineEdit,
+    QDoubleSpinBox, QGraphicsRectItem,
 )
-from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal, QObject, QEvent, QRectF
+from PyQt5.QtGui import QPen, QColor
 
 import pyqtgraph as pg
 
@@ -65,6 +70,117 @@ def _rect_to_bbox(x0: float, y0: float, x1: float, y1: float) -> list:
     return [x0, y1, x1, y1, x1, y0, x0, y0]
 
 
+# ---------------------------------------------------------------------------
+# Event filter for rubber-band drawing on the image view
+# ---------------------------------------------------------------------------
+
+class _DrawEventFilter(QObject):
+    """Widget-level event filter installed on the ImageView's graphicsView.
+
+    Captures left-button press/move/release events for drawing a new
+    bounding box.  Returns True (consuming the event) so that pyqtgraph's
+    pan/zoom behaviour does not interfere while drawing is active.
+    """
+
+    press   = pyqtSignal(object)   # QPoint in widget coordinates
+    move    = pyqtSignal(object)   # QPoint in widget coordinates
+    release = pyqtSignal(object)   # QPoint in widget coordinates
+
+    def __init__(self, parent: QObject = None):
+        super().__init__(parent)
+        self._active = False
+
+    def eventFilter(self, obj, event):
+        t = event.type()
+        if t == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+            self._active = True
+            self.press.emit(event.pos())
+            return True
+        if t == QEvent.MouseMove and self._active:
+            self.move.emit(event.pos())
+            return True
+        if t == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+            if self._active:
+                self._active = False
+                self.release.emit(event.pos())
+                return True
+        return False
+
+
+# ---------------------------------------------------------------------------
+# Label-entry dialog (shown after drawing a new box)
+# ---------------------------------------------------------------------------
+
+class LabelDialog(QDialog):
+    """Dialog for entering a label and confidence for a new bounding box.
+
+    Parameters
+    ----------
+    known_labels:
+        List of existing unique species labels to populate the drop-down.
+    parent:
+        Qt parent widget (used for correct window centering).
+    """
+
+    def __init__(self, known_labels: list[str], parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("New annotation label")
+        self.setModal(True)
+        layout = QVBoxLayout(self)
+
+        # --- Existing label drop-down ---
+        layout.addWidget(QLabel("Select existing label:"))
+        self._combo = QComboBox()
+        self._combo.addItem("")          # blank placeholder
+        self._combo.addItems(sorted(known_labels))
+        self._combo.currentIndexChanged.connect(self._on_combo_changed)
+        layout.addWidget(self._combo)
+
+        # --- Free-text entry ---
+        layout.addWidget(QLabel("Or type a new label:"))
+        self._edit = QLineEdit()
+        self._edit.setPlaceholderText("Label…")
+        layout.addWidget(self._edit)
+
+        # --- Confidence ---
+        conf_row = QHBoxLayout()
+        conf_row.addWidget(QLabel("Confidence:"))
+        self._conf_spin = QDoubleSpinBox()
+        self._conf_spin.setRange(0.0, 1.0)
+        self._conf_spin.setSingleStep(0.05)
+        self._conf_spin.setValue(1.0)
+        self._conf_spin.setDecimals(2)
+        conf_row.addWidget(self._conf_spin)
+        layout.addLayout(conf_row)
+
+        # --- OK / Cancel ---
+        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns.accepted.connect(self.accept)
+        btns.rejected.connect(self.reject)
+        layout.addWidget(btns)
+
+        self.setMinimumWidth(270)
+
+    def _on_combo_changed(self, idx: int):
+        """Populate the line-edit when the user picks a dropdown item."""
+        if idx > 0:
+            self._edit.setText(self._combo.currentText())
+
+    # --- Results ---
+
+    def label(self) -> str | None:
+        """Return the entered/selected label, or None if empty."""
+        text = self._edit.text().strip()
+        return text if text else None
+
+    def confidence(self) -> float:
+        return self._conf_spin.value()
+
+
+# ---------------------------------------------------------------------------
+# Main editor widget
+# ---------------------------------------------------------------------------
+
 class AnnotationEditorWidget(QWidget):
     """Side-panel editor for per-image annotation bounding boxes.
 
@@ -82,9 +198,13 @@ class AnnotationEditorWidget(QWidget):
         Emitted with the current image index whenever the user modifies
         an annotation so the parent dockwidget can push the change into
         the DataFrame and refresh the image overlay.
+    draw_mode_exited()
+        Emitted when draw mode is stopped (e.g. via stop_draw_mode) so the
+        parent toolbar action can update its checked state.
     """
 
     annotation_changed = pyqtSignal(int)
+    draw_mode_exited   = pyqtSignal()
 
     # ------------------------------------------------------------------ #
     # Construction                                                         #
@@ -99,6 +219,16 @@ class AnnotationEditorWidget(QWidget):
         self._imagename: str = ""
         self._csv_path: str = ""
         self._dirty: bool = False
+
+        # Known labels (built from CSV + persisted in sidecar JSON)
+        self._known_labels: list[str] = []
+        self._labels_path: str = ""
+
+        # Draw-mode state
+        self._draw_filter: _DrawEventFilter | None = None
+        self._draw_start: tuple[float, float] | None = None
+        self._preview_item: QGraphicsRectItem | None = None
+        self._draw_mode: bool = False
 
         self._build_ui()
 
@@ -120,6 +250,13 @@ class AnnotationEditorWidget(QWidget):
         btn_layout = QVBoxLayout()
         btn_layout.setSpacing(4)
 
+        self._btn_add = QPushButton("➕ Add new box")
+        self._btn_add.setToolTip(
+            "Click then drag on the image to draw a new bounding box")
+        self._btn_add.setCheckable(True)
+        self._btn_add.clicked.connect(self._on_add_btn_clicked)
+        btn_layout.addWidget(self._btn_add)
+
         self._btn_label = QPushButton("Edit label…")
         self._btn_label.setToolTip("Rename the selected annotation label")
         self._btn_label.clicked.connect(self._edit_label)
@@ -134,14 +271,16 @@ class AnnotationEditorWidget(QWidget):
 
         # Hint text
         hint = QLabel(
-            "<small>Drag the yellow handles<br>to resize a box.</small>"
+            "<small>Draw mode: click and drag<br>"
+            "on the image to create a box.<br>"
+            "Yellow handles resize a box.</small>"
         )
         hint.setAlignment(Qt.AlignCenter)
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
         self.setMinimumWidth(170)
-        self.setMaximumWidth(260)
+        self.setMaximumWidth(280)
 
     # ------------------------------------------------------------------ #
     # Public API                                                           #
@@ -179,14 +318,23 @@ class AnnotationEditorWidget(QWidget):
             if reply == QMessageBox.Cancel:
                 return False
             if reply == QMessageBox.Yes:
-                # Parent will pick up the commit via annotation_changed
                 self.annotation_changed.emit(self._image_index)
+
+        # Exit draw mode silently when switching images
+        if self._draw_mode:
+            self._exit_draw_mode_internal()
 
         self._remove_rois()
         self._image_index = image_index
         self._imagename = imagename
         if csv_path:
+            old_csv = self._csv_path
             self._csv_path = csv_path
+            # Update labels sidecar path when the CSV changes
+            if csv_path != old_csv:
+                stem = csv_path.rsplit(".", 1)[0] if "." in csv_path else csv_path
+                self._labels_path = stem + "_labels.json"
+                self._load_labels_file()
         self._dirty = False
         self._annotation = None if _is_nan(annotation) else copy.deepcopy(annotation)
 
@@ -204,6 +352,45 @@ class AnnotationEditorWidget(QWidget):
 
     def is_dirty(self) -> bool:
         return self._dirty
+
+    def set_known_labels(self, labels: list[str]):
+        """Set (or refresh) the pool of known label strings.
+
+        Merges the given list with any labels already loaded from the
+        sidecar JSON, then saves the merged result.
+        """
+        merged = sorted(set(self._known_labels) | set(labels))
+        self._known_labels = merged
+        self._save_labels_file()
+
+    def start_draw_mode(self):
+        """Enable rubber-band draw mode on the image view.
+
+        While active the user can click and drag on the image to define a
+        new bounding box.  After releasing, a :class:`LabelDialog` is
+        shown to assign a label.
+        """
+        if self._draw_mode:
+            return
+        self._draw_mode = True
+        self._btn_add.setChecked(True)
+
+        gv = self._imv.ui.graphicsView
+        gv.setMouseTracking(True)
+
+        self._draw_filter = _DrawEventFilter(self)
+        self._draw_filter.press.connect(self._on_draw_press)
+        self._draw_filter.move.connect(self._on_draw_move)
+        self._draw_filter.release.connect(self._on_draw_release)
+        gv.installEventFilter(self._draw_filter)
+        gv.setCursor(Qt.CrossCursor)
+
+    def stop_draw_mode(self):
+        """Disable rubber-band draw mode and restore normal navigation."""
+        if not self._draw_mode:
+            return
+        self._exit_draw_mode_internal()
+        self.draw_mode_exited.emit()
 
     def save_all_to_csv(self, image_metadata, csv_path: str = "") -> bool:
         """Write the full edited annotation set to a CSV file.
@@ -260,7 +447,6 @@ class AnnotationEditorWidget(QWidget):
         ]
         try:
             with open(path, "w", newline="") as fh:
-                # Two blank header rows to match the original CSV format
                 fh.write("\n\n")
                 writer = csv.DictWriter(fh, fieldnames=fieldnames)
                 writer.writeheader()
@@ -269,12 +455,12 @@ class AnnotationEditorWidget(QWidget):
             _log(f"Annotations saved to {path}")
             return True
         except OSError as exc:
-            _log(f"save_all_to_csv: {exc}", Qgis.Critical)
+            _log(f"save_all_to_csv: {exc}")
             QMessageBox.critical(self, "Save failed", str(exc))
             return False
 
     # ------------------------------------------------------------------ #
-    # Internal helpers                                                     #
+    # Internal helpers — ROI / list management                            #
     # ------------------------------------------------------------------ #
 
     def _rebuild_list(self):
@@ -327,7 +513,105 @@ class AnnotationEditorWidget(QWidget):
         return self._list.currentRow()
 
     # ------------------------------------------------------------------ #
-    # Slots                                                                #
+    # Internal helpers — label persistence                                 #
+    # ------------------------------------------------------------------ #
+
+    def _load_labels_file(self):
+        """Merge labels from the sidecar JSON into ``_known_labels``."""
+        if not self._labels_path:
+            return
+        try:
+            with open(self._labels_path) as fh:
+                data = json.load(fh)
+                saved = data.get("labels", [])
+                self._known_labels = sorted(set(self._known_labels) | set(saved))
+        except (FileNotFoundError, json.JSONDecodeError, OSError):
+            pass
+
+    def _save_labels_file(self):
+        """Persist the current known-labels list to the sidecar JSON."""
+        if not self._labels_path:
+            return
+        try:
+            with open(self._labels_path, "w") as fh:
+                json.dump({"labels": sorted(self._known_labels)}, fh, indent=2)
+        except OSError as exc:
+            _log(f"_save_labels_file: {exc}")
+
+    def _register_label(self, label: str):
+        """Add *label* to the known-labels pool and save, if new."""
+        if label not in self._known_labels:
+            self._known_labels = sorted(set(self._known_labels) | {label})
+            self._save_labels_file()
+
+    # ------------------------------------------------------------------ #
+    # Internal helpers — draw mode                                         #
+    # ------------------------------------------------------------------ #
+
+    def _exit_draw_mode_internal(self):
+        """Core draw-mode teardown (no signal emitted)."""
+        self._draw_mode = False
+        self._btn_add.setChecked(False)
+
+        gv = self._imv.ui.graphicsView
+        if self._draw_filter is not None:
+            gv.removeEventFilter(self._draw_filter)
+            self._draw_filter = None
+        gv.setCursor(Qt.ArrowCursor)
+
+        self._remove_preview()
+        self._draw_start = None
+
+    def _remove_preview(self):
+        """Remove the rubber-band preview rectangle from the scene."""
+        if self._preview_item is not None:
+            try:
+                scene = self._imv.ui.graphicsView.scene()
+                scene.removeItem(self._preview_item)
+            except Exception:
+                pass
+            self._preview_item = None
+
+    def _widget_to_view(self, widget_pos) -> tuple[float, float]:
+        """Convert a widget-space QPoint to image/view coordinates."""
+        gv = self._imv.ui.graphicsView
+        scene_pos = gv.mapToScene(widget_pos)
+        view_pos = self._imv.getView().mapSceneToView(scene_pos)
+        return view_pos.x(), view_pos.y()
+
+    def _widget_to_scene(self, widget_pos):
+        """Convert a widget-space QPoint to scene coordinates."""
+        return self._imv.ui.graphicsView.mapToScene(widget_pos)
+
+    # ------------------------------------------------------------------ #
+    # Internal helpers — new annotation                                    #
+    # ------------------------------------------------------------------ #
+
+    def _add_annotation(self, x0: float, y0: float,
+                         x1: float, y1: float,
+                         label: str, confidence: float = 1.0):
+        """Append a new bbox entry and refresh the ROI list."""
+        if self._annotation is None:
+            self._annotation = {"bbox": [], "Species": [], "Confidence": []}
+        new_bbox = {"bbox": _rect_to_bbox(x0, y0, x1, y1)}
+        self._annotation["bbox"].append(new_bbox)
+        self._annotation["Species"].append(label)
+        self._annotation["Confidence"].append(confidence)
+        self._dirty = True
+        self._register_label(label)
+        self._rebuild_list()
+        self._rebuild_rois()
+        # Select the newly added row
+        self._list.setCurrentRow(len(self._annotation["bbox"]) - 1)
+        self.annotation_changed.emit(self._image_index)
+        _log(
+            f"New annotation added: label={label!r} "
+            f"({x0:.1f},{y0:.1f})-({x1:.1f},{y1:.1f}) "
+            f"conf={confidence:.2f}"
+        )
+
+    # ------------------------------------------------------------------ #
+    # Slots — existing ROI / list interaction                              #
     # ------------------------------------------------------------------ #
 
     def _on_row_changed(self, row: int):
@@ -361,6 +645,7 @@ class AnnotationEditorWidget(QWidget):
             self, "Edit label", "Species / label:", text=current)
         if ok and new_label.strip():
             self._annotation["Species"][row] = new_label.strip()
+            self._register_label(new_label.strip())
             self._rebuild_list()
             self._list.setCurrentRow(row)
             self._dirty = True
@@ -389,3 +674,77 @@ class AnnotationEditorWidget(QWidget):
         self._rebuild_list()
         self._rebuild_rois()
         self.annotation_changed.emit(self._image_index)
+
+    # ------------------------------------------------------------------ #
+    # Slots — "Add box" button and draw-mode events                        #
+    # ------------------------------------------------------------------ #
+
+    def _on_add_btn_clicked(self, checked: bool):
+        if checked:
+            self.start_draw_mode()
+        else:
+            self.stop_draw_mode()
+
+    def _on_draw_press(self, widget_pos):
+        """Record the start corner of the new box in image coordinates."""
+        vx, vy = self._widget_to_view(widget_pos)
+        self._draw_start = (vx, vy)
+
+        # Create a rubber-band preview item on the scene (in scene coords)
+        self._remove_preview()
+        sx, sy = self._widget_to_scene(widget_pos).x(), \
+                 self._widget_to_scene(widget_pos).y()
+        self._preview_item = QGraphicsRectItem(QRectF(sx, sy, 1, 1))
+        pen = QPen(QColor("lime"))
+        pen.setWidth(1)
+        pen.setCosmetic(True)
+        self._preview_item.setPen(pen)
+        self._imv.ui.graphicsView.scene().addItem(self._preview_item)
+
+    def _on_draw_move(self, widget_pos):
+        """Resize the rubber-band preview as the mouse moves."""
+        if self._draw_start is None or self._preview_item is None:
+            return
+        sp = self._widget_to_scene(widget_pos)
+        gv = self._imv.ui.graphicsView
+        # scene pos of the start corner
+        vx0, vy0 = self._draw_start
+        # convert start view pos back to scene for the rect origin
+        start_view_pt = self._imv.getView().mapViewToScene(
+            pg.Point(vx0, vy0))
+        x0s, y0s = start_view_pt.x(), start_view_pt.y()
+        x1s, y1s = sp.x(), sp.y()
+        self._preview_item.setRect(QRectF(
+            min(x0s, x1s), min(y0s, y1s),
+            abs(x1s - x0s), abs(y1s - y0s),
+        ))
+
+    def _on_draw_release(self, widget_pos):
+        """Finalise the drawn box, prompt for a label, and add annotation."""
+        if self._draw_start is None:
+            return
+        vx1, vy1 = self._widget_to_view(widget_pos)
+        vx0, vy0 = self._draw_start
+        self._remove_preview()
+        self._draw_start = None
+
+        # Normalise corners
+        rx0, rx1 = min(vx0, vx1), max(vx0, vx1)
+        ry0, ry1 = min(vy0, vy1), max(vy0, vy1)
+
+        # Reject degenerate boxes (< 3 pixels in either dimension)
+        if (rx1 - rx0) < 3 or (ry1 - ry0) < 3:
+            _log("Draw mode: box too small, ignoring.")
+            return
+
+        # Ask for a label
+        dlg = LabelDialog(self._known_labels, parent=self)
+        if dlg.exec_() != QDialog.Accepted:
+            return
+        label = dlg.label()
+        if not label:
+            QMessageBox.warning(self, "No label",
+                                "Please enter or select a label.")
+            return
+
+        self._add_annotation(rx0, ry0, rx1, ry1, label, dlg.confidence())
