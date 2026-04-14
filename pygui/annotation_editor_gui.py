@@ -469,7 +469,12 @@ class AnnotationEditorWidget(QWidget):
         if self._annotation:
             for i, species in enumerate(self._annotation.get("Species", [])):
                 conf = self._annotation["Confidence"][i]
-                item = QListWidgetItem(f"{i+1}: {species}  ({conf:.2f})")
+                try:
+                    conf_f = float(conf)
+                    conf_str = f"{conf_f:.2f}"
+                except (TypeError, ValueError):
+                    conf_str = str(conf)
+                item = QListWidgetItem(f"{i+1}: {species}  ({conf_str})")
                 self._list.addItem(item)
         self._list.blockSignals(False)
 
