@@ -1338,6 +1338,8 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
     def _refresh_known_labels(self):
         """Extract unique species labels from the loaded annotations and
         push them to the annotation editor's known-labels pool."""
+        if not hasattr(self, 'annotation_editor'):
+            return
         if not (hasattr(self, 'imageMetadata') and self.imageMetadata is not None):
             return
         all_species: set[str] = set()
