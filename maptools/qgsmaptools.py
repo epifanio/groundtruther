@@ -201,8 +201,10 @@ class GCRTool(QgsMapToolEmitPoint):
 
     def deactivate(self):
         """
-        Turn off the tool
+        Turn off the tool — reset the rubber band before deactivating so
+        no dangling QgsRubberBand reference is left in the canvas scene.
         """
+        self.reset()
         QgsMapTool.deactivate(self)
         self.deactivated.emit()
         

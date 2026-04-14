@@ -424,6 +424,27 @@ class GroundTruther:
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
 
+        # If one of our map tools is active, unset it before destroying it.
+        # Leaving an active tool pointing at a deleted object causes SIGSEGV.
+        our_tools = [
+            getattr(self, 'image_query_tool', None),
+            getattr(self, 'grass_query_tool', None),
+            getattr(self, 'grass_cpr_tool', None),
+        ]
+        try:
+            canvas = self.iface.mapCanvas()
+            if canvas.mapTool() in our_tools:
+                canvas.unsetMapTool(canvas.mapTool())
+        except Exception:
+            pass
+
+        # Clean up the GCRTool rubber band before the canvas scene is torn down.
+        if getattr(self, 'grass_cpr_tool', None) is not None:
+            try:
+                self.grass_cpr_tool.reset()
+            except Exception:
+                pass
+
         if self.dockwidget is not None:
             if getattr(self.dockwidget, 'grass_dialog', None) is not None and self.dockwidget.grass_dialog.grassenabled:
                 self.iface.removeCustomActionForLayerType(self.dockwidget.action_import_raster)

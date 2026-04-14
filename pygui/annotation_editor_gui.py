@@ -319,6 +319,18 @@ class AnnotationEditorWidget(QWidget):
         if self._new_ann_frame.isVisible():
             self._populate_new_label_combo()
 
+    def cleanup(self):
+        """Safe full teardown — call before the parent widget is destroyed.
+
+        Removes all ROIs, cancels any pending annotation, exits draw mode,
+        and releases the mouse grab so no dangling C++ references remain.
+        """
+        self._dismiss_pending(silent=True)
+        if self._draw_mode:
+            self._exit_draw_mode_internal()
+        self._remove_preview()
+        self._remove_rois()
+
     def start_draw_mode(self):
         """Enable rubber-band draw mode on the image view."""
         if self._draw_mode:
@@ -443,6 +455,16 @@ class AnnotationEditorWidget(QWidget):
     def _remove_rois(self):
         view = self._imv.getView()
         for roi in self._rois:
+            # Disconnect signals first to prevent callbacks firing on a
+            # partially-destroyed ROI after removeItem().
+            try:
+                roi.sigRegionChangeStarted.disconnect()
+            except Exception:
+                pass
+            try:
+                roi.sigRegionChangeFinished.disconnect()
+            except Exception:
+                pass
             try:
                 view.removeItem(roi)
             except Exception:

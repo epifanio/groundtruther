@@ -1388,9 +1388,23 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         
         
     def closeEvent(self, event):
-        if self.r is not None:
-            self.canvas.scene().removeItem(self.r)
-        if self.m1 is not None:
-            self.canvas.scene().removeItem(self.m1)
+        # Tear down annotation editor before Qt starts destroying widgets.
+        if hasattr(self, 'annotation_editor'):
+            try:
+                self.annotation_editor.cleanup()
+            except Exception:
+                pass
+
+        # Remove canvas items only if the canvas scene is still alive.
+        try:
+            scene = self.canvas.scene() if self.canvas else None
+            if scene is not None:
+                if self.r is not None:
+                    scene.removeItem(self.r)
+                if self.m1 is not None:
+                    scene.removeItem(self.m1)
+        except Exception:
+            pass
+
         self.closingPlugin.emit()
         event.accept()
