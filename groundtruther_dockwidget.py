@@ -35,9 +35,9 @@ from sys import platform
 from PyQt5.QtWidgets import (
     QAction, QLabel, QLineEdit,
     QHBoxLayout, QVBoxLayout, QWidget,
-    QAbstractSpinBox, QSizePolicy, QSpacerItem, QSize, QTextEdit,
+    QAbstractSpinBox, QSizePolicy, QSpacerItem, QTextEdit,
 )
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QColor, QPixmap
 
 import requests
