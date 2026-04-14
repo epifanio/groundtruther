@@ -424,12 +424,12 @@ class GroundTruther:
     def unload(self):
         """Removes the plugin menu item and icon from QGIS GUI."""
 
-        if self.dockwidget.grass_dialog.grassenabled:
-            self.iface.removeCustomActionForLayerType(self.dockwidget.action_import_raster)
-            self.iface.removeCustomActionForLayerType(self.dockwidget.action_set_computational_region_from_raster)  
-            self.iface.removeCustomActionForLayerType(self.dockwidget.action_import_vector)
-            self.iface.removeCustomActionForLayerType(self.dockwidget.action_set_computational_region_from_vector)
         if self.dockwidget is not None:
+            if getattr(self.dockwidget, 'grass_dialog', None) is not None and self.dockwidget.grass_dialog.grassenabled:
+                self.iface.removeCustomActionForLayerType(self.dockwidget.action_import_raster)
+                self.iface.removeCustomActionForLayerType(self.dockwidget.action_set_computational_region_from_raster)
+                self.iface.removeCustomActionForLayerType(self.dockwidget.action_import_vector)
+                self.iface.removeCustomActionForLayerType(self.dockwidget.action_set_computational_region_from_vector)
             self.iface.removeDockWidget(self.dockwidget)
         for action in self.actions:
             self.iface.removePluginMenu(
