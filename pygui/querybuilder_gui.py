@@ -17,19 +17,19 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
+from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QColor, QPixmap, QScreen
 from PyQt5.QtWidgets import (
     QWidget, QApplication, QFileDialog,
     QVBoxLayout, QHBoxLayout, QGridLayout,
-    QSize, QSizePolicy, QSpacerItem,
+    QSizePolicy, QSpacerItem,
     QPushButton, QLineEdit, QTextEdit,
     QGroupBox, QRadioButton, QSortFilterProxyModel,
 )
 
 from groundtruther.pygui.Ui_query_builder_ui import Ui_Form
 from groundtruther.config.config import config
-from configure import get_settings, error_message, log_exception
+from groundtruther.configure import get_settings, error_message, log_exception
 from ellipse import getEllipseCoords
 from rectangle import getRectangleCoords
 from pyproj import Proj
