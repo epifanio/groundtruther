@@ -584,17 +584,13 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             "accept": "application/json",
             "Content-Type": "application/json",
         }
-        try:
-            grass_settings = self.grass_dialog.set_grass_location()
-        except requests.exceptions.ConnectionError as exc:
-            log_exception("get_grass_query_data: set_grass_location", exc, warn=True)
-            error_message("Cannot reach the GRASS API server.\nCheck the endpoint URL in Settings.")
-            return
-        except requests.exceptions.Timeout as exc:
-            log_exception("get_grass_query_data: set_grass_location timeout", exc, warn=True)
-            error_message("GRASS API request timed out.")
+        if not self.grass_api_endpoint:
+            self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(
+                "<b>No GRASS API endpoint configured.</b> Set the endpoint in Settings."
+            )
             return
 
+        grass_settings = self.grass_dialog.set_grass_location()
         if grass_settings.get("status") != "SUCCESS":
             self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(
                 f"<b>GRASS location error:</b> {grass_settings}"
@@ -630,13 +626,9 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                 params=params, headers=headers, json=json_data, timeout=60,
             )
             payload = response.json()
-        except requests.exceptions.ConnectionError as exc:
-            log_exception("get_grass_query_data: r_what POST", exc, warn=True)
+        except requests.exceptions.RequestException as exc:
+            log_exception("get_grass_query_data: r_what request failed", exc, warn=True)
             error_message("Cannot reach the GRASS API server.\nCheck the endpoint URL in Settings.")
-            return
-        except requests.exceptions.Timeout as exc:
-            log_exception("get_grass_query_data: r_what timeout", exc, warn=True)
-            error_message("GRASS API r_what request timed out.")
             return
         except ValueError as exc:
             log_exception("get_grass_query_data: r_what non-JSON response", exc)
@@ -665,19 +657,13 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             "Content-Type": "application/json",
         }
 
-        try:
-            grass_settings = self.grass_dialog.set_grass_location()
-        except requests.exceptions.ConnectionError as exc:
-            log_exception("set_grass_region: set_grass_location", exc, warn=True)
-            error_message("Cannot reach the GRASS API server.\nCheck the endpoint URL in Settings.")
-            return None
-        except requests.exceptions.Timeout as exc:
-            log_exception("set_grass_region: set_grass_location timeout", exc, warn=True)
-            error_message("GRASS API request timed out.")
+        if not self.grass_api_endpoint:
+            error_message("No GRASS API endpoint configured.\nSet the endpoint in Settings.")
             return None
 
+        grass_settings = self.grass_dialog.set_grass_location()
         if grass_settings.get("status") != "SUCCESS":
-            error_message(f"GRASS location error: {grass_settings}")
+            error_message(f"GRASS location error: {grass_settings.get('data', grass_settings)}")
             return None
 
         grass_gisenv = grass_settings["data"]["gisenv"]
@@ -729,13 +715,9 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             )
             return response.json()
 
-        except requests.exceptions.ConnectionError as exc:
-            log_exception("set_grass_region: API POST", exc, warn=True)
+        except requests.exceptions.RequestException as exc:
+            log_exception("set_grass_region: API request failed", exc, warn=True)
             error_message("Cannot reach the GRASS API server.\nCheck the endpoint URL in Settings.")
-            return None
-        except requests.exceptions.Timeout as exc:
-            log_exception("set_grass_region: API timeout", exc, warn=True)
-            error_message("GRASS API request timed out.")
             return None
         except (ValueError, KeyError) as exc:
             log_exception("set_grass_region: unexpected API response structure", exc)

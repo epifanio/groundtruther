@@ -22,6 +22,13 @@ _HEADERS_FORM = {
 _TIMEOUT_SHORT = 30   # list / metadata calls
 _TIMEOUT_LONG  = 300  # compute-heavy module calls
 
+_NO_ENDPOINT = {"status": "FAILED", "data": "No GRASS API endpoint configured"}
+
+
+def _check_endpoint(endpoint: str) -> bool:
+    """Return True if *endpoint* looks usable, False if it is empty/whitespace."""
+    return bool(endpoint and endpoint.strip())
+
 
 def _location_block(gisenv: dict) -> dict:
     """Return the standard ``location`` sub-dict expected by the API."""
@@ -35,8 +42,11 @@ def _location_block(gisenv: dict) -> dict:
 def get_raster_list(endpoint: str, gisenv: dict) -> list[str]:
     """Return the list of raster layer names in the current GRASS mapset.
 
-    Returns an empty list on any error (already logged).
+    Returns an empty list when the endpoint is not configured or on any
+    error (already logged).
     """
+    if not _check_endpoint(endpoint):
+        return []
     params = {
         "location_name": gisenv["LOCATION_NAME"],
         "mapset_name":   gisenv["MAPSET"],
@@ -48,7 +58,7 @@ def get_raster_list(endpoint: str, gisenv: dict) -> list[str]:
             params=params, headers=_HEADERS_FORM, timeout=_TIMEOUT_SHORT,
         )
         return response.json().get("data", {}).get("raster", [])
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+    except requests.exceptions.RequestException as exc:
         log_exception("get_raster_list: network error", exc, warn=True)
         return []
     except (ValueError, KeyError) as exc:
@@ -60,8 +70,11 @@ def r_what(endpoint: str, gisenv: dict, layers: list[str],
            lat: float, lon: float, lonlat: bool = False) -> dict | None:
     """Query raster values at a point via ``/api/r_what``.
 
-    Returns the parsed payload dict, or ``None`` on any error.
+    Returns the parsed payload dict, or ``None`` when the endpoint is not
+    configured or on any error.
     """
+    if not _check_endpoint(endpoint):
+        return None
     params = {"lonlat": "true" if lonlat else "false"}
     json_data = {
         "location": _location_block(gisenv),
@@ -74,7 +87,7 @@ def r_what(endpoint: str, gisenv: dict, layers: list[str],
             params=params, headers=_HEADERS, json=json_data, timeout=_TIMEOUT_SHORT,
         )
         return response.json()
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+    except requests.exceptions.RequestException as exc:
         log_exception("r_what: network error", exc, warn=True)
         return None
     except ValueError as exc:
@@ -86,8 +99,11 @@ def m_proj(endpoint: str, gisenv: dict,
            coords: list[list[float]]) -> list[list[float]] | None:
     """Reproject a list of [lon, lat] pairs via ``/api/m_proj``.
 
-    Returns the projected coordinate list, or ``None`` on any error.
+    Returns the projected coordinate list, or ``None`` when the endpoint is
+    not configured or on any error.
     """
+    if not _check_endpoint(endpoint):
+        return None
     json_data = {
         "location": _location_block(gisenv),
         "coors": coords,
@@ -98,7 +114,7 @@ def m_proj(endpoint: str, gisenv: dict,
             headers=_HEADERS, json=json_data, timeout=_TIMEOUT_SHORT,
         )
         return response.json()["data"]
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+    except requests.exceptions.RequestException as exc:
         log_exception("m_proj: network error", exc, warn=True)
         return None
     except (ValueError, KeyError) as exc:
@@ -111,8 +127,11 @@ def set_region_bounds(endpoint: str, gisenv: dict,
                       east: float, west: float) -> dict | None:
     """Set the GRASS computational region to a bounding box.
 
-    Returns the parsed payload dict, or ``None`` on any error.
+    Returns the parsed payload dict, or ``None`` when the endpoint is not
+    configured or on any error.
     """
+    if not _check_endpoint(endpoint):
+        return None
     json_data = {
         "location": _location_block(gisenv),
         "bounds": {"n": north, "s": south, "e": east, "w": west},
@@ -124,7 +143,7 @@ def set_region_bounds(endpoint: str, gisenv: dict,
             headers=_HEADERS, json=json_data, timeout=_TIMEOUT_SHORT,
         )
         return response.json()
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+    except requests.exceptions.RequestException as exc:
         log_exception("set_region_bounds: network error", exc, warn=True)
         return None
     except (ValueError, KeyError) as exc:
@@ -135,9 +154,11 @@ def set_region_bounds(endpoint: str, gisenv: dict,
 def get_location_list(endpoint: str, gisdb: str) -> dict:
     """Return the dict of locations (and their mapsets) from the API.
 
-    Returns ``{'status': 'FAILED', 'data': <reason>}`` on any error.
-    Never raises.
+    Returns ``{'status': 'FAILED', 'data': <reason>}`` when the endpoint is
+    not configured or on any error.  Never raises.
     """
+    if not _check_endpoint(endpoint):
+        return dict(_NO_ENDPOINT)
     params = {"gisdb": gisdb}
     try:
         response = requests.get(
@@ -145,7 +166,7 @@ def get_location_list(endpoint: str, gisdb: str) -> dict:
             params=params, headers=_HEADERS_FORM, timeout=_TIMEOUT_SHORT,
         )
         return response.json()
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+    except requests.exceptions.RequestException as exc:
         log_exception("get_location_list: network error", exc, warn=True)
         return {"status": "FAILED", "data": str(exc)}
     except ValueError as exc:
@@ -157,8 +178,11 @@ def create_mapset(endpoint: str, gisdb: str, location_name: str,
                   mapset_name: str, overwrite: bool = False) -> dict:
     """Create a new GRASS mapset via the API.
 
-    Returns the parsed payload dict, or a FAILED dict on error.
+    Returns the parsed payload dict, or a FAILED dict when the endpoint is
+    not configured or on any error.
     """
+    if not _check_endpoint(endpoint):
+        return dict(_NO_ENDPOINT)
     params = {
         "location_name": location_name,
         "mapset_name": mapset_name,
@@ -171,7 +195,7 @@ def create_mapset(endpoint: str, gisdb: str, location_name: str,
             params=params, headers=_HEADERS_FORM, timeout=_TIMEOUT_SHORT,
         )
         return response.json()
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+    except requests.exceptions.RequestException as exc:
         log_exception("create_mapset: network error", exc, warn=True)
         return {"status": "FAILED", "data": str(exc)}
     except ValueError as exc:
@@ -186,8 +210,11 @@ def create_location_epsg(endpoint: str, gisdb: str, location_name: str,
                          overwrite_mapset: bool = False) -> dict:
     """Create a new GRASS location from an EPSG code.
 
-    Returns the parsed payload dict, or a FAILED dict on error.
+    Returns the parsed payload dict, or a FAILED dict when the endpoint is
+    not configured or on any error.
     """
+    if not _check_endpoint(endpoint):
+        return dict(_NO_ENDPOINT)
     params = {
         "location_name": location_name,
         "mapset_name": mapset_name,
@@ -202,7 +229,7 @@ def create_location_epsg(endpoint: str, gisdb: str, location_name: str,
             params=params, headers=_HEADERS_FORM, timeout=60,
         )
         return response.json()
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+    except requests.exceptions.RequestException as exc:
         log_exception("create_location_epsg: network error", exc, warn=True)
         return {"status": "FAILED", "data": str(exc)}
     except ValueError as exc:
@@ -218,8 +245,11 @@ def create_location_georef(endpoint: str, gisdb: str, location_name: str,
                             overwrite_mapset: bool = False) -> dict:
     """Create a new GRASS location from a georeferenced file (multipart upload).
 
-    Returns the parsed payload dict, or a FAILED dict on error.
+    Returns the parsed payload dict, or a FAILED dict when the endpoint is
+    not configured or on any error.
     """
+    if not _check_endpoint(endpoint):
+        return dict(_NO_ENDPOINT)
     params = {
         "location_name": location_name,
         "mapset_name": mapset_name,
@@ -240,7 +270,7 @@ def create_location_georef(endpoint: str, gisdb: str, location_name: str,
     except FileNotFoundError as exc:
         log_exception("create_location_georef: file not found", exc, warn=True)
         return {"status": "FAILED", "data": str(exc)}
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+    except requests.exceptions.RequestException as exc:
         log_exception("create_location_georef: network error", exc, warn=True)
         return {"status": "FAILED", "data": str(exc)}
     except ValueError as exc:
@@ -253,8 +283,11 @@ def set_gisenv(endpoint: str, gisdb: str, location_name: str,
     """Activate a GRASS location/mapset via the ``/api/gisenv`` endpoint.
 
     Returns the parsed payload dict (caller checks ``payload['status']``).
-    Returns a FAILED dict on any network error.
+    Returns a FAILED dict when the endpoint is not configured or on any
+    network error.  Never raises.
     """
+    if not _check_endpoint(endpoint):
+        return dict(_NO_ENDPOINT)
     params = {
         "location_name": location_name,
         "mapset_name": mapset_name,
@@ -267,7 +300,7 @@ def set_gisenv(endpoint: str, gisdb: str, location_name: str,
             params=params, headers=headers, timeout=_TIMEOUT_SHORT,
         )
         return response.json()
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+    except requests.exceptions.RequestException as exc:
         log_exception("set_gisenv: network error", exc, warn=True)
         return {"status": "FAILED", "data": str(exc)}
     except ValueError as exc:
@@ -278,10 +311,12 @@ def set_gisenv(endpoint: str, gisdb: str, location_name: str,
 def run_module(endpoint: str, module_name: str, params: dict) -> dict:
     """POST to ``/api/<module_name>`` and return the parsed JSON payload.
 
-    Returns ``{'status': 'FAILED', 'data': <reason>}`` on network errors
-    and ``{'status': 'SUCCESS'}`` when the response is not JSON (binary
-    output modules).  Never raises.
+    Returns ``{'status': 'FAILED', 'data': <reason>}`` when the endpoint is
+    not configured or on network errors, and ``{'status': 'SUCCESS'}`` when
+    the response is not JSON (binary output modules).  Never raises.
     """
+    if not _check_endpoint(endpoint):
+        return dict(_NO_ENDPOINT)
     headers = {
         "accept": "application/json",
         "content-type": "application/x-www-form-urlencoded",
@@ -292,7 +327,7 @@ def run_module(endpoint: str, module_name: str, params: dict) -> dict:
             headers=headers, params=params, timeout=_TIMEOUT_LONG,
         )
         return response.json()
-    except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
+    except requests.exceptions.RequestException as exc:
         log_exception(f"run_module({module_name}): network error", exc, warn=True)
         return {"status": "FAILED", "data": str(exc)}
     except ValueError as exc:

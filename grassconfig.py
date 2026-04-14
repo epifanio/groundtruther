@@ -50,9 +50,8 @@ class GrassConfigDialog(QDialog, GrassSettings):
         self.create_location.clicked.connect(self.create_new_grass_location)
         self.create_mapset.clicked.connect(self.create_new_grass_mapset)
         self.exit.clicked.connect(self.close)
-        self.update_location()
         self.epsg_code.addItems(codelist)
-        self.button_group = QButtonGroup(self)                     # <---
+        self.button_group = QButtonGroup(self)
         self.button_group.setExclusive(True)
         self.button_group.addButton(self.choice_epsg)
         self.button_group.addButton(self.choice_georef)
@@ -61,9 +60,10 @@ class GrassConfigDialog(QDialog, GrassSettings):
             self.update_mapset)
         self.choice_epsg.toggled.connect(self.enable_widget)
         self.choice_georef.toggled.connect(self.enable_widget)
-        self.update_location()
-        
         self.grassenabled = False
+        # Populate location lists only when an endpoint is already configured.
+        # If the endpoint is empty the call returns immediately without network I/O.
+        self.update_location()
 
         # connect update mapset
 
@@ -112,7 +112,12 @@ class GrassConfigDialog(QDialog, GrassSettings):
             # update mapset based on current index in location as key
 
     def create_new_grass_mapset(self):
-        endpoint = self.grass_api_endpoint.text()
+        endpoint = self.grass_api_endpoint.text().strip()
+        if not endpoint:
+            payload = {'status': 'FAILED', 'data': 'No GRASS API endpoint configured'}
+            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
+            self.set_status_color('FAILED')
+            return payload
         headers = {'accept': 'application/json'}
         params = {
             'location_name': self.grass_location_list2.currentText(),
@@ -124,12 +129,9 @@ class GrassConfigDialog(QDialog, GrassSettings):
             response = requests.get(
                 f'{endpoint}/api/create_mapset', params=params, headers=headers, timeout=30)
             payload = response.json()
-        except ConnectionError as exc:
-            log_exception("create_new_grass_mapset: connection error", exc, warn=True)
+        except requests.exceptions.RequestException as exc:
+            log_exception("create_new_grass_mapset: network error", exc, warn=True)
             payload = {'status': 'FAILED', 'data': str(exc)}
-        except requests.exceptions.Timeout as exc:
-            log_exception("create_new_grass_mapset: timeout", exc, warn=True)
-            payload = {'status': 'FAILED', 'data': 'Request timed out'}
         except ValueError as exc:
             log_exception("create_new_grass_mapset: invalid JSON response", exc)
             payload = {'status': 'FAILED', 'data': 'Invalid JSON response'}
@@ -138,31 +140,34 @@ class GrassConfigDialog(QDialog, GrassSettings):
         return payload
 
     def get_location_list(self):
-        """_summary_
-         get the list of locations from the grass api
-        Returns:
-            _type_: _description_
+        """Return the list of GRASS locations from the API.
+
+        Returns ``{'status': 'FAILED', ...}`` when the endpoint is not
+        configured or the server is unreachable — never raises.
         """
-        endpoint = self.grass_api_endpoint.text()
+        endpoint = self.grass_api_endpoint.text().strip()
+        if not endpoint:
+            return {'status': 'FAILED', 'data': 'No GRASS API endpoint configured'}
         grass_gisdb = self.grass_gisdb.text()
-        headers = {
-            'accept': 'application/json',
-        }
-        params = {
-            'gisdb': grass_gisdb,
-        }
+        headers = {'accept': 'application/json'}
+        params = {'gisdb': grass_gisdb}
         try:
             response = requests.get(
                 f'{endpoint}/api/get_location_list', params=params, headers=headers, timeout=30)
+            payload = response.json()
+            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
+            self.set_status_color(payload.get('status', 'FAILED'))
+            return payload
+        except requests.exceptions.RequestException as exc:
+            log_exception("get_location_list: network error", exc, warn=True)
             self.command_output.setText(json.dumps(
-                response.json(), sort_keys=True, indent=4))
-            self.set_status_color(response.json()['status'])
-            return response.json()
-        except ConnectionError as error:
-            self.command_output.setText(json.dumps(
-                {'status': 'FAILED', 'data': str(error)}, sort_keys=True, indent=4))
+                {'status': 'FAILED', 'data': str(exc)}, sort_keys=True, indent=4))
             self.set_status_color('FAILED')
-            return {'status': 'FAILED', 'data': str(error)}
+            return {'status': 'FAILED', 'data': str(exc)}
+        except ValueError as exc:
+            log_exception("get_location_list: non-JSON response", exc)
+            self.set_status_color('FAILED')
+            return {'status': 'FAILED', 'data': str(exc)}
 
     def update_location(self):
         locationlist = self.get_location_list()
@@ -192,7 +197,12 @@ class GrassConfigDialog(QDialog, GrassSettings):
         # if success, add new entry to the combo box
 
     def create_location_epsg(self):
-        endpoint = self.grass_api_endpoint.text()
+        endpoint = self.grass_api_endpoint.text().strip()
+        if not endpoint:
+            payload = {'status': 'FAILED', 'data': 'No GRASS API endpoint configured'}
+            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
+            self.set_status_color('FAILED')
+            return payload
         headers = {'accept': 'application/json'}
         params = {
             'location_name': self.new_location_name.text(),
@@ -206,12 +216,9 @@ class GrassConfigDialog(QDialog, GrassSettings):
             response = requests.get(
                 f'{endpoint}/api/create_location_epsg', params=params, headers=headers, timeout=60)
             payload = response.json()
-        except ConnectionError as exc:
-            log_exception("create_location_epsg: connection error", exc, warn=True)
+        except requests.exceptions.RequestException as exc:
+            log_exception("create_location_epsg: network error", exc, warn=True)
             payload = {'status': 'FAILED', 'data': str(exc)}
-        except requests.exceptions.Timeout as exc:
-            log_exception("create_location_epsg: timeout", exc, warn=True)
-            payload = {'status': 'FAILED', 'data': 'Request timed out'}
         except ValueError as exc:
             log_exception("create_location_epsg: invalid JSON response", exc)
             payload = {'status': 'FAILED', 'data': 'Invalid JSON response'}
@@ -220,7 +227,12 @@ class GrassConfigDialog(QDialog, GrassSettings):
         return payload
 
     def create_location_georef(self):
-        endpoint = self.grass_api_endpoint.text()
+        endpoint = self.grass_api_endpoint.text().strip()
+        if not endpoint:
+            payload = {'status': 'FAILED', 'data': 'No GRASS API endpoint configured'}
+            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
+            self.set_status_color('FAILED')
+            return payload
         headers = {
             'accept': 'application/json',
             # requests won't add a boundary if this header is set when you pass files=
@@ -235,29 +247,41 @@ class GrassConfigDialog(QDialog, GrassSettings):
             'output_raster_layer': self.layer_name.text(),
         }
         try:
-            files = {
-                'georef': open(self.georef_file.text(), 'rb'),
-            }
-            response = requests.post(
-                f'{endpoint}/api/create_location_file', params=params, headers=headers, files=files)
-            QgsMessageLog.logMessage(f"create_location_georef response: {response.json()}", 'GroundTruther', Qgis.Info)
-            self.command_output.setText(json.dumps(
-                response.json(), sort_keys=True, indent=4))
-            self.set_status_color(response.json()['status'])
-            return response.json()
+            with open(self.georef_file.text(), 'rb') as fh:
+                files = {'georef': fh}
+                response = requests.post(
+                    f'{endpoint}/api/create_location_file',
+                    params=params, headers=headers, files=files)
+            payload = response.json()
+            QgsMessageLog.logMessage(f"create_location_georef response: {payload}", 'GroundTruther', Qgis.Info)
+            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
+            self.set_status_color(payload.get('status', 'FAILED'))
+            return payload
         except FileNotFoundError as exc:
             log_exception("create_location_georef: georef file not found", exc, warn=True)
-            self.command_output.setText(json.dumps(
-                {'status': 'FAILED', 'data': str(exc)}, sort_keys=True, indent=4))
+            payload = {'status': 'FAILED', 'data': str(exc)}
+            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
             self.set_status_color('FAILED')
-            return {'status': 'FAILED', 'data': str(exc)}
+            return payload
+        except requests.exceptions.RequestException as exc:
+            log_exception("create_location_georef: network error", exc, warn=True)
+            payload = {'status': 'FAILED', 'data': str(exc)}
+            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
+            self.set_status_color('FAILED')
+            return payload
+        except ValueError as exc:
+            log_exception("create_location_georef: non-JSON response", exc)
+            payload = {'status': 'FAILED', 'data': str(exc)}
+            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
+            self.set_status_color('FAILED')
+            return payload
 
     def set_grass_location(self):
-        endpoint = self.grass_api_endpoint.text()
-        headers = {
-            'accept': 'application/json',
-        }
-
+        endpoint = self.grass_api_endpoint.text().strip()
+        if not endpoint:
+            self.grassenabled = False
+            return {'status': 'FAILED', 'data': 'No GRASS API endpoint configured'}
+        headers = {'accept': 'application/json'}
         params = {
             'location_name': self.grass_location_list.currentText(),
             'mapset_name': self.location_mapset_list.currentText(),
@@ -265,21 +289,25 @@ class GrassConfigDialog(QDialog, GrassSettings):
         }
         try:
             response = requests.get(
-                f'{endpoint}/api/gisenv', params=params, headers=headers)
-            QgsMessageLog.logMessage(f"set_grass_location response: {response.json()}", 'GroundTruther', Qgis.Info)
-
-            self.command_output.setText(json.dumps(
-                response.json(), sort_keys=True, indent=4))
-            self.set_status_color(response.json()['status'])
-            if response.json()['status'] == 'SUCCESS':
+                f'{endpoint}/api/gisenv', params=params, headers=headers, timeout=30)
+            payload = response.json()
+            QgsMessageLog.logMessage(f"set_grass_location response: {payload}", 'GroundTruther', Qgis.Info)
+            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
+            self.set_status_color(payload.get('status', 'FAILED'))
+            if payload.get('status') == 'SUCCESS':
                 self.grassenabled = True
             else:
                 self.update_location()
                 self.grassenabled = False
-            return response.json()
-        except (ConnectionError, requests.exceptions.Timeout) as error:
+            return payload
+        except requests.exceptions.RequestException as exc:
+            log_exception("set_grass_location: network error", exc, warn=True)
             self.grassenabled = False
-            return {'status': 'FAILED', 'data': str(error)}
+            return {'status': 'FAILED', 'data': str(exc)}
+        except ValueError as exc:
+            log_exception("set_grass_location: non-JSON response", exc)
+            self.grassenabled = False
+            return {'status': 'FAILED', 'data': str(exc)}
 
     def show_hide_output_log(self):
         """docstring"""
