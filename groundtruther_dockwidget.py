@@ -23,143 +23,76 @@
 """
 
 import os
-from functools import lru_cache
 
-from qgis.PyQt import QtGui, QtWidgets, uic
-from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot
+from qgis.PyQt import QtWidgets
+from qgis.PyQt.QtCore import pyqtSignal
 from qgis.utils import iface
-from qgis.core import (
-    Qgis, QgsMessageLog, QgsMapLayerType,
-    QgsPointXY, QgsRectangle, QgsGeometry, QgsWkbTypes, QgsProject,
-    QgsCoordinateReferenceSystem, QgsCoordinateTransform,
-)
-from qgis.gui import QgsVertexMarker, QgsMapToolEmitPoint, QgsRubberBand
+from qgis.core import Qgis, QgsMessageLog, QgsProject
 
-from sys import platform
+from PyQt5.QtCore import Qt
 
-from PyQt5.QtWidgets import (
-    QAction, QLabel, QLineEdit,
-    QHBoxLayout, QVBoxLayout, QWidget,
-    QAbstractSpinBox, QSizePolicy, QSpacerItem, QTextEdit,
-)
-from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QColor
-
-import requests
-import pandas as pd
-from pathlib import Path
 import pyqtgraph as pg
-from skimage.io import imread
-import numpy as np
 
-
-@lru_cache(maxsize=5)
-def _cached_imread(path: str) -> np.ndarray:
-    """Read and decode an image, keeping the last 5 results in memory.
-
-    The cache is keyed on the absolute file path string.  Call
-    ``_cached_imread.cache_clear()`` whenever the image directory changes
-    so stale arrays are not returned for a new dataset.
-    """
-    return imread(path)
-from scipy import spatial
-import pyarrow
-
-from groundtruther.configure import get_settings, load_config, ConfigDialog, error_message, log_exception
-from groundtruther.ioutils import parse_annotation, get_layer_info, send_layer_as_geojson, convert_to_geojson_using_gdal
-from groundtruther.gt import image_manager as img_mgr
-
-from groundtruther.pygui.Ui_groundtruther_dockwidget_base import Ui_GroundTrutherDockWidgetBase  
+from groundtruther.configure import get_settings
+from groundtruther.pygui.Ui_groundtruther_dockwidget_base import Ui_GroundTrutherDockWidgetBase
 from groundtruther.pygui.hbc_browser_gui import HBCBrowserGui
-from groundtruther.pygui.image_metadata_gui import ImageMetadata, ExtendedDateTimeEdit
+from groundtruther.pygui.image_metadata_gui import ImageMetadata
 from groundtruther.pygui.app_settings_gui import AppSettings
 from groundtruther.pygui.kmlsave_gui import SaveKml
 from groundtruther.pygui.querybuilder_gui import QueryBuilder
 from groundtruther.pygui.grass_settings_gui import GrassSettings
-
-#from groundtruther.pygui.grass_mdi_gui import GrassMdi
-
-from groundtruther.pygui.grass_mdi_gui import GrassTools
-from groundtruther.pygui.annotation_editor_gui import AnnotationEditorWidget
-
 from groundtruther.grassconfig import GrassConfigDialog
-from groundtruther.run_geomorphon_mdi import GeoMorphonWidget
-from groundtruther.run_paramscale_mdi import ParamScaleWidget
-from groundtruther.run_grm_lsi_mdi import GrmLsiWidget
-import groundtruther.resources_rc
+import groundtruther.resources_rc  # noqa: F401
 
-# Create a subclass of pg.ImageView
+# Mixins — each module owns one concern
+from groundtruther.mixins.image_browser_mixin import ImageBrowserMixin, MyImageView
+from groundtruther.mixins.grass_mixin import GrassIntegrationMixin
+from groundtruther.mixins.annotation_editor_mixin import AnnotationEditorMixin
+from groundtruther.mixins.settings_mixin import SettingsMixin
 
-class CustomGraphItem(pg.GraphItem):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.custom_attribute = None
+from PyQt5.QtWidgets import QLabel, QLineEdit
 
-    def setCustomAttribute(self, value):
-        self.custom_attribute = value
 
-    def getCustomAttribute(self):
-        return self.custom_attribute
-
-            
-class MyImageView(pg.ImageView):
-    mousePressEventSignal = pyqtSignal(object)
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.plot_items = []  # Store the GraphItems
-        
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            pos = event.pos()
-            
-            for item in self.plot_items:
-                if item.sceneBoundingRect().contains(pos):
-                    QgsMessageLog.logMessage(f"Mouse position intersects GraphItem: {item}", 'GroundTruther', Qgis.Info)
-                    QgsMessageLog.logMessage(f"GraphItem attribute: {item.getCustomAttribute()}", 'GroundTruther', Qgis.Info)
-                    self.mousePressEventSignal.emit(item.getCustomAttribute())
-                    item.setPen('w')
-                else:
-                    item.setPen('r')
-                    #self.mousePressEventSignal.emit('None')
-                    
-            
-class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetBase):
+class GroundTrutherDockWidget(
+    QtWidgets.QDockWidget,
+    Ui_GroundTrutherDockWidgetBase,
+    ImageBrowserMixin,
+    GrassIntegrationMixin,
+    AnnotationEditorMixin,
+    SettingsMixin,
+):
+    """Main dock widget — thin orchestrator; all logic lives in mixins."""
 
     closingPlugin = pyqtSignal()
     send_image_path = pyqtSignal(str)
     send_imagemetadata_string = pyqtSignal(str)
 
     def __init__(self, parent=None):
-        """Constructor."""
-        super(GroundTrutherDockWidget, self).__init__(parent)
-        # Set up the user interface from Designer.
-        # After setupUI you can access any designer object by doing
-        # self.<objectname>, and you can use autoconnect slots - see
-        # http://doc.qt.io/qt-5/designer-using-a-ui-file.html
-        # #widgets-and-dialogs-with-auto-connect
+        super().__init__(parent)
         self.canvas = iface.mapCanvas()
         self.project = QgsProject.instance()
         self.w = HBCBrowserGui()
         self.setupUi(self)
         self.setWidget(self.w)
-        #self.config = os.environ.get('HBC_CONFIG')
-        self.config = os.path.join(os.path.dirname(__file__), 'config/config.yaml')
+
+        self.config = os.path.join(
+            os.path.dirname(__file__), 'config/config.yaml')
         self.settings = get_settings(self.config)
         if not self.settings:
-            # Config missing or invalid on first load – show dialog once, no
-            # error dialogs beforehand (get_settings is now side-effect free).
             self._open_config_dialog()
             self.settings = get_settings(self.config)
-        # Provide safe defaults if user closed the dialog without saving valid
-        # settings, so the rest of __init__ doesn't crash.
+        # Safe defaults so the rest of __init__ never crashes on missing config
         if not self.settings:
             self.settings = {
-                "HabCam": {"imagepath": "", "imagemetadata": "", "imageannotation": ""},
+                "HabCam": {
+                    "imagepath": "", "imagemetadata": "", "imageannotation": ""},
                 "Mbes": {"soundings": ""},
                 "Export": {"kmldir": ""},
-                "Processing": {"gpu_avaibility": False, "grass_api_endpoint": ""},
+                "Processing": {
+                    "gpu_avaibility": False, "grass_api_endpoint": ""},
                 "Filesystem": {"filemanager": ""},
             }
+
         self.grass_dialog = GrassConfigDialog(self)
         self.imagelist = []
         self.imageindex = 0
@@ -173,51 +106,54 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         )
         self.graph_items = []
         self.m1 = None
+        self.r = None
+        self.imageMetadata = None          # initialised here; set by _apply_settings
         self.image_point_built = False
         self.parsed_query = None
+        self.annotation_box_linewidth = 1
+        self.annotation_box_vertexsize = 15
         # Metadata panel widget references — populated by _build_metadata_panel()
         self._meta_widgets: dict = {}
         self._meta_time_widget = None
+
+        self.grassenabled = False
+
         self.init_ui()
-        # hide for QGIS PlugIn
+
         self.w.gisTools.hide()
         self.w.gisTools_logger.hide()
         self.w.actionGisTools.setVisible(True)
         self.w.actionQuit.setVisible(False)
-        # print(self.parent.plugin_dir) # = os.path.dirname(__file__))
-        self.grassenabled = False
-        self.r = None
-        self.annotation_box_linewidth = 1
-        self.annotation_box_vertexsize = 15
-        QgsMessageLog.logMessage(f"GroundTruther dock widget initialised (iface: {iface})", 'GroundTruther', Qgis.Info)
 
+        QgsMessageLog.logMessage(
+            f"GroundTruther dock widget initialised (iface: {iface})",
+            'GroundTruther', Qgis.Info)
 
+    # ------------------------------------------------------------------ #
+    # UI construction                                                      #
+    # ------------------------------------------------------------------ #
 
     def init_ui(self):
-        """docstring"""
+        """Build and wire the full UI.
+
+        Delegates specialised concerns to each mixin's ``_init_*`` method so
+        this method stays readable as a high-level overview of the layout.
+        """
         self.region_response = None
-        # self.imv = pg.ImageView(self.w)
-        self.imv = MyImageView(self.w) 
+
+        # --- Central image viewer ---
+        self.imv = MyImageView(self.w)
         self.w.setCentralWidget(self.imv)
         self.imv.mousePressEventSignal.connect(self.setStausMessage)
+
+        # --- Misc supporting objects ---
         self.appsettings = AppSettings()
         self.grass_config_widget = GrassSettings()
         self.w.toolWidget.hide()
-        # TODO: remove gistools
         self.w.gisTools.hide()
-        self.w.fwd.clicked.connect(self.increaseimageindex)
-        self.w.rwd.clicked.connect(self.decreaseimageindex)
-        # Image Index
-        self.w.ImageIndexSlider.valueChanged.connect(
-            self.setValueImageIndexspinBox)
-        self.w.ImageIndexspinBox.valueChanged.connect(
-            self.setValueImageIndexSlider)
-        self.w.ImageStepspinBox.valueChanged.connect(
-            self.setImageIndexStepValue)
-        self.w.ImageIndexSlider.valueChanged.connect(self.add_image)
 
+        # --- Status-bar lat/lon display ---
         self.image = QLabel()
-
         self.w.latitude = QLineEdit()
         self.w.longitude = QLineEdit()
         self.w.longitude.setFocusPolicy(Qt.NoFocus)
@@ -228,1198 +164,61 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self.w.latitude.setText("0")
         self.w.statusbar.addPermanentWidget(self.w.latitude, stretch=0)
         self.w.statusbar.addPermanentWidget(self.w.longitude, stretch=0)
-        
 
-        self.w.range.valueChanged.connect(self.setValuerangeSpinBox)
-        # self.getImageMetadata_hard()
+        # --- Toolbar + menu wiring for settings / tools visibility ---
         self.w.actionTools.triggered.connect(self.showTools)
         self.w.actionGisTools.triggered.connect(self.showGisTools)
-        #self.w.actionImageBrowser.triggered.connect(self.showImageBrowser)
-        self.w.actionImageBrowser.triggered.connect(self.showImageViewer)
-        # self.w.actionWizard.triggered.connect(self.showPreferences)
         self.w.actionWizard.triggered.connect(self.show_dialog)
-        # self.w.refresh.clicked.connect(self.on_send)
-        if platform == "darwin":
-            self.w.fwd.hide()
-            self.w.rwd.hide()
-        # self.w.refresh.hide()
-        #
-        #
+
+        # --- Tool tabs ---
         self.imagemetadata_gui = ImageMetadata()
         self.w.tools.insertTab(0, self.imagemetadata_gui, "Image Metadata")
+
         self.savekml = SaveKml(self)
-        # emit image path to savekml widget
         self.send_image_path.connect(self.savekml.from_main_imagepath_signal)
-        # self.send_image_path.connect(self.savekml.from_main_imagepath_signal)
         self.send_imagemetadata_string.connect(
             self.savekml.from_main_imagemetadata_signal)
-        #
-        #
         self.w.tools.insertTab(1, self.savekml, "Report Builder")
+
         self.querybuilder = QueryBuilder(self)
         self.w.tools.insertTab(2, self.querybuilder, "BS Query Builder")
-        #
 
-        # self.qgis_widget_gui = myMainClass(self)
-
-        # self.w.gisToolSplitter.insertWidget(0, self.qgis_widget_gui)
-
-        # self.w.actionQuit.triggered.connect(self.quitAll)
-        self.set_settings()
-        #
         self.querybuilder.send_2dgraph_path.connect(
-            self.savekml.from_querybuilder_2dplot_signal
-        )
+            self.savekml.from_querybuilder_2dplot_signal)
         self.querybuilder.send_3dgraph_path.connect(
-            self.savekml.from_querybuilder_3dplot_signal
-        )
-        #
+            self.savekml.from_querybuilder_3dplot_signal)
         self.querybuilder.send_selected_points_path.connect(
-            self.savekml.from_querybuilder_selected_points_signal
-        )
-        #
-        # self.w.refresh.clicked.connect(self.close_pyqtgraph)
-        self.w.annotation_confidence_spinBox.valueChanged.connect(
-            self.setValue_annotation_confidence
-        )
-        self.w.actionAnnotation.triggered.connect(self.showAnnotationThreshold)
-        self.w.annotation_confidence_spinBox.hide()
-        self.w.annotation_confidence_spinBox_label.hide()
+            self.savekml.from_querybuilder_selected_points_signal)
 
-        # --- Annotation editor panel -----------------------------------
-        self.annotation_editor = AnnotationEditorWidget(self.imv)
-        self.annotation_editor_dock = QtWidgets.QDockWidget(
-            "Edit Annotations", self.w)
-        self.annotation_editor_dock.setWidget(self.annotation_editor)
-        self.annotation_editor_dock.setAllowedAreas(
-            Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)
-        self.annotation_editor_dock.hide()
-        self.w.addDockWidget(Qt.RightDockWidgetArea,
-                             self.annotation_editor_dock)
-        # Toggle button in the browser's toolbar
-        self._ann_editor_action = QtWidgets.QAction("✏ Edit annotations",
-                                                     self.w)
-        self._ann_editor_action.setCheckable(True)
-        self._ann_editor_action.setToolTip(
-            "Show/hide the annotation editor panel")
-        self._ann_editor_action.toggled.connect(
-            self._toggle_annotation_editor)
-        self.w.toolBar.addSeparator()
-        self.w.toolBar.addAction(self._ann_editor_action)
-        # Save-all button (visible only when editor is open)
-        self._save_ann_action = QtWidgets.QAction("💾 Save annotations", self.w)
-        self._save_ann_action.setToolTip(
-            "Save all annotation edits back to CSV")
-        self._save_ann_action.triggered.connect(self._save_annotations)
-        self._save_ann_action.setVisible(False)
-        self.w.toolBar.addAction(self._save_ann_action)
-        # "Draw new box" toggle action (only visible when editor is open)
-        self._draw_ann_action = QtWidgets.QAction("➕ Draw box", self.w)
-        self._draw_ann_action.setCheckable(True)
-        self._draw_ann_action.setToolTip(
-            "Click and drag on the image to draw a new bounding box")
-        self._draw_ann_action.toggled.connect(self._toggle_draw_mode)
-        self._draw_ann_action.setVisible(False)
-        self.w.toolBar.addAction(self._draw_ann_action)
-        # Wire editor signals
-        self.annotation_editor.annotation_changed.connect(
-            self._on_annotation_changed)
-        self.annotation_editor.draw_mode_exited.connect(
-            lambda: self._draw_ann_action.setChecked(False))
+        # --- Mixin initialisation (order matters) ---
+        self._init_image_browser()      # ImageBrowserMixin
+        self._apply_settings()          # SettingsMixin — loads data
+        self._init_annotation_editor()  # AnnotationEditorMixin
+        self._init_grass()              # GrassIntegrationMixin
 
-        self.init_grass_ui()
-        self.init_grass_toolbar()
-        # self.region_response = None
         self.w.show()
 
-
-    def init_grass_toolbar(self):
-        self.w.actiongrass_settings.triggered.connect(self.show_grass_dialog)
-
-    def show_grass_dialog(self):
-        """docstring"""
-        self.grass_dialog.exec_()
-        QgsMessageLog.logMessage(f"GRASS dialog closed, grassenabled={self.grass_dialog.grassenabled}", 'GroundTruther', Qgis.Info)
-        if self.grass_dialog.grassenabled:
-            self.init_grass_contextual_menu()
-    
-
-    def init_grass_contextual_menu(self):
-        if self.grass_dialog.grassenabled:
-            self.w.gisTools_logger.setText("GRASS GIS enabled")
-            self.action_import_raster = QAction( u"Import selected layer into GRASS Server")
-            # self.action_import_raster.triggered.connect(lambda: print('raster action triggered - import'))
-            self.action_import_raster.triggered.connect(self.import_active_raster_layer_to_grass)
-            self.action_set_computational_region_from_raster = QAction( u"Set GRASS Server Computational Region to layer extent")
-            # self.action_set_computational_region_from_raster.triggered.connect(lambda: print('raster action triggered - set region'))
-            self.action_import_raster.triggered.connect(self.set_grass_region_from_raster)
-            iface.addCustomActionForLayerType(self.action_import_raster, 'GroundTruther', QgsMapLayerType.RasterLayer, True)
-            iface.addCustomActionForLayerType(self.action_set_computational_region_from_raster, 'GroundTruther', QgsMapLayerType.RasterLayer, True)
-            self.action_import_vector = QAction( u"Import selected layer into GRASS Server")
-            # self.action_import_vector.triggered.connect(lambda: print('vector action triggered - import'))
-            self.action_import_vector.triggered.connect(self.import_active_vector_layer_to_grass)
-            self.action_set_computational_region_from_vector = QAction( u"Set GRASS Server Computational Region to layer extent")
-            # self.action_set_computational_region_from_vector.triggered.connect(lambda: print('vector action triggered - set region'))
-            self.action_set_computational_region_from_vector.triggered.connect(self.set_grass_region_from_vector)
-            iface.addCustomActionForLayerType(self.action_import_vector, 'GroundTruther', QgsMapLayerType.VectorLayer, True)
-            iface.addCustomActionForLayerType(self.action_set_computational_region_from_vector, 'GroundTruther', QgsMapLayerType.VectorLayer, True)
-            # Create the main action that triggers the submenu
-            self.main_action = QAction("Custom Menu", iface.mainWindow())
-            self.main_action.triggered.connect(lambda: self.show_custom_submenu(iface.activeLayer()))
-            iface.addCustomActionForLayerType(self.main_action, 'My new Vector Menu', QgsMapLayerType.VectorLayer, True)
-            
-            
-    def set_grass_region_from_raster(self):
-        QgsMessageLog.logMessage(f"set_grass_region_from_raster: layer={iface.activeLayer()}, info={get_layer_info(iface.activeLayer())}", 'GroundTruther', Qgis.Info)
-
-    def set_grass_region_from_vector(self):
-        QgsMessageLog.logMessage(f"set_grass_region_from_vector: layer={iface.activeLayer()}, info={get_layer_info(iface.activeLayer())}", 'GroundTruther', Qgis.Info)
-        
-        selected_features = iface.activeLayer().selectedFeatures()
-    
-        # Loop through the selected features
-        selected_geometries = []
-        x_min = []
-        y_min = []
-        x_max = []
-        y_max = []
-        for feature in selected_features:
-            # Get the feature ID
-            feature_id = feature.id()
-        
-            # Get the geometry of the feature
-            geom = feature.geometry()
-        
-            # Get attributes of the feature
-            attrs = feature.attributes()
-        
-            QgsMessageLog.logMessage(f"Feature ID: {feature_id}, Geometry: {geom.asWkt()}, Attributes: {attrs}", 'GroundTruther', Qgis.Info)
-            rect = geom.boundingBox()
-            x_min.append(rect.xMinimum())
-            y_min.append(rect.yMinimum())
-            x_max.append(rect.xMaximum())
-            y_max.append(rect.yMaximum())
-            
-            # selected_geometries.append([x_min, y_min, x_max, y_max])
-            # print(dir(geom.boundingBox().toString()))
-        xx_min = min(x_min)
-        yy_min = min(y_min)
-        xx_max = max(x_max)
-        yy_max = max(y_max)
-        bbox_selection = [xx_min, yy_min, xx_max, yy_max]
-        QgsMessageLog.logMessage(f"bbox_selection: {bbox_selection}", 'GroundTruther', Qgis.Info)
-        # add a vector layer to the map, showing the computed bounding box
-        
-        
-    def import_active_raster_layer_to_grass(self):
-        QgsMessageLog.logMessage(f"import_active_raster_layer_to_grass: layer={iface.activeLayer()}, info={get_layer_info(iface.activeLayer())}", 'GroundTruther', Qgis.Info)
-        
-    def import_active_vector_layer_to_grass(self):
-        # TODO: implement actual import – convert layer to GeoJSON then POST to
-        # self.grass_api_endpoint + '/api/import_vector'
-        geojson = convert_to_geojson_using_gdal(iface.activeLayer().source())
-        QgsMessageLog.logMessage(
-            f"import_active_vector_layer_to_grass – geojson ready, endpoint: {self.grass_api_endpoint}\n"
-            f"{geojson[:200] if isinstance(geojson, str) else geojson}",
-            'GroundTruther', Qgis.Info)
-
-    def init_grass_ui(self):
-        # create the widget for grass which goes into the splitter
-        self.grassWidgetContents = GrassTools(self) #QtWidgets.QWidget()
-        self.grassWidgetContents.setObjectName("grassDockWidgetContents")
-        self.w.gisToolSplitter.insertWidget(0, self.grassWidgetContents)
-
-    def onZoomInClicked(self):
-        self.grassWidgetContents.grass_mdi.gis_tool_report.zoomIn(1)
-
-    def onZoomOutClicked(self):
-        self.grassWidgetContents.grass_mdi.gis_tool_report.zoomOut(1)
-    
-    def onClearClicked(self):
-        self.grassWidgetContents.grass_mdi.gis_tool_report.clear()
-
-    def view_r_gemorphon(self, module):
-        if self.r_gemorphon_window.isVisible():
-            self.r_gemorphon_window.hide()
-        else:
-            self.r_gemorphon.get_rvr_list()
-            self.r_gemorphon_window.show()
-
-    def view_r_paramscale(self, module):
-        if self.r_paramscale_window.isVisible():
-            self.r_paramscale_window.hide()
-        else:
-            self.r_paramscale.get_rvr_list()
-            self.r_paramscale_window.show()
-             
-    def view_r_grm_lsi(self, module):
-        if self.r_grm_lsi_window.isVisible():
-            self.r_grm_lsi_window.hide()
-        else:
-            self.r_grm_lsi.get_rvr_list()
-            self.r_grm_lsi_window.show()
-            
-    
-        
-    def set_mdi_view(self, index):
-        if self.mdi_view.itemText(index) == 'Cascade':
-            self.grassWidgetContents.grass_mdi.grassTools.cascadeSubWindows()
-        if self.mdi_view.itemText(index) == 'Tiled':
-            self.grassWidgetContents.grass_mdi.grassTools.tileSubWindows()
-        if self.mdi_view.itemText(index) == 'Minimize':
-            for i in self.grassWidgetContents.grass_mdi.grassTools.subWindowList():
-                if i.isVisible():
-                    #i.hide()
-                    i.showMinimized()
-        if self.mdi_view.itemText(index) == 'Close':
-            for i in self.grassWidgetContents.grass_mdi.grassTools.subWindowList():
-                if i.isVisible():
-                    i.hide()
-                    #i.close()
-            
-
-
-    def set_settings(self):
-        """Reload settings from disk and apply them to the UI."""
-        self._apply_settings()
-
-    def _apply_settings(self):
-        """Load settings from disk and refresh all data-dependent state.
-
-        Safe to call at any time – re-reads the config file, updates paths,
-        reloads image metadata and rebuilds the KDTree.  Shows the config
-        dialog if the metadata file is missing so the user can correct it.
-        """
-        fresh = get_settings(self.config)
-        if fresh:
-            self.settings = fresh
-
-        if not self.settings:
-            return
-
-        new_dirname = self.settings["HabCam"]["imagepath"]
-        if new_dirname != self.dirname:
-            # Image directory changed — discard cached decoded arrays.
-            _cached_imread.cache_clear()
-        self.dirname = new_dirname
-        self.metadatafile = self.settings["HabCam"]["imagemetadata"]
-        self.imageannotationfile = self.settings["HabCam"]["imageannotation"]
-        self.grass_api_endpoint = self.settings["Processing"]["grass_api_endpoint"]
-
-        try:
-            self.imagemetadata_gui
-        except AttributeError:
-            self.imagemetadata_gui = ImageMetadata()
-
-        if Path(self.metadatafile).is_file():
-            try:
-                self.imageMetadata = img_mgr.load_metadata(self.metadatafile)
-                self.w.ImageIndexspinBox.setMaximum(len(self.imageMetadata) - 1)
-                self.w.ImageIndexSlider.setMaximum(len(self.imageMetadata) - 1)
-
-                if os.getenv("HBC_DEBUG") == "VERBOSE":
-                    QgsMessageLog.logMessage(f"image metadata columns: {self.imageMetadata.columns.tolist()}", 'GroundTruther', Qgis.Info)
-
-                self.imagemetadata_gui.metadata_scroll_area.setEnabled(True)
-
-                if Path(self.imageannotationfile).is_file():
-                    QgsMessageLog.logMessage("Annotation file loaded", 'GroundTruther', Qgis.Info)
-                    self.w.actionAnnotation.setEnabled(True)
-                    annotations_by_image = parse_annotation(self.imageannotationfile)
-                    self.imageMetadata = img_mgr.attach_annotations(
-                        self.imageMetadata, annotations_by_image
-                    )
-                    # Seed the annotation editor with all unique labels from the CSV
-                    self._refresh_known_labels()
-                else:
-                    self.w.actionAnnotation.setEnabled(False)
-
-                self.kdt = img_mgr.build_kdtree(self.imageMetadata)
-                # Build the metadata panel structure once (columns now known).
-                self._build_metadata_panel()
-            except OSError as exc:
-                log_exception(f"_apply_settings: OS error reading {self.metadatafile}", exc, warn=True)
-            except Exception as exc:
-                log_exception(f"_apply_settings: failed to load {self.metadatafile}", exc)
-                error_message(f"Error reading {self.metadatafile}:\n{exc}")
-                self.imageMetadata = None
-        else:
-            self.show_dialog()
-
-    # def get_vquey_position(self, lat: float, lon: float):
-    #     print("vquery at", lat, lon)
-    #     index = self.getImageIndex(lon, lat)
-    #     self.w.ImageIndexSlider.setValue(index)
-    #     self.w.gisTools_logger.setText(
-    #         f'Zoom to nearest Image: index # {index}')
-    
-    def set_grass_cpr(self, minlat, maxlat, minlon, maxlon):
-        # set_grass_region handles all network errors internally and returns
-        # the parsed JSON dict on success, or None on any failure.
-        payload = self.set_grass_region(
-            float(minlat), float(maxlat), float(minlon), float(maxlon)
-        )
-        if payload is None:
-            return  # error already shown by set_grass_region
-
-        if payload.get("status") != "SUCCESS":
-            error_message(f"GRASS region error: {payload}")
-            return
-
-        try:
-            self.region_response = payload["data"]["region"]
-        except KeyError as exc:
-            log_exception("set_grass_cpr: unexpected region response structure", exc)
-            error_message(f"Unexpected GRASS region response structure: {exc}")
-            return
-
-        if self.r:
-            self.canvas.scene().removeItem(self.r)
-        self.r = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
-        points = [[
-            QgsPointXY(maxlon, maxlat), QgsPointXY(minlon, maxlat),
-            QgsPointXY(minlon, minlat), QgsPointXY(maxlon, minlat),
-        ]]
-        self.r.setToGeometry(QgsGeometry.fromPolygonXY(points), None)
-        self.r.setWidth(3)
-        self.r.setColor(QColor(255, 0, 0))
-        self.r.setFillColor(QColor(0, 0, 0, 0))
-        
-    # placeholder to select a grass region from a combobox in the main toolbar
-    # def select_grass_cpr(self, index):
-    #     print(index)
-    
-    def get_query_message(self, stringa):
-        # self.grass_mdi.gis_tool_report.setHtml(stringa)
-        self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(stringa)
-
-    def get_query_position(self, lat, lon):
-        self.set_image_index(lat, lon)
-
-    def set_image_index(self, lat: float, lon: float):
-        QgsMessageLog.logMessage(f"vquery at {lat}, {lon}", 'GroundTruther', Qgis.Info)
-        index = self.getImageIndex(lon, lat)
-        self.w.ImageIndexSlider.setValue(index)
-        # self.w.gisTools_logger.setText(
-        #     f'Zoom to nearest Image: index # {index}')
-
-    def get_grass_query_data_(self, lat:float, lon: float):
-        grass_settings = self.grass_dialog.set_grass_location()
-        if grass_settings['status'] == 'SUCCESS':
-            grass_gisenv = grass_settings['data']['gisenv']
-        if int(grass_settings['data']['region']['projection'].split(' ')[0]) == 1:
-            # corner = [[minlon, maxlat], [maxlon, minlat]]
-            headers = {
-                'accept': 'application/json',
-                'Content-Type': 'application/json',
-            }
-
-            json_data = {
-                'location': {
-                    'location_name': grass_gisenv['LOCATION_NAME'],
-                    'mapset_name': grass_gisenv['MAPSET'],
-                    'gisdb': grass_gisenv['GISDBASE'],
-                },
-                'coors': [[lon, lat]],
-            }
-
-            response = requests.post(
-                f'{self.grass_api_endpoint}/api/m_proj', headers=headers, json=json_data, timeout=60)
-            point = response.json()['data']
-        else:
-            point = [[lon, lat]]
-        self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(str(point))
-
-
-
-
-    def get_grass_query_data(self, lat: float, lon: float):
-        headers = {
-            "accept": "application/json",
-            "Content-Type": "application/json",
-        }
-        if not self.grass_api_endpoint:
-            self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(
-                "<b>No GRASS API endpoint configured.</b> Set the endpoint in Settings."
-            )
-            return
-
-        grass_settings = self.grass_dialog.set_grass_location()
-        if grass_settings.get("status") != "SUCCESS":
-            self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(
-                f"<b>GRASS location error:</b> {grass_settings}"
-            )
-            return
-
-        grass_gisenv = grass_settings["data"]["gisenv"]
-        self.grassWidgetContents.get_checked_items()
-        grass_layers = self.grassWidgetContents.checked_layers
-
-        try:
-            projection_code = int(
-                grass_settings["data"]["region"]["projection"].split(" ")[0]
-            )
-        except (KeyError, ValueError, IndexError) as exc:
-            log_exception("get_grass_query_data: could not parse projection code", exc, warn=True)
-            projection_code = 0
-        params = {"lonlat": "true" if projection_code == 1 else "false"}
-
-        json_data = {
-            "location": {
-                "location_name": grass_gisenv["LOCATION_NAME"],
-                "mapset_name": grass_gisenv["MAPSET"],
-                "gisdb": grass_gisenv["GISDBASE"],
-            },
-            "coors": [lon, lat],
-            "grass_layers": grass_layers,
-        }
-
-        try:
-            response = requests.post(
-                f"{self.grass_api_endpoint}/api/r_what",
-                params=params, headers=headers, json=json_data, timeout=60,
-            )
-            payload = response.json()
-        except requests.exceptions.RequestException as exc:
-            log_exception("get_grass_query_data: r_what request failed", exc, warn=True)
-            error_message("Cannot reach the GRASS API server.\nCheck the endpoint URL in Settings.")
-            return
-        except ValueError as exc:
-            log_exception("get_grass_query_data: r_what non-JSON response", exc)
-            error_message("GRASS API returned an unexpected (non-JSON) response.")
-            return
-
-        if payload.get("status") == "SUCCESS":
-            results = "<br>".join(
-                f"{list(i.keys())[0]}: {i[list(i.keys())[0]]['value']}<br>"
-                for i in payload["data"]
-                if i[list(i.keys())[0]]["value"] != "No data"
-            )
-            self.grassWidgetContents.add_query_result(payload["data"])
-        else:
-            results = str(payload)
-        self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(results)
-
-    def set_grass_region(self, minlat: float, maxlat: float, minlon: float, maxlon: float):
-        """Set the GRASS computational region to the given bounding box.
-
-        Returns the parsed JSON payload dict on success, or ``None`` on any
-        network / API error (caller must check for None).
-        """
-        headers = {
-            "accept": "application/json",
-            "Content-Type": "application/json",
-        }
-
-        if not self.grass_api_endpoint:
-            error_message("No GRASS API endpoint configured.\nSet the endpoint in Settings.")
-            return None
-
-        grass_settings = self.grass_dialog.set_grass_location()
-        if grass_settings.get("status") != "SUCCESS":
-            error_message(f"GRASS location error: {grass_settings.get('data', grass_settings)}")
-            return None
-
-        grass_gisenv = grass_settings["data"]["gisenv"]
-
-        try:
-            projection_code = int(
-                grass_settings["data"]["region"]["projection"].split(" ")[0]
-            )
-        except (KeyError, ValueError, IndexError) as exc:
-            log_exception("set_grass_region: could not parse projection code", exc, warn=True)
-            projection_code = 0
-
-        try:
-            if projection_code == 1:
-                # Reproject lon/lat corners to the GRASS location CRS first
-                proj_data = {
-                    "location": {
-                        "location_name": grass_gisenv["LOCATION_NAME"],
-                        "mapset_name": grass_gisenv["MAPSET"],
-                        "gisdb": grass_gisenv["GISDBASE"],
-                    },
-                    "coors": [[minlon, maxlat], [maxlon, minlat]],
-                }
-                proj_response = requests.post(
-                    f"{self.grass_api_endpoint}/api/m_proj",
-                    headers=headers, json=proj_data, timeout=60,
-                )
-                corners = proj_response.json()["data"]
-            else:
-                corners = [[minlon, maxlat], [maxlon, minlat]]
-
-            region_data = {
-                "location": {
-                    "location_name": grass_gisenv["LOCATION_NAME"],
-                    "mapset_name": grass_gisenv["MAPSET"],
-                    "gisdb": grass_gisenv["GISDBASE"],
-                },
-                "bounds": {
-                    "n": corners[0][1],
-                    "s": corners[1][1],
-                    "e": corners[1][0],
-                    "w": corners[0][0],
-                },
-                "resolution": {"resolution": 0},
-            }
-            response = requests.post(
-                f"{self.grass_api_endpoint}/api/set_region_bounds",
-                headers=headers, json=region_data, timeout=60,
-            )
-            return response.json()
-
-        except requests.exceptions.RequestException as exc:
-            log_exception("set_grass_region: API request failed", exc, warn=True)
-            error_message("Cannot reach the GRASS API server.\nCheck the endpoint URL in Settings.")
-            return None
-        except (ValueError, KeyError) as exc:
-            log_exception("set_grass_region: unexpected API response structure", exc)
-            error_message(f"Unexpected GRASS API response: {exc}")
-            return None
-        # headers = {
-        #     'accept': 'application/json',
-        # }
-
-        # params = {
-        #     'location_name': grass_gisenv['LOCATION_NAME'],
-        #     'mapset_name': grass_gisenv['MAPSET'],
-        #     'gisdb': grass_gisenv['GISDBASE'],
-        # }
-
-        # response = requests.get(
-        #     'http://localhost/api/get_current_region', params=params, headers=headers, timeout=60)
-        # data = response.content
-        
-        # self.grass_region_bounds =  os.path.join(os.path.dirname(__file__), 'data' 'grass_region.geojson')
-        
-        # with open(self.grass_region_bounds, 'wb') as s:
-        #     s.write(data)
-        
-        
-        # self.w.gisToolSplitter.widget(1).remove_vector(
-        #     self.grass_region_bounds, 'grass_region')
-        # self.w.gisToolSplitter.widget(1).add_vector(
-        #     self.grass_region_bounds, 'grass_region')
-        # self.w.gisToolSplitter.widget(0).refresh()
-
-        # self.w.gisToolSplitter.widget(2).show()
-        # self.w.gisToolSplitter.widget(
-        #     2).children()[0].itemAt(0).widget().setPlainText(f"{min_lon}, {min_lat}, {max_lon}, {max_lat}")
-
-
-    def getImageIndex(self, lon, lat):
-        index, _distance = img_mgr.nearest_image_index(self.kdt, lon, lat)
-        return index
-
-    def clear_image_annotation(self):
-        for i in self.graph_items:
-            i.setData(
-                pos=[],
-                adj=[],
-                pen=[],
-                size=1,
-                pxMode=False,
-            )
-            del i
-        self.graph_items = []
-
-    def setStausMessage(self, message):
-        self.w.statusbar.showMessage(message)
-        
-    def decreaseimageindex(self):
-        """docstring"""
-        self.imageindex = self.imageindex - self.w.ImageStepspinBox.value()
-        self.w.ImageIndexSlider.setValue(self.imageindex)
-        self.w.ImageIndexspinBox.setValue(self.imageindex)
-        self.w.ImageIndexspinBox.update()
-
-    def increaseimageindex(self):
-        """docstring"""
-        self.imageindex = self.imageindex + self.w.ImageStepspinBox.value()
-        self.w.ImageIndexSlider.setValue(self.imageindex)
-        self.w.ImageIndexspinBox.setValue(self.imageindex)
-        self.w.ImageIndexspinBox.update()
-
-    def setValueImageIndexspinBox(self, z):
-        """docstring"""
-        self.imageindex = int(z)
-        self.w.ImageIndexspinBox.setSingleStep(self.w.ImageStepspinBox.value())
-        self.w.ImageIndexspinBox.setValue(self.imageindex)
-
-    def setValueImageIndexSlider(self, z):
-        """docstring"""
-        self.imageindex = int(z)
-        self.w.ImageIndexSlider.setSingleStep(self.w.ImageStepspinBox.value())
-        self.w.ImageIndexSlider.setValue(self.imageindex)
-
-    def setValuerangeSpinBox(self, r):
-        """docstring"""
-        self.rangevalue = int(r)
-        self.w.range.setSingleStep(1)
-        self.w.range.setValue(self.rangevalue)
-        if self.w.zoomto.isChecked():
-            self.zoom_to()
-
-    def setImageIndexStepValue(self):
-        """docstring"""
-        self.w.ImageIndexspinBox.setSingleStep(self.w.ImageStepspinBox.value())
-        self.w.ImageIndexSlider.setSingleStep(self.w.ImageStepspinBox.value())
-
-    def close_pyqtgraph(self):
-        self.querybuilder.close()
-        
-    def zoom_to(self):
-        """Pan and zoom the map canvas to the current image coordinates.
-
-        The latitude/longitude values stored in the plugin are always in
-        WGS-84 (EPSG:4326).  If the QGIS project CRS differs, the point is
-        reprojected before building the extent and placing the marker.
-        """
-        try:
-            lon = float(self.w.longitude.text())
-            lat = float(self.w.latitude.text())
-        except ValueError:
-            # Fields are empty or contain non-numeric text – nothing to zoom to
-            return
-
-        wgs84 = QgsCoordinateReferenceSystem("EPSG:4326")
-        project_crs = QgsProject.instance().crs()
-
-        point = QgsPointXY(lon, lat)
-        if project_crs != wgs84 and project_crs.isValid():
-            transform = QgsCoordinateTransform(wgs84, project_crs, QgsProject.instance())
-            try:
-                point = transform.transform(point)
-            except Exception as exc:
-                log_exception("zoom_to: coordinate transform failed", exc, warn=True)
-                return
-
-        # Scale the margin to the canvas CRS units.  For geographic CRS units
-        # are degrees; for projected CRS they are metres (or feet).  A raw
-        # division by 10 000 gives a sensible default margin in both cases.
-        distance = float(self.rangevalue) / 10000
-
-        self.w.statusbar.showMessage("System Status | Normal")
-
-        rect = QgsRectangle(
-            point.x() - distance, point.y() - distance,
-            point.x() + distance, point.y() + distance,
-        )
-        if self.m1:
-            self.canvas.scene().removeItem(self.m1)
-        self.m1 = QgsVertexMarker(self.canvas)
-        self.m1.setCenter(point)
-        self.m1.setColor(QColor(255, 0, 0))
-        self.m1.setIconSize(10)
-        self.m1.setIconType(QgsVertexMarker.ICON_X)
-        self.m1.setPenWidth(3)
-        self.canvas.setExtent(rect)
-        self.canvas.refresh()
-        
-        # REMOVE VERTEX MARKER
-        # self.w.gisToolSplitter.widget(1).canvas.scene().removeItem(self.m1)
-        # self.m1 = qgis_gui.QgsVertexMarker(
-        #     self.w.gisToolSplitter.widget(1).canvas)
-        # self.m1.setCenter(qgis_core.QgsPointXY(float(lon), float(lat)))
-        # self.m1.setColor(QtGui.QColor(255, 0, 0))  # (R,G,B)
-        # self.m1.setIconSize(10)
-        # self.m1.setIconType(qgis_gui.QgsVertexMarker.ICON_X)
-        # self.m1.setPenWidth(3)
-        # self.w.gisToolSplitter.widget(1).canvas.setExtent(rect)
-        # self.w.gisToolSplitter.widget(1).canvas.refresh()
-
-    def build_box(self, bbox):
-        # self.annotation_box_linewidth = 1
-        # self.annotation_box_vertexsize = 15
-        pos = np.array(
-            [
-                [bbox[0], bbox[1]],
-                [bbox[2], bbox[3]],
-                [bbox[4], bbox[5]],
-                [bbox[6], bbox[7]],
-            ]
-        )
-        adj = np.array(
-            [
-                [0, 1],
-                [1, 2],
-                [2, 3],
-                [3, 0],
-            ]
-        )
-        symbols = ["o", "o", "o", "o"]
-        lines = np.array(
-            [
-                (255, 0, 0, 255, self.annotation_box_linewidth),
-                (255, 0, 0, 255, self.annotation_box_linewidth),
-                (255, 0, 0, 255, self.annotation_box_linewidth),
-                (255, 0, 0, 255, self.annotation_box_linewidth),
-            ],
-            dtype=[
-                ("red", np.ubyte),
-                ("green", np.ubyte),
-                ("blue", np.ubyte),
-                ("alpha", np.ubyte),
-                ("width", float),
-            ],
-        )
-        return pos, adj, lines, symbols
-
-    def add_image_annotation(self):
-        # annotation = self.imageMetadata[
-        #     self.imageMetadata["Imagename"] == self.imagelist[self.imageindex][:-4]
-        # ]["Annotation"]
-
-        annotation = self.imageMetadata["Annotation"].iloc[self.imageindex]
-
-        # print(annotation, type(annotation.values))
-        # add treshold check for annotation confidence
-        # if not annotation.isnull().values.any():
-        if annotation is not np.nan:
-            # print(annotation.values[0]["bbox"])
-            # print(annotation.values[0]["Species"])
-            # print(annotation.values[0]["Confidence"])
-            # print(len(annotation.values[0]["bbox"]), len(annotation.values))
-            self.clear_image_annotation()
-            # for i, v in enumerate(annotation.values[0]["bbox"]):
-            for i, bbox in enumerate(annotation["bbox"]):
-
-                if (
-                    float(annotation["Confidence"][i])
-                    >= self.annotation_confidence_treshold
-                ):
-                    QgsMessageLog.logMessage(
-                        f"annotation bbox={bbox}, label={annotation['Species'][i]}, "
-                        f"confidence={annotation['Confidence'][i]} "
-                        f"(threshold={self.annotation_confidence_treshold})",
-                        'GroundTruther', Qgis.Info)
-                    self.g = CustomGraphItem()
-                    self.g.setCustomAttribute(annotation["Species"][i])
-                    # self.g = pg.GraphItem()
-                    pos, adj, lines, symbols = self.build_box(
-                        bbox["bbox"]
-                    )
-                    self.g.setData(
-                        pos=pos,
-                        adj=adj,
-                        pen=lines,
-                        size=15,
-                        symbol=symbols,
-                        pxMode=False,
-                    )
-                    self.imv.addItem(self.g)
-                    self.imv.plot_items.append(self.g)
-                    # print(self.imv.getImageItem())
-                    self.g.setZValue(10)  # make sure ROI is drawn above image
-                    self.graph_items.append(self.g)
-        else:
-            QgsMessageLog.logMessage("no annotation found for current image", 'GroundTruther', Qgis.Info)
-            self.clear_image_annotation()
-
-    def count_string_occurrences(self, string_list):
-        count_dict = {}
-        for string in string_list:
-            count_dict[string] = count_dict.get(string, 0) + 1
-        return count_dict
-
     # ------------------------------------------------------------------ #
-    # Metadata panel — build once, update values on each frame change     #
+    # Simple UI-visibility toggles (too small to deserve a mixin)         #
     # ------------------------------------------------------------------ #
-
-    def _build_metadata_panel(self):
-        """Build the metadata scroll-panel widget structure once.
-
-        Called after ``imageMetadata`` is first loaded (or reloaded) so the
-        column set is known.  Stores widget references in ``_meta_widgets``
-        keyed by column name; ``_update_metadata_panel`` then just sets text
-        on each stored widget instead of recreating everything.
-        """
-        self._meta_widgets = {}
-
-        main_layout = QVBoxLayout()
-        main_layout.setSpacing(4)
-        main_layout.setContentsMargins(4, 4, 4, 4)
-
-        # Time row — DataFrame index is a datetime
-        time_row = QHBoxLayout()
-        time_row.addWidget(QLabel("Time"))
-        time_row.addItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
-        self._meta_time_widget = ExtendedDateTimeEdit()
-        self._meta_time_widget.setMaximumSize(QSize(250, 16777215))
-        self._meta_time_widget.setMinimumWidth(160)
-        self._meta_time_widget.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
-        self._meta_time_widget.setReadOnly(True)
-        self._meta_time_widget.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
-        time_row.addWidget(self._meta_time_widget)
-        main_layout.addLayout(time_row)
-
-        for col in self.imageMetadata.columns:
-            row = QHBoxLayout()
-            row.addWidget(QLabel(col))
-            row.addItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
-
-            if col == "Imagename":
-                w = QLabel()
-                w.setOpenExternalLinks(True)
-            elif col == "Annotation":
-                w = QTextEdit()
-                w.setReadOnly(True)
-                w.setFixedHeight(80)
-            else:
-                w = QLineEdit()
-                w.setReadOnly(True)
-
-            w.setMaximumWidth(250)
-            w.setMinimumWidth(160)
-            w.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
-            row.addWidget(w)
-            main_layout.addLayout(row)
-            self._meta_widgets[col] = w
-
-        main_layout.addStretch()
-
-        container = QWidget()
-        container.setLayout(main_layout)
-        self.imagemetadata_gui.metadata_scroll_area.setWidgetResizable(True)
-        self.imagemetadata_gui.metadata_scroll_area.setWidget(container)
-
-    def _update_metadata_panel(self, record):
-        """Update metadata panel values in-place for the given DataFrame row.
-
-        The panel must already exist (``_build_metadata_panel`` must have
-        been called).  Only text/value changes — no widget allocation.
-        """
-        if not self._meta_widgets:
-            return
-
-        if self._meta_time_widget is not None:
-            try:
-                self._meta_time_widget.setDateTime(record.name)
-            except Exception:
-                pass
-
-        for col, w in self._meta_widgets.items():
-            try:
-                val = record[col]
-            except KeyError:
-                continue
-
-            if col == "Imagename":
-                link = os.path.join(self.dirname, str(val) + ".jpg")
-                w.setText(f'<a href="file://{link}">{val}</a>')
-            elif col == "Annotation":
-                if isinstance(val, dict) and "Species" in val:
-                    counts = self.count_string_occurrences(val["Species"])
-                    w.setPlainText(
-                        "\n".join(f"{s}: {c}" for s, c in counts.items()))
-                else:
-                    w.setPlainText("")
-            else:
-                w.setText(str(val))
-
-    # ------------------------------------------------------------------ #
-
-    def add_image(self):
-
-        """docstring"""
-        self.imv.clear()
-        if self.imageMetadata is not None:
-            img_path = os.path.join(
-                self.dirname,
-                self.imageMetadata["Imagename"].iloc[self.imageindex] + ".jpg",
-            )
-            self.imv.imageItem.axisOrder = "row-major"
-            # check if the imageviewer is hidden or not
-            if self.w.actionImageBrowser.isChecked():
-                self.imv.show()
-
-            self.imv.setImage(_cached_imread(img_path))
-
-            if self.annotation_editor_dock.isVisible():
-                # Editor mode: display editable ROIs, suppress static items
-                self.clear_image_annotation()
-                annotation = self.imageMetadata["Annotation"].iloc[self.imageindex]
-                imagename = self.imageMetadata["Imagename"].iloc[self.imageindex]
-                self.annotation_editor.load_image(
-                    self.imageindex, imagename,
-                    annotation, self.imageannotationfile,
-                )
-            elif self.w.actionAnnotation.isChecked():
-                self.add_image_annotation()
-            else:
-                self.clear_image_annotation()
-            #
-            # self.imageeast = str(self.imageMetadata['Xutm'].values[0])
-            # self.imagenorth = str(self.imageMetadata['Yutm'].values[0])
-            # self.w.statusbar.showMessage("Image %s" % self.imageMetadata.index[0])
-            
-            if self.imageMetadata is not None:
-                record = self.imageMetadata.iloc[self.imageindex]
-                self.imagemetadata_gui.metadata_scroll_area.setEnabled(True)
-
-                if len(record) != 0:
-                    self._update_metadata_panel(record)
-
-                    self.w.longitude.setText(
-                        str(round(record["habcam_lon"], 8))
-                    )
-                    self.w.latitude.setText(
-                        str(round(record["habcam_lat"], 8))
-                    )
-
-                    # # Hardcoded for Habcam METADATA
-                    # self.imagemetadata_gui.imageeast.setText(
-                    #     str(round(record["Xutm_adj"], 2))
-                    # )
-                    # self.imagemetadata_gui.imagenorth.setText(
-                    #     str(round(record["Yutm_adj"], 2))
-                    # )
-                    # self.imagemetadata_gui.hbcdepth.setText(
-                    #     str(record["V_Depth"])
-                    # )
-                    # self.imagemetadata_gui.waterdepth.setText(
-                    #     str(record["Water_Depth"])
-                    # )
-                    # self.imagemetadata_gui.altimeter.setText(
-                    #     str(record["Altimeter"])
-                    # )
-                    # self.imagemetadata_gui.salinity.setText(
-                    #     str(record["Salinity"])
-                    # )
-                    # self.imagemetadata_gui.temperature.setText(
-                    #     str(record["Temp"])
-                    # )
-                    # self.imagemetadata_gui.O2.setText(
-                    #     str(record["O2"]))
-                    # self.imagemetadata_gui.CDOM.setText(
-                    #     str(record["Cdom"])
-                    # )
-                    # self.imagemetadata_gui.chlorophyll.setText(
-                    #     str(record["Chlorophyll"])
-                    # )
-                    # self.imagemetadata_gui.turbidity.setText(
-                    #     str(record["Turb"])
-                    # )
-                    # # test QtDateTime
-
-                    # self.imagemetadata_gui.dateTimeEdit.setDateTime(
-                    #     record.name)
-                    # self.imagemetadata_gui.linklabel.setText(
-                    #     '<a href="file://%s">%s</a>'
-                    #     % (
-                    #         os.path.join(
-                    #             self.dirname, self.imageMetadata["Imagename"].iloc[self.imageindex]+".jpg"),
-                    #         str(record["Imagename"]),
-                    #     )
-                    # )
-                    # self.imagemetadata_gui.linklabel.setOpenExternalLinks(
-                    #     True)
-
-                    self.w.statusbar.showMessage(
-                        "Image : %s" % self.imageindex)
-
-                    if self.w.zoomto.isChecked():
-                        self.zoom_to()
-                    self.on_send()
-                else:
-                    QgsMessageLog.logMessage(
-                        f"record length {len(record)} for image index {self.imageindex}",
-                        'GroundTruther', Qgis.Warning)
-            else:
-                QgsMessageLog.logMessage(
-                    "image metadata disabled – reconfigure the settings",
-                    'GroundTruther', Qgis.Warning)
-                self.imagemetadata_gui.metadata_scroll_area.setEnabled(False)
-
-        else:
-            QgsMessageLog.logMessage(
-                "image path or metadata path not set – check settings",
-                'GroundTruther', Qgis.Warning)
-
-    @pyqtSlot()
-    def on_send(self):
-        """docstring"""
-        image_path = os.path.join(
-            self.dirname, self.imageMetadata["Imagename"].iloc[self.imageindex]+".jpg")
-        self.send_image_path.emit(image_path)
-        md_str = pd.DataFrame(
-            [self.imageMetadata[['Longitude',
-                                 'Latitude',
-                                 'V_Depth',
-                                 'Water_Depth',
-                                 'Altimeter',
-                                 'Salinity',
-                                 'Temp',
-                                 'O2',
-                                 'Cdom',
-                                 'Chlorophyll',
-                                 'Turb']].iloc[self.imageindex]]).to_html()
-        self.send_imagemetadata_string.emit(md_str)
-        if not self.savekml.lock_location.isChecked():
-            self.savekml.longitude.setText(self.w.longitude.text())
-            self.savekml.latitude.setText(self.w.latitude.text())
-        # update query builder widgets
-        if not self.querybuilder.lock_location.isChecked():
-            self.querybuilder.qb_longitude.setText(self.w.longitude.text())
-            self.querybuilder.qb_latitude.setText(self.w.latitude.text())
-            
-    def _open_config_dialog(self):
-        """Open the config dialog without connecting to _apply_settings.
-
-        Used during __init__ before the UI is fully constructed.  The caller
-        is responsible for re-reading settings afterwards.
-        """
-        dialog = ConfigDialog()
-        dialog.exec_()
-
-    def show_dialog(self):
-        """Open the config dialog and apply settings when the user saves.
-
-        Creates a fresh ConfigDialog each time so the form always reflects
-        the current on-disk config.  Connects ``settings_saved`` so that
-        applying new settings happens automatically without a plugin restart.
-        """
-        dialog = ConfigDialog()
-        dialog.settings_saved.connect(self._apply_settings)
-        dialog.exec_()
 
     def showTools(self):
-        """docstring"""
         if self.w.toolWidget.isVisible():
             self.w.toolWidget.hide()
         else:
             self.w.toolWidget.show()
 
     def showGisTools(self):
-        """docstring"""
         if self.w.gisTools.isVisible():
             self.w.gisTools.hide()
             self.w.gisTools_logger.hide()
         else:
             self.w.gisTools.show()
-            #self.w.gisTools_logger.show()
-
-    def showImageViewer(self):
-        """docstring"""
-        if self.imv.isVisible():
-            self.imv.hide()
-            self.imageviewer_is_hidden = True
-            if self.w.link_to_image_viewer.isChecked():
-                self.w.imageBrowsing.hide()
-        else:
-            self.imv.show()
-            self.imageviewer_is_hidden = False
-            if self.w.link_to_image_viewer.isChecked():
-                self.w.imageBrowsing.show()
-
-    def showImageBrowser(self):
-        """docstring"""
-        if self.imv.isVisible():
-            #self.imv.hide()
-            self.w.imageBrowsing.hide()
-            self.imageviewer_is_hidden = True
-        else:
-            #self.imv.show()
-            self.w.imageBrowsing.show()
-            self.imageviewer_is_hidden = False
-
-
-    def setValue_annotation_confidence(self):
-        self.annotation_confidence_treshold = (
-            self.w.annotation_confidence_spinBox.value()
-        )
-
-    def showAnnotationThreshold(self):
-        """docstring"""
-        if self.w.annotation_confidence_spinBox.isVisible():
-            self.w.annotation_confidence_spinBox.hide()
-            self.w.annotation_confidence_spinBox_label.hide()
-        else:
-            self.w.annotation_confidence_spinBox.show()
-            self.w.annotation_confidence_spinBox_label.show()
 
     # ------------------------------------------------------------------ #
-    # Annotation editor                                                    #
+    # Teardown                                                             #
     # ------------------------------------------------------------------ #
 
-    def _toggle_annotation_editor(self, checked: bool):
-        """Show or hide the annotation editor dock."""
-        self.annotation_editor_dock.setVisible(checked)
-        self._save_ann_action.setVisible(checked)
-        self._draw_ann_action.setVisible(checked)
-        if checked:
-            # Pass all known labels from the loaded annotation CSV
-            self._refresh_known_labels()
-            # Load annotations for the currently displayed image
-            if hasattr(self, 'imageMetadata') and self.imageMetadata is not None:
-                annotation = self.imageMetadata["Annotation"].iloc[self.imageindex]
-                imagename = self.imageMetadata["Imagename"].iloc[self.imageindex]
-                self.annotation_editor.load_image(
-                    self.imageindex, imagename,
-                    annotation, self.imageannotationfile,
-                )
-        else:
-            # Exit draw mode before hiding
-            self._draw_ann_action.setChecked(False)
-            # Switching back to view mode: remove ROIs, restore static items
-            self.annotation_editor.load_image(
-                self.imageindex, "", None, "")
-            if self.w.actionAnnotation.isChecked():
-                self.add_image_annotation()
-
-    def _refresh_known_labels(self):
-        """Extract unique species labels from the loaded annotations and
-        push them to the annotation editor's known-labels pool."""
-        if not hasattr(self, 'annotation_editor'):
-            return
-        if not (hasattr(self, 'imageMetadata') and self.imageMetadata is not None):
-            return
-        all_species: set[str] = set()
-        if "Annotation" not in self.imageMetadata.columns:
-            return
-        for ann in self.imageMetadata["Annotation"]:
-            if isinstance(ann, dict) and "Species" in ann:
-                all_species.update(ann["Species"])
-        if all_species:
-            self.annotation_editor.set_known_labels(sorted(all_species))
-
-    def _toggle_draw_mode(self, checked: bool):
-        """Enable or disable rubber-band draw mode on the image view."""
-        if checked:
-            self.annotation_editor.start_draw_mode()
-        else:
-            self.annotation_editor.stop_draw_mode()
-
-    def _on_annotation_changed(self, image_index: int):
-        """Push edited annotation from the editor back into the DataFrame."""
-        if self.imageMetadata is None:
-            return
-        edited = self.annotation_editor.commit()
-        self.imageMetadata.at[
-            self.imageMetadata.index[image_index], "Annotation"
-        ] = edited
-        QgsMessageLog.logMessage(
-            f"Annotation updated for image index {image_index}",
-            'GroundTruther', Qgis.Info,
-        )
-
-    def _save_annotations(self):
-        """Write all in-memory annotations to CSV via the editor widget."""
-        if self.imageMetadata is None:
-            return
-        # Commit current image's edits first
-        self._on_annotation_changed(self.imageindex)
-        self.annotation_editor.save_all_to_csv(
-            self.imageMetadata, self.imageannotationfile
-        )
-            
-    # def quitAll(self):
-    #     """docstring"""
-    #     self.querybuilder.close()
-    #     qApp.quit()
-        
-        
     def closeEvent(self, event):
         # Tear down annotation editor before Qt starts destroying widgets.
         if hasattr(self, 'annotation_editor'):
