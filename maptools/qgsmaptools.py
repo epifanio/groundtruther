@@ -5,7 +5,32 @@ from qgis.PyQt.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
 from PyQt5.QtGui import *
-from qgis.core import Qgis, QgsMessageLog
+from qgis.core import (
+    Qgis, QgsMessageLog,
+    QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject,
+)
+
+
+_WGS84 = QgsCoordinateReferenceSystem("EPSG:4326")
+
+
+def _to_wgs84(point):
+    """Return *point* reprojected to WGS-84 using the current project CRS.
+
+    If the project CRS is already WGS-84, or the transform fails, the
+    original point is returned unchanged.
+    """
+    project_crs = QgsProject.instance().crs()
+    if project_crs == _WGS84 or not project_crs.isValid():
+        return point
+    try:
+        transform = QgsCoordinateTransform(project_crs, _WGS84, QgsProject.instance())
+        return transform.transform(point)
+    except Exception as exc:
+        QgsMessageLog.logMessage(
+            f"_to_wgs84: coordinate transform failed: {exc}",
+            'GroundTruther', Qgis.Warning)
+        return point
 
 
 
@@ -50,14 +75,12 @@ class GRQueryTool(QgsMapTool):
         self.deactivated.emit()
 
     def _get_cursor_position(self, e):
-        """
-        Get the closest point to the selected location
-        """
+        """Return (lat, lon) in WGS-84 for the clicked canvas position."""
         x = e.pos().x()
         y = e.pos().y()
-        point = self.parent.getCoordinateTransform().toMapCoordinates(x, y)
+        point = _to_wgs84(self.parent.getCoordinateTransform().toMapCoordinates(x, y))
         return point.y(), point.x()
-    
+
     def _get_cursor_data(self, e):
         """
         Get the mouse position, transform it to the map coordinates, build the text that feeds the tooltip and the
@@ -213,11 +236,9 @@ class QueryTool(QgsMapTool):
 
 
     def _get_cursor_position(self, e):
-        """
-        Get the closest point to the selected location
-        """
+        """Return (lat, lon) in WGS-84 for the clicked canvas position."""
         x = e.pos().x()
         y = e.pos().y()
-        point = self.parent.getCoordinateTransform().toMapCoordinates(x, y)
+        point = _to_wgs84(self.parent.getCoordinateTransform().toMapCoordinates(x, y))
         return point.y(), point.x()
 
