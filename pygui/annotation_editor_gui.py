@@ -568,11 +568,10 @@ class AnnotationEditorWidget(QWidget):
         self._draw_start = None
 
     def _remove_preview(self):
-        """Remove the rubber-band preview rectangle from the scene."""
+        """Remove the rubber-band preview rectangle from the ViewBox."""
         if self._preview_item is not None:
             try:
-                scene = self._imv.ui.graphicsView.scene()
-                scene.removeItem(self._preview_item)
+                self._imv.getView().removeItem(self._preview_item)
             except Exception:
                 pass
             self._preview_item = None
@@ -583,10 +582,6 @@ class AnnotationEditorWidget(QWidget):
         scene_pos = gv.mapToScene(widget_pos)
         view_pos = self._imv.getView().mapSceneToView(scene_pos)
         return view_pos.x(), view_pos.y()
-
-    def _widget_to_scene(self, widget_pos):
-        """Convert a widget-space QPoint to scene coordinates."""
-        return self._imv.ui.graphicsView.mapToScene(widget_pos)
 
     # ------------------------------------------------------------------ #
     # Internal helpers — new annotation                                    #
@@ -695,39 +690,39 @@ class AnnotationEditorWidget(QWidget):
         vx, vy = self._widget_to_view(widget_pos)
         self._draw_start = (vx, vy)
 
-        # Create a rubber-band preview item on the scene (in scene coords)
+        # Preview item added to the ViewBox so it lives in image coordinates
+        # and scales/pans with the image.
         self._remove_preview()
-        sx, sy = self._widget_to_scene(widget_pos).x(), \
-                 self._widget_to_scene(widget_pos).y()
-        self._preview_item = QGraphicsRectItem(QRectF(sx, sy, 1, 1))
+        self._preview_item = QGraphicsRectItem(QRectF(vx, vy, 0.1, 0.1))
         pen = QPen(QColor("lime"))
-        pen.setWidth(1)
-        pen.setCosmetic(True)
+        pen.setCosmetic(True)   # fixed pixel width regardless of zoom
+        pen.setWidth(2)
         self._preview_item.setPen(pen)
-        self._imv.ui.graphicsView.scene().addItem(self._preview_item)
+        self._imv.getView().addItem(self._preview_item)
+
+        # Grab the mouse so move/release events are delivered even if the
+        # cursor drifts outside the widget during a fast drag.
+        self._imv.ui.graphicsView.grabMouse()
 
     def _on_draw_move(self, widget_pos):
         """Resize the rubber-band preview as the mouse moves."""
         if self._draw_start is None or self._preview_item is None:
             return
-        sp = self._widget_to_scene(widget_pos)
-        gv = self._imv.ui.graphicsView
-        # scene pos of the start corner
+        vx1, vy1 = self._widget_to_view(widget_pos)
         vx0, vy0 = self._draw_start
-        # convert start view pos back to scene for the rect origin
-        start_view_pt = self._imv.getView().mapViewToScene(
-            pg.Point(vx0, vy0))
-        x0s, y0s = start_view_pt.x(), start_view_pt.y()
-        x1s, y1s = sp.x(), sp.y()
+        # Work entirely in image coordinates — the ViewBox transform handles
+        # the mapping to screen space automatically.
         self._preview_item.setRect(QRectF(
-            min(x0s, x1s), min(y0s, y1s),
-            abs(x1s - x0s), abs(y1s - y0s),
+            min(vx0, vx1), min(vy0, vy1),
+            abs(vx1 - vx0), abs(vy1 - vy0),
         ))
 
     def _on_draw_release(self, widget_pos):
         """Finalise the drawn box, prompt for a label, and add annotation."""
         if self._draw_start is None:
             return
+        self._imv.ui.graphicsView.releaseMouse()
+
         vx1, vy1 = self._widget_to_view(widget_pos)
         vx0, vy0 = self._draw_start
         self._remove_preview()
