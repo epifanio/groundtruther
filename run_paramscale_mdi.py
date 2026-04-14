@@ -2,9 +2,8 @@ from PyQt5.QtWidgets import QWidget
 from PyQt5.QtCore import QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
 from groundtruther.pygui.Ui_paramscale_ui import Ui_paramscale
 
-import requests
-from qgis.core import Qgis, QgsMessageLog, QgsTask, QgsRasterLayer
-from groundtruther.configure import log_exception
+from qgis.core import Qgis, QgsMessageLog, QgsRasterLayer
+from groundtruther.gt import grass_api
 import uuid
 from osgeo import gdal
 
@@ -64,30 +63,8 @@ class ParamScaleWidget(QWidget, Ui_paramscale):
             )
             return
         self.gisenv = grass_settings['data']['gisenv']
-
-        headers = {
-            'accept': 'application/json',
-            'content-type': 'application/x-www-form-urlencoded',
-        }
-        params = {
-            'location_name': self.gisenv['LOCATION_NAME'],
-            'mapset_name':   self.gisenv['MAPSET'],
-            'gisdb':         self.gisenv['GISDBASE'],
-        }
         endpoint = self.parent.settings['Processing']['grass_api_endpoint']
-        try:
-            response = requests.get(
-                f'{endpoint}/api/get_rvg_list', params=params, headers=headers, timeout=30)
-            raster_list = response.json().get('data', {}).get('raster', [])
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
-            QgsMessageLog.logMessage(
-                f"GRASS API unreachable: {exc}", 'GroundTruther', Qgis.Warning)
-            return
-        except (ValueError, KeyError) as exc:
-            QgsMessageLog.logMessage(
-                f"Unexpected GRASS API response in get_rvr_list: {exc}",
-                'GroundTruther', Qgis.Warning)
-            return
+        raster_list = grass_api.get_raster_list(endpoint, self.gisenv)
 
         actual_item = self.input.currentText()
         self.input.clear()
@@ -185,16 +162,6 @@ class ParamScaleWidget(QWidget, Ui_paramscale):
         
     def run_grassapi(self, headers, params):
         endpoint = self.parent.settings['Processing']['grass_api_endpoint']
-        try:
-            self.response = requests.post(
-                f'{endpoint}/api/{self.module_name}',
-                params=params, headers=headers, timeout=300)
-            self.returned_item = self.response.json()
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
-            log_exception(f"run_grassapi({self.module_name}): network error", exc, warn=True)
-            self.returned_item = {'status': 'FAILED', 'data': str(exc)}
-        except ValueError as exc:
-            log_exception(f"run_grassapi({self.module_name}): non-JSON response", exc, warn=True)
-            self.returned_item = {'status': 'SUCCESS'}
+        self.returned_item = grass_api.run_module(endpoint, self.module_name, params)
         return self.returned_item
         

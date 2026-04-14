@@ -53,6 +53,7 @@ from qgis.core import QgsMapLayerType
 
 from groundtruther.configure import get_settings, load_config, ConfigDialog, error_message, log_exception
 from groundtruther.ioutils import parse_annotation, get_layer_info, send_layer_as_geojson, convert_to_geojson_using_gdal
+from groundtruther.gt import image_manager as img_mgr
 
 from groundtruther.pygui.Ui_groundtruther_dockwidget_base import Ui_GroundTrutherDockWidgetBase  
 from groundtruther.pygui.hbc_browser_gui import HBCBrowserGui
@@ -462,7 +463,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
 
         if Path(self.metadatafile).is_file():
             try:
-                self.imageMetadata = pd.read_parquet(self.metadatafile)
+                self.imageMetadata = img_mgr.load_metadata(self.metadatafile)
                 self.w.ImageIndexspinBox.setMaximum(len(self.imageMetadata) - 1)
                 self.w.ImageIndexSlider.setMaximum(len(self.imageMetadata) - 1)
 
@@ -475,19 +476,17 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                     QgsMessageLog.logMessage("Annotation file loaded", 'GroundTruther', Qgis.Info)
                     self.w.actionAnnotation.setEnabled(True)
                     annotations_by_image = parse_annotation(self.imageannotationfile)
-                    self.imageMetadata["Annotation"] = self.imageMetadata.Imagename.map(
-                        annotations_by_image
+                    self.imageMetadata = img_mgr.attach_annotations(
+                        self.imageMetadata, annotations_by_image
                     )
                 else:
                     self.w.actionAnnotation.setEnabled(False)
 
-                self.kdt = spatial.KDTree(
-                    self.imageMetadata[["habcam_lon", "habcam_lat"]].values
-                )
+                self.kdt = img_mgr.build_kdtree(self.imageMetadata)
             except OSError as exc:
                 log_exception(f"_apply_settings: OS error reading {self.metadatafile}", exc, warn=True)
-            except pyarrow.lib.ArrowInvalid as exc:
-                log_exception(f"_apply_settings: invalid Parquet file {self.metadatafile}", exc)
+            except Exception as exc:
+                log_exception(f"_apply_settings: failed to load {self.metadatafile}", exc)
                 error_message(f"Error reading {self.metadatafile}:\n{exc}")
                 self.imageMetadata = None
         else:
@@ -774,7 +773,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
 
 
     def getImageIndex(self, lon, lat):
-        distance, index = self.kdt.query([lon, lat])
+        index, _distance = img_mgr.nearest_image_index(self.kdt, lon, lat)
         return index
 
     def clear_image_annotation(self):
