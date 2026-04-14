@@ -27,7 +27,7 @@ import os
 from qgis.PyQt import QtGui, QtWidgets, uic
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot
 from qgis.utils import iface
-from qgis.core import QgsPointXY, QgsRectangle, QgsGeometry, QgsWkbTypes, QgsProject
+from qgis.core import Qgis, QgsMessageLog, QgsMapLayerType, QgsPointXY, QgsRectangle, QgsGeometry, QgsWkbTypes, QgsProject
 from qgis.gui import QgsVertexMarker, QgsMapToolEmitPoint, QgsRubberBand
 
 from sys import platform
@@ -48,8 +48,6 @@ from skimage.io import imread
 import numpy as np
 from scipy import spatial
 import pyarrow
-
-from qgis.core import QgsMapLayerType
 
 from groundtruther.configure import get_settings, load_config, ConfigDialog, error_message, log_exception
 from groundtruther.ioutils import parse_annotation, get_layer_info, send_layer_as_geojson, convert_to_geojson_using_gdal
