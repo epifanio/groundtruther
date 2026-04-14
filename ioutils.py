@@ -35,6 +35,9 @@ def parse_annotation(annotation_file):
     imageannotation["Imagename"] = imageannotation["Imagename"].str.replace(
         ".jpg", "", regex=False
     )
+    # Ensure numeric columns are actually numeric (CSV may leave them as strings)
+    for col in ("TL_x", "TL_y", "BR_x", "BR_y", "Confidence"):
+        imageannotation[col] = pd.to_numeric(imageannotation[col], errors="coerce")
     columns = ["TL_x", "BR_y", "BR_x", "BR_y", "BR_x", "TL_y", "TL_x", "TL_y"]
     imageannotation["bbox"] = imageannotation.apply(
         bbox_parser, columns=columns, name="bbox", axis=1
