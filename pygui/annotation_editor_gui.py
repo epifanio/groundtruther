@@ -4,7 +4,7 @@ Injected as a QDockWidget on the right side of the HBCBrowserGui
 QMainWindow.  When visible it overlays pg.RectROI handles on the image
 view so the user can:
 
-  - select a bounding box from the list
+  - select a bounding box from the list (or by clicking/dragging a ROI)
   - drag its corner/edge handles to reshape it
   - rename its label via a dialog
   - delete it
@@ -27,8 +27,8 @@ from PyQt5.QtWidgets import (
     QPushButton, QListWidget, QListWidgetItem,
     QLabel, QInputDialog, QMessageBox, QFileDialog,
     QAbstractItemView, QSizePolicy,
-    QDialog, QDialogButtonBox, QComboBox, QLineEdit,
-    QDoubleSpinBox, QGraphicsRectItem,
+    QComboBox, QLineEdit, QDoubleSpinBox, QFrame,
+    QGraphicsRectItem,
 )
 from PyQt5.QtCore import Qt, pyqtSignal, QObject, QEvent, QRectF
 from PyQt5.QtGui import QPen, QColor
@@ -108,76 +108,6 @@ class _DrawEventFilter(QObject):
 
 
 # ---------------------------------------------------------------------------
-# Label-entry dialog (shown after drawing a new box)
-# ---------------------------------------------------------------------------
-
-class LabelDialog(QDialog):
-    """Dialog for entering a label and confidence for a new bounding box.
-
-    Parameters
-    ----------
-    known_labels:
-        List of existing unique species labels to populate the drop-down.
-    parent:
-        Qt parent widget (used for correct window centering).
-    """
-
-    def __init__(self, known_labels: list[str], parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("New annotation label")
-        self.setModal(True)
-        layout = QVBoxLayout(self)
-
-        # --- Existing label drop-down ---
-        layout.addWidget(QLabel("Select existing label:"))
-        self._combo = QComboBox()
-        self._combo.addItem("")          # blank placeholder
-        self._combo.addItems(sorted(known_labels))
-        self._combo.currentIndexChanged.connect(self._on_combo_changed)
-        layout.addWidget(self._combo)
-
-        # --- Free-text entry ---
-        layout.addWidget(QLabel("Or type a new label:"))
-        self._edit = QLineEdit()
-        self._edit.setPlaceholderText("Label…")
-        layout.addWidget(self._edit)
-
-        # --- Confidence ---
-        conf_row = QHBoxLayout()
-        conf_row.addWidget(QLabel("Confidence:"))
-        self._conf_spin = QDoubleSpinBox()
-        self._conf_spin.setRange(0.0, 1.0)
-        self._conf_spin.setSingleStep(0.05)
-        self._conf_spin.setValue(1.0)
-        self._conf_spin.setDecimals(2)
-        conf_row.addWidget(self._conf_spin)
-        layout.addLayout(conf_row)
-
-        # --- OK / Cancel ---
-        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        btns.accepted.connect(self.accept)
-        btns.rejected.connect(self.reject)
-        layout.addWidget(btns)
-
-        self.setMinimumWidth(270)
-
-    def _on_combo_changed(self, idx: int):
-        """Populate the line-edit when the user picks a dropdown item."""
-        if idx > 0:
-            self._edit.setText(self._combo.currentText())
-
-    # --- Results ---
-
-    def label(self) -> str | None:
-        """Return the entered/selected label, or None if empty."""
-        text = self._edit.text().strip()
-        return text if text else None
-
-    def confidence(self) -> float:
-        return self._conf_spin.value()
-
-
-# ---------------------------------------------------------------------------
 # Main editor widget
 # ---------------------------------------------------------------------------
 
@@ -199,8 +129,8 @@ class AnnotationEditorWidget(QWidget):
         an annotation so the parent dockwidget can push the change into
         the DataFrame and refresh the image overlay.
     draw_mode_exited()
-        Emitted when draw mode is stopped (e.g. via stop_draw_mode) so the
-        parent toolbar action can update its checked state.
+        Emitted when draw mode is stopped so the parent toolbar action
+        can update its checked state.
     """
 
     annotation_changed = pyqtSignal(int)
@@ -230,6 +160,10 @@ class AnnotationEditorWidget(QWidget):
         self._preview_item: QGraphicsRectItem | None = None
         self._draw_mode: bool = False
 
+        # Pending new-annotation state (box drawn, waiting for label input)
+        self._pending_bbox: tuple[float, float, float, float] | None = None
+        self._pending_item: QGraphicsRectItem | None = None
+
         self._build_ui()
 
     def _build_ui(self):
@@ -241,12 +175,14 @@ class AnnotationEditorWidget(QWidget):
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
+        # --- Bounding-box list ---
         self._list = QListWidget()
         self._list.setSelectionMode(QAbstractItemView.SingleSelection)
         self._list.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self._list.currentRowChanged.connect(self._on_row_changed)
         layout.addWidget(self._list)
 
+        # --- Action buttons ---
         btn_layout = QVBoxLayout()
         btn_layout.setSpacing(4)
 
@@ -269,18 +205,61 @@ class AnnotationEditorWidget(QWidget):
 
         layout.addLayout(btn_layout)
 
+        # --- Inline new-annotation form (hidden until box is drawn) ---
+        self._new_ann_frame = QFrame()
+        self._new_ann_frame.setFrameShape(QFrame.StyledPanel)
+        new_layout = QVBoxLayout(self._new_ann_frame)
+        new_layout.setContentsMargins(4, 4, 4, 4)
+        new_layout.setSpacing(4)
+
+        new_layout.addWidget(QLabel("<b>New annotation</b>"))
+
+        new_layout.addWidget(QLabel("Existing label:"))
+        self._new_label_combo = QComboBox()
+        self._new_label_combo.currentIndexChanged.connect(
+            self._on_new_combo_changed)
+        new_layout.addWidget(self._new_label_combo)
+
+        new_layout.addWidget(QLabel("Or type new label:"))
+        self._new_label_edit = QLineEdit()
+        self._new_label_edit.setPlaceholderText("Label…")
+        new_layout.addWidget(self._new_label_edit)
+
+        conf_row = QHBoxLayout()
+        conf_row.addWidget(QLabel("Confidence:"))
+        self._new_conf_spin = QDoubleSpinBox()
+        self._new_conf_spin.setRange(0.0, 1.0)
+        self._new_conf_spin.setValue(1.0)
+        self._new_conf_spin.setDecimals(2)
+        self._new_conf_spin.setSingleStep(0.05)
+        conf_row.addWidget(self._new_conf_spin)
+        new_layout.addLayout(conf_row)
+
+        btn_row2 = QHBoxLayout()
+        self._new_confirm_btn = QPushButton("✔ Add")
+        self._new_cancel_btn = QPushButton("✘ Cancel")
+        btn_row2.addWidget(self._new_confirm_btn)
+        btn_row2.addWidget(self._new_cancel_btn)
+        new_layout.addLayout(btn_row2)
+
+        self._new_confirm_btn.clicked.connect(self._confirm_new_annotation)
+        self._new_cancel_btn.clicked.connect(self._cancel_new_annotation)
+        self._new_ann_frame.setVisible(False)
+        layout.addWidget(self._new_ann_frame)
+
         # Hint text
         hint = QLabel(
             "<small>Draw mode: click and drag<br>"
             "on the image to create a box.<br>"
-            "Yellow handles resize a box.</small>"
+            "Drag a ROI or its handles to resize.<br>"
+            "Click a ROI to select it in the list.</small>"
         )
         hint.setAlignment(Qt.AlignCenter)
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
-        self.setMinimumWidth(170)
-        self.setMaximumWidth(280)
+        self.setMinimumWidth(180)
+        self.setMaximumWidth(300)
 
     # ------------------------------------------------------------------ #
     # Public API                                                           #
@@ -288,26 +267,7 @@ class AnnotationEditorWidget(QWidget):
 
     def load_image(self, image_index: int, imagename: str,
                    annotation, csv_path: str = "") -> bool:
-        """Switch to a new image frame.
-
-        Parameters
-        ----------
-        image_index:
-            Row index into the imageMetadata DataFrame.
-        imagename:
-            The ``Imagename`` value for the current row (used when saving).
-        annotation:
-            ``imageMetadata["Annotation"].iloc[image_index]`` — a dict or
-            ``np.nan`` / ``None`` when no annotation exists.
-        csv_path:
-            Path to the annotation CSV file for Save operations.
-
-        Returns
-        -------
-        bool
-            False if the user cancelled a "save before switching" dialog,
-            True otherwise.
-        """
+        """Switch to a new image frame."""
         if self._dirty:
             reply = QMessageBox.question(
                 self, "Unsaved changes",
@@ -320,6 +280,9 @@ class AnnotationEditorWidget(QWidget):
             if reply == QMessageBox.Yes:
                 self.annotation_changed.emit(self._image_index)
 
+        # Cancel pending new annotation silently
+        self._dismiss_pending(silent=True)
+
         # Exit draw mode silently when switching images
         if self._draw_mode:
             self._exit_draw_mode_internal()
@@ -330,7 +293,6 @@ class AnnotationEditorWidget(QWidget):
         if csv_path:
             old_csv = self._csv_path
             self._csv_path = csv_path
-            # Update labels sidecar path when the CSV changes
             if csv_path != old_csv:
                 stem = csv_path.rsplit(".", 1)[0] if "." in csv_path else csv_path
                 self._labels_path = stem + "_labels.json"
@@ -343,33 +305,22 @@ class AnnotationEditorWidget(QWidget):
         return True
 
     def commit(self) -> dict | None:
-        """Return a deep copy of the current (possibly edited) annotation.
-
-        Call this from the parent after receiving ``annotation_changed``
-        to get the value to write back into the DataFrame.
-        """
+        """Return a deep copy of the current (possibly edited) annotation."""
         return copy.deepcopy(self._annotation) if self._annotation else None
 
     def is_dirty(self) -> bool:
         return self._dirty
 
     def set_known_labels(self, labels: list[str]):
-        """Set (or refresh) the pool of known label strings.
-
-        Merges the given list with any labels already loaded from the
-        sidecar JSON, then saves the merged result.
-        """
+        """Set (or refresh) the pool of known label strings."""
         merged = sorted(set(self._known_labels) | set(labels))
         self._known_labels = merged
         self._save_labels_file()
+        if self._new_ann_frame.isVisible():
+            self._populate_new_label_combo()
 
     def start_draw_mode(self):
-        """Enable rubber-band draw mode on the image view.
-
-        While active the user can click and drag on the image to define a
-        new bounding box.  After releasing, a :class:`LabelDialog` is
-        shown to assign a label.
-        """
+        """Enable rubber-band draw mode on the image view."""
         if self._draw_mode:
             return
         self._draw_mode = True
@@ -393,21 +344,7 @@ class AnnotationEditorWidget(QWidget):
         self.draw_mode_exited.emit()
 
     def save_all_to_csv(self, image_metadata, csv_path: str = "") -> bool:
-        """Write the full edited annotation set to a CSV file.
-
-        Parameters
-        ----------
-        image_metadata:
-            The ``imageMetadata`` pandas DataFrame from the dockwidget
-            (must have ``Imagename`` and ``Annotation`` columns).
-        csv_path:
-            Destination path.  If empty a Save dialog is shown.
-
-        Returns
-        -------
-        bool
-            True on success, False if the user cancelled.
-        """
+        """Write the full edited annotation set to a CSV file."""
         path = csv_path or self._csv_path
         if not path:
             path, _ = QFileDialog.getSaveFileName(
@@ -470,8 +407,7 @@ class AnnotationEditorWidget(QWidget):
             for i, species in enumerate(self._annotation.get("Species", [])):
                 conf = self._annotation["Confidence"][i]
                 try:
-                    conf_f = float(conf)
-                    conf_str = f"{conf_f:.2f}"
+                    conf_str = f"{float(conf):.2f}"
                 except (TypeError, ValueError):
                     conf_str = str(conf)
                 item = QListWidgetItem(f"{i+1}: {species}  ({conf_str})")
@@ -496,6 +432,10 @@ class AnnotationEditorWidget(QWidget):
             )
             roi.handleSize = 10
             roi._gt_index = i
+            # Dragging a ROI selects it in the list
+            roi.sigRegionChangeStarted.connect(
+                lambda _r, idx=i: self._list.setCurrentRow(idx)
+            )
             roi.sigRegionChangeFinished.connect(self._on_roi_changed)
             view.addItem(roi)
             self._rois.append(roi)
@@ -522,7 +462,6 @@ class AnnotationEditorWidget(QWidget):
     # ------------------------------------------------------------------ #
 
     def _load_labels_file(self):
-        """Merge labels from the sidecar JSON into ``_known_labels``."""
         if not self._labels_path:
             return
         try:
@@ -534,7 +473,6 @@ class AnnotationEditorWidget(QWidget):
             pass
 
     def _save_labels_file(self):
-        """Persist the current known-labels list to the sidecar JSON."""
         if not self._labels_path:
             return
         try:
@@ -544,7 +482,6 @@ class AnnotationEditorWidget(QWidget):
             _log(f"_save_labels_file: {exc}")
 
     def _register_label(self, label: str):
-        """Add *label* to the known-labels pool and save, if new."""
         if label not in self._known_labels:
             self._known_labels = sorted(set(self._known_labels) | {label})
             self._save_labels_file()
@@ -562,6 +499,11 @@ class AnnotationEditorWidget(QWidget):
         if self._draw_filter is not None:
             gv.removeEventFilter(self._draw_filter)
             self._draw_filter = None
+        # Safety: release mouse grab if it was left active
+        try:
+            gv.releaseMouse()
+        except Exception:
+            pass
         gv.setCursor(Qt.ArrowCursor)
 
         self._remove_preview()
@@ -584,7 +526,55 @@ class AnnotationEditorWidget(QWidget):
         return view_pos.x(), view_pos.y()
 
     # ------------------------------------------------------------------ #
-    # Internal helpers — new annotation                                    #
+    # Internal helpers — inline new-annotation form                        #
+    # ------------------------------------------------------------------ #
+
+    def _populate_new_label_combo(self):
+        self._new_label_combo.blockSignals(True)
+        self._new_label_combo.clear()
+        self._new_label_combo.addItem("")          # blank placeholder
+        for lbl in self._known_labels:
+            self._new_label_combo.addItem(lbl)
+        self._new_label_combo.blockSignals(False)
+
+    def _show_new_annotation_form(self, x0: float, y0: float,
+                                   x1: float, y1: float):
+        """Show the inline label form and a green preview of the drawn box."""
+        self._pending_bbox = (x0, y0, x1, y1)
+
+        # Green non-interactive rectangle in image coordinates
+        self._dismiss_pending_item()
+        self._pending_item = QGraphicsRectItem(
+            QRectF(x0, y0, x1 - x0, y1 - y0))
+        pen = QPen(QColor("lime"))
+        pen.setCosmetic(True)
+        pen.setWidth(2)
+        self._pending_item.setPen(pen)
+        self._imv.getView().addItem(self._pending_item)
+
+        self._populate_new_label_combo()
+        self._new_label_edit.clear()
+        self._new_conf_spin.setValue(1.0)
+        self._new_ann_frame.setVisible(True)
+        self._new_label_edit.setFocus()
+
+    def _dismiss_pending_item(self):
+        """Remove the pending preview rectangle from the ViewBox."""
+        if self._pending_item is not None:
+            try:
+                self._imv.getView().removeItem(self._pending_item)
+            except Exception:
+                pass
+            self._pending_item = None
+
+    def _dismiss_pending(self, silent: bool = False):
+        """Cancel the pending new annotation (item + form)."""
+        self._dismiss_pending_item()
+        self._pending_bbox = None
+        self._new_ann_frame.setVisible(False)
+
+    # ------------------------------------------------------------------ #
+    # Internal helpers — add annotation                                    #
     # ------------------------------------------------------------------ #
 
     def _add_annotation(self, x0: float, y0: float,
@@ -601,7 +591,6 @@ class AnnotationEditorWidget(QWidget):
         self._register_label(label)
         self._rebuild_list()
         self._rebuild_rois()
-        # Select the newly added row
         self._list.setCurrentRow(len(self._annotation["bbox"]) - 1)
         self.annotation_changed.emit(self._image_index)
         _log(
@@ -628,10 +617,7 @@ class AnnotationEditorWidget(QWidget):
         x1, y1 = x0 + size.x(), y0 + size.y()
         self._annotation["bbox"][idx]["bbox"] = _rect_to_bbox(x0, y0, x1, y1)
         self._dirty = True
-        _log(
-            f"Annotation {idx} resized to "
-            f"({x0:.1f},{y0:.1f})-({x1:.1f},{y1:.1f})",
-        )
+        _log(f"Annotation {idx} resized to ({x0:.1f},{y0:.1f})-({x1:.1f},{y1:.1f})")
         self.annotation_changed.emit(self._image_index)
 
     def _edit_label(self):
@@ -690,18 +676,15 @@ class AnnotationEditorWidget(QWidget):
         vx, vy = self._widget_to_view(widget_pos)
         self._draw_start = (vx, vy)
 
-        # Preview item added to the ViewBox so it lives in image coordinates
-        # and scales/pans with the image.
         self._remove_preview()
         self._preview_item = QGraphicsRectItem(QRectF(vx, vy, 0.1, 0.1))
         pen = QPen(QColor("lime"))
-        pen.setCosmetic(True)   # fixed pixel width regardless of zoom
+        pen.setCosmetic(True)
         pen.setWidth(2)
         self._preview_item.setPen(pen)
         self._imv.getView().addItem(self._preview_item)
 
-        # Grab the mouse so move/release events are delivered even if the
-        # cursor drifts outside the widget during a fast drag.
+        # Grab mouse so move/release are delivered even if cursor drifts out
         self._imv.ui.graphicsView.grabMouse()
 
     def _on_draw_move(self, widget_pos):
@@ -710,15 +693,13 @@ class AnnotationEditorWidget(QWidget):
             return
         vx1, vy1 = self._widget_to_view(widget_pos)
         vx0, vy0 = self._draw_start
-        # Work entirely in image coordinates — the ViewBox transform handles
-        # the mapping to screen space automatically.
         self._preview_item.setRect(QRectF(
             min(vx0, vx1), min(vy0, vy1),
             abs(vx1 - vx0), abs(vy1 - vy0),
         ))
 
     def _on_draw_release(self, widget_pos):
-        """Finalise the drawn box, prompt for a label, and add annotation."""
+        """Finalise the drawn box and show the inline label form."""
         if self._draw_start is None:
             return
         self._imv.ui.graphicsView.releaseMouse()
@@ -728,23 +709,36 @@ class AnnotationEditorWidget(QWidget):
         self._remove_preview()
         self._draw_start = None
 
-        # Normalise corners
         rx0, rx1 = min(vx0, vx1), max(vx0, vx1)
         ry0, ry1 = min(vy0, vy1), max(vy0, vy1)
 
-        # Reject degenerate boxes (< 3 pixels in either dimension)
         if (rx1 - rx0) < 3 or (ry1 - ry0) < 3:
             _log("Draw mode: box too small, ignoring.")
             return
 
-        # Ask for a label
-        dlg = LabelDialog(self._known_labels, parent=self)
-        if dlg.exec_() != QDialog.Accepted:
+        self._show_new_annotation_form(rx0, ry0, rx1, ry1)
+
+    # ------------------------------------------------------------------ #
+    # Slots — inline new-annotation form                                   #
+    # ------------------------------------------------------------------ #
+
+    def _on_new_combo_changed(self, idx: int):
+        """Copy the selected label into the text field."""
+        if idx > 0:
+            self._new_label_edit.setText(self._new_label_combo.currentText())
+
+    def _confirm_new_annotation(self):
+        if self._pending_bbox is None:
             return
-        label = dlg.label()
+        label = self._new_label_edit.text().strip()
         if not label:
             QMessageBox.warning(self, "No label",
                                 "Please enter or select a label.")
             return
+        confidence = self._new_conf_spin.value()
+        x0, y0, x1, y1 = self._pending_bbox
+        self._dismiss_pending()
+        self._add_annotation(x0, y0, x1, y1, label, confidence)
 
-        self._add_annotation(rx0, ry0, rx1, ry1, label, dlg.confidence())
+    def _cancel_new_annotation(self):
+        self._dismiss_pending()
