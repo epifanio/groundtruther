@@ -301,9 +301,9 @@ class AnnotationEditorWidget(QWidget):
                 size=[x1 - x0, y1 - y0],
                 pen=pg.mkPen("r", width=2),
                 handlePen=pg.mkPen("y", width=2),
-                handleSize=10,
                 movable=True,
             )
+            roi.handleSize = 10
             roi._gt_index = i
             roi.sigRegionChangeFinished.connect(self._on_roi_changed)
             view.addItem(roi)
