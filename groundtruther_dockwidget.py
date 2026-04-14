@@ -68,6 +68,7 @@ from groundtruther.pygui.grass_settings_gui import GrassSettings
 #from groundtruther.pygui.grass_mdi_gui import GrassMdi
 
 from groundtruther.pygui.grass_mdi_gui import GrassTools
+from groundtruther.pygui.annotation_editor_gui import AnnotationEditorWidget
 
 from groundtruther.grassconfig import GrassConfigDialog
 from groundtruther.run_geomorphon_mdi import GeoMorphonWidget
@@ -282,6 +283,37 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self.w.actionAnnotation.triggered.connect(self.showAnnotationThreshold)
         self.w.annotation_confidence_spinBox.hide()
         self.w.annotation_confidence_spinBox_label.hide()
+
+        # --- Annotation editor panel -----------------------------------
+        self.annotation_editor = AnnotationEditorWidget(self.imv)
+        self.annotation_editor_dock = QtWidgets.QDockWidget(
+            "Edit Annotations", self.w)
+        self.annotation_editor_dock.setWidget(self.annotation_editor)
+        self.annotation_editor_dock.setAllowedAreas(
+            Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)
+        self.annotation_editor_dock.hide()
+        self.w.addDockWidget(Qt.RightDockWidgetArea,
+                             self.annotation_editor_dock)
+        # Toggle button in the browser's toolbar
+        self._ann_editor_action = QtWidgets.QAction("✏ Edit annotations",
+                                                     self.w)
+        self._ann_editor_action.setCheckable(True)
+        self._ann_editor_action.setToolTip(
+            "Show/hide the annotation editor panel")
+        self._ann_editor_action.toggled.connect(
+            self._toggle_annotation_editor)
+        self.w.toolBar.addSeparator()
+        self.w.toolBar.addAction(self._ann_editor_action)
+        # Save-all button (visible only when editor is open)
+        self._save_ann_action = QtWidgets.QAction("💾 Save annotations", self.w)
+        self._save_ann_action.setToolTip(
+            "Save all annotation edits back to CSV")
+        self._save_ann_action.triggered.connect(self._save_annotations)
+        self._save_ann_action.setVisible(False)
+        self.w.toolBar.addAction(self._save_ann_action)
+        # Wire editor signals
+        self.annotation_editor.annotation_changed.connect(
+            self._on_annotation_changed)
 
         self.init_grass_ui()
         self.init_grass_toolbar()
@@ -992,7 +1024,16 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                     self.dirname, self.imageMetadata["Imagename"].iloc[self.imageindex]+".jpg"))
             )
 
-            if self.w.actionAnnotation.isChecked():
+            if self.annotation_editor_dock.isVisible():
+                # Editor mode: display editable ROIs, suppress static items
+                self.clear_image_annotation()
+                annotation = self.imageMetadata["Annotation"].iloc[self.imageindex]
+                imagename = self.imageMetadata["Imagename"].iloc[self.imageindex]
+                self.annotation_editor.load_image(
+                    self.imageindex, imagename,
+                    annotation, self.imageannotationfile,
+                )
+            elif self.w.actionAnnotation.isChecked():
                 self.add_image_annotation()
             else:
                 self.clear_image_annotation()
@@ -1252,6 +1293,53 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         else:
             self.w.annotation_confidence_spinBox.show()
             self.w.annotation_confidence_spinBox_label.show()
+
+    # ------------------------------------------------------------------ #
+    # Annotation editor                                                    #
+    # ------------------------------------------------------------------ #
+
+    def _toggle_annotation_editor(self, checked: bool):
+        """Show or hide the annotation editor dock."""
+        self.annotation_editor_dock.setVisible(checked)
+        self._save_ann_action.setVisible(checked)
+        if checked:
+            # Load annotations for the currently displayed image
+            if hasattr(self, 'imageMetadata') and self.imageMetadata is not None:
+                annotation = self.imageMetadata["Annotation"].iloc[self.imageindex]
+                imagename = self.imageMetadata["Imagename"].iloc[self.imageindex]
+                self.annotation_editor.load_image(
+                    self.imageindex, imagename,
+                    annotation, self.imageannotationfile,
+                )
+        else:
+            # Switching back to view mode: remove ROIs, restore static items
+            self.annotation_editor.load_image(
+                self.imageindex, "", None, "")
+            if self.w.actionAnnotation.isChecked():
+                self.add_image_annotation()
+
+    def _on_annotation_changed(self, image_index: int):
+        """Push edited annotation from the editor back into the DataFrame."""
+        if self.imageMetadata is None:
+            return
+        edited = self.annotation_editor.commit()
+        self.imageMetadata.at[
+            self.imageMetadata.index[image_index], "Annotation"
+        ] = edited
+        QgsMessageLog.logMessage(
+            f"Annotation updated for image index {image_index}",
+            'GroundTruther', Qgis.Info,
+        )
+
+    def _save_annotations(self):
+        """Write all in-memory annotations to CSV via the editor widget."""
+        if self.imageMetadata is None:
+            return
+        # Commit current image's edits first
+        self._on_annotation_changed(self.imageindex)
+        self.annotation_editor.save_all_to_csv(
+            self.imageMetadata, self.imageannotationfile
+        )
             
     # def quitAll(self):
     #     """docstring"""
