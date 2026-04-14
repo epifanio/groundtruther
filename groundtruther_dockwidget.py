@@ -42,7 +42,7 @@ from PyQt5.QtWidgets import (
     QAbstractSpinBox, QSizePolicy, QSpacerItem, QTextEdit,
 )
 from PyQt5.QtCore import Qt, QSize, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QColor, QPixmap
+from PyQt5.QtGui import QColor
 
 import requests
 import pandas as pd
@@ -77,16 +77,6 @@ from groundtruther.run_grm_lsi_mdi import GrmLsiWidget
 import groundtruther.resources_rc
 
 # Create a subclass of pg.ImageView
-class MyImageView1(pg.ImageView):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            QgsMessageLog.logMessage(f"Left mouse button pressed at position: {event.pos()}", 'GroundTruther', Qgis.Info)
-        elif event.button() == Qt.RightButton:
-            QgsMessageLog.logMessage(f"Right mouse button pressed at position: {event.pos()}", 'GroundTruther', Qgis.Info)
-            
 
 class CustomGraphItem(pg.GraphItem):
     def __init__(self, *args, **kwargs):
@@ -160,7 +150,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             }
         self.grass_dialog = GrassConfigDialog(self)
         self.imagelist = []
-        self.imageindex = 1
+        self.imageindex = 0
         self.rangevalue = self.w.range.value()
         self.dirname = self.settings["HabCam"]["imagepath"]
         self.metadatafile = self.settings["HabCam"]["imagemetadata"]
@@ -169,7 +159,6 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self.annotation_confidence_treshold = (
             self.w.annotation_confidence_spinBox.value()
         )
-        self.projection = "+proj=utm +no_defs +zone=19 +a=6378137 +rf=298.257223563 +towgs84=0.000,0.000,0.000 +to_meter=1"
         self.graph_items = []
         self.m1 = None
         self.image_point_built = False
@@ -226,8 +215,6 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self.w.statusbar.addPermanentWidget(self.w.longitude, stretch=0)
         
 
-        # self.myProj = pyproj.Proj("+proj=utm +no_defs +zone=19 +a=6378137 +rf=298.257223563 +towgs84=0.000,0.000,0.000 +to_meter=1")
-        self.myProj = self.projection
         self.w.range.valueChanged.connect(self.setValuerangeSpinBox)
         # self.getImageMetadata_hard()
         self.w.actionTools.triggered.connect(self.showTools)
@@ -1019,22 +1006,17 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         
         """docstring"""
         self.imv.clear()
-        if any(self.imagelist) is not None:
-            path = Path(os.path.join(
-                self.dirname, self.imageMetadata["Imagename"].iloc[self.imageindex]+".jpg"))
-            self.pixmap = QPixmap(
-                os.path.join(
-                    self.dirname, self.imageMetadata["Imagename"].iloc[self.imageindex]+".jpg")
+        if self.imageMetadata is not None:
+            img_path = os.path.join(
+                self.dirname,
+                self.imageMetadata["Imagename"].iloc[self.imageindex] + ".jpg",
             )
             self.imv.imageItem.axisOrder = "row-major"
             # check if the imageviewer is hidden or not
             if self.w.actionImageBrowser.isChecked():
                 self.imv.show()
 
-            self.imv.setImage(
-                imread(os.path.join(
-                    self.dirname, self.imageMetadata["Imagename"].iloc[self.imageindex]+".jpg"))
-            )
+            self.imv.setImage(imread(img_path))
 
             if self.annotation_editor_dock.isVisible():
                 # Editor mode: display editable ROIs, suppress static items
