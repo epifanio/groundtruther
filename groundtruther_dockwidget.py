@@ -978,7 +978,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             for i, bbox in enumerate(annotation["bbox"]):
 
                 if (
-                    annotation["Confidence"][i]
+                    float(annotation["Confidence"][i])
                     >= self.annotation_confidence_treshold
                 ):
                     QgsMessageLog.logMessage(
