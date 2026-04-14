@@ -1,11 +1,38 @@
+# GroundTruther – Python dependencies
+#
+# DO NOT install these with any system Python.
+# Use setup_windows.ps1 (Windows) or setup_wsl.sh (Linux/WSL2) which
+# target the correct Python interpreter for your QGIS installation.
+#
+# osgeo / gdal / PyQt5 / qgis are intentionally absent – they ship
+# with QGIS and must NOT be installed via pip.
+
+# ---- Core data handling ----
+numpy
 pandas
-pyqtgraph
-pyopengl
-geojson
-pydantic
-starlette
-scikit-image
-plotnine
 pyarrow
-numba
+
+# ---- Image I/O and computer vision ----
+scikit-image
+scipy
+
+# ---- Plotting / visualisation ----
+pyqtgraph
+PyOpenGL
+matplotlib
+plotnine
+
+# ---- Geospatial ----
+pyproj
 simplekml
+requests
+
+# ---- Config & templating ----
+PyYAML
+# pydantic v1 API (error_wrappers) – pin below v2
+pydantic>=1.9,<2
+starlette
+Jinja2
+
+# ---- Optional: JIT acceleration (requires LLVM toolchain on Windows) ----
+# numba
