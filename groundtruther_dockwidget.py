@@ -23,6 +23,7 @@
 """
 
 import os
+from functools import lru_cache
 
 from qgis.PyQt import QtGui, QtWidgets, uic
 from qgis.PyQt.QtCore import pyqtSignal, pyqtSlot
@@ -50,6 +51,17 @@ from pathlib import Path
 import pyqtgraph as pg
 from skimage.io import imread
 import numpy as np
+
+
+@lru_cache(maxsize=5)
+def _cached_imread(path: str) -> np.ndarray:
+    """Read and decode an image, keeping the last 5 results in memory.
+
+    The cache is keyed on the absolute file path string.  Call
+    ``_cached_imread.cache_clear()`` whenever the image directory changes
+    so stale arrays are not returned for a new dataset.
+    """
+    return imread(path)
 from scipy import spatial
 import pyarrow
 
@@ -163,6 +175,9 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         self.m1 = None
         self.image_point_built = False
         self.parsed_query = None
+        # Metadata panel widget references — populated by _build_metadata_panel()
+        self._meta_widgets: dict = {}
+        self._meta_time_widget = None
         self.init_ui()
         # hide for QGIS PlugIn
         self.w.gisTools.hide()
@@ -482,7 +497,11 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
         if not self.settings:
             return
 
-        self.dirname = self.settings["HabCam"]["imagepath"]
+        new_dirname = self.settings["HabCam"]["imagepath"]
+        if new_dirname != self.dirname:
+            # Image directory changed — discard cached decoded arrays.
+            _cached_imread.cache_clear()
+        self.dirname = new_dirname
         self.metadatafile = self.settings["HabCam"]["imagemetadata"]
         self.imageannotationfile = self.settings["HabCam"]["imageannotation"]
         self.grass_api_endpoint = self.settings["Processing"]["grass_api_endpoint"]
@@ -516,6 +535,8 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
                     self.w.actionAnnotation.setEnabled(False)
 
                 self.kdt = img_mgr.build_kdtree(self.imageMetadata)
+                # Build the metadata panel structure once (columns now known).
+                self._build_metadata_panel()
             except OSError as exc:
                 log_exception(f"_apply_settings: OS error reading {self.metadatafile}", exc, warn=True)
             except Exception as exc:
@@ -1002,8 +1023,105 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             count_dict[string] = count_dict.get(string, 0) + 1
         return count_dict
 
+    # ------------------------------------------------------------------ #
+    # Metadata panel — build once, update values on each frame change     #
+    # ------------------------------------------------------------------ #
+
+    def _build_metadata_panel(self):
+        """Build the metadata scroll-panel widget structure once.
+
+        Called after ``imageMetadata`` is first loaded (or reloaded) so the
+        column set is known.  Stores widget references in ``_meta_widgets``
+        keyed by column name; ``_update_metadata_panel`` then just sets text
+        on each stored widget instead of recreating everything.
+        """
+        self._meta_widgets = {}
+
+        main_layout = QVBoxLayout()
+        main_layout.setSpacing(4)
+        main_layout.setContentsMargins(4, 4, 4, 4)
+
+        # Time row — DataFrame index is a datetime
+        time_row = QHBoxLayout()
+        time_row.addWidget(QLabel("Time"))
+        time_row.addItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+        self._meta_time_widget = ExtendedDateTimeEdit()
+        self._meta_time_widget.setMaximumSize(QSize(250, 16777215))
+        self._meta_time_widget.setMinimumWidth(160)
+        self._meta_time_widget.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
+        self._meta_time_widget.setReadOnly(True)
+        self._meta_time_widget.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
+        time_row.addWidget(self._meta_time_widget)
+        main_layout.addLayout(time_row)
+
+        for col in self.imageMetadata.columns:
+            row = QHBoxLayout()
+            row.addWidget(QLabel(col))
+            row.addItem(QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+
+            if col == "Imagename":
+                w = QLabel()
+                w.setOpenExternalLinks(True)
+            elif col == "Annotation":
+                w = QTextEdit()
+                w.setReadOnly(True)
+                w.setFixedHeight(80)
+            else:
+                w = QLineEdit()
+                w.setReadOnly(True)
+
+            w.setMaximumWidth(250)
+            w.setMinimumWidth(160)
+            w.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
+            row.addWidget(w)
+            main_layout.addLayout(row)
+            self._meta_widgets[col] = w
+
+        main_layout.addStretch()
+
+        container = QWidget()
+        container.setLayout(main_layout)
+        self.imagemetadata_gui.metadata_scroll_area.setWidgetResizable(True)
+        self.imagemetadata_gui.metadata_scroll_area.setWidget(container)
+
+    def _update_metadata_panel(self, record):
+        """Update metadata panel values in-place for the given DataFrame row.
+
+        The panel must already exist (``_build_metadata_panel`` must have
+        been called).  Only text/value changes — no widget allocation.
+        """
+        if not self._meta_widgets:
+            return
+
+        if self._meta_time_widget is not None:
+            try:
+                self._meta_time_widget.setDateTime(record.name)
+            except Exception:
+                pass
+
+        for col, w in self._meta_widgets.items():
+            try:
+                val = record[col]
+            except KeyError:
+                continue
+
+            if col == "Imagename":
+                link = os.path.join(self.dirname, str(val) + ".jpg")
+                w.setText(f'<a href="file://{link}">{val}</a>')
+            elif col == "Annotation":
+                if isinstance(val, dict) and "Species" in val:
+                    counts = self.count_string_occurrences(val["Species"])
+                    w.setPlainText(
+                        "\n".join(f"{s}: {c}" for s, c in counts.items()))
+                else:
+                    w.setPlainText("")
+            else:
+                w.setText(str(val))
+
+    # ------------------------------------------------------------------ #
+
     def add_image(self):
-        
+
         """docstring"""
         self.imv.clear()
         if self.imageMetadata is not None:
@@ -1016,7 +1134,7 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             if self.w.actionImageBrowser.isChecked():
                 self.imv.show()
 
-            self.imv.setImage(imread(img_path))
+            self.imv.setImage(_cached_imread(img_path))
 
             if self.annotation_editor_dock.isVisible():
                 # Editor mode: display editable ROIs, suppress static items
@@ -1037,79 +1155,12 @@ class GroundTrutherDockWidget(QtWidgets.QDockWidget, Ui_GroundTrutherDockWidgetB
             # self.w.statusbar.showMessage("Image %s" % self.imageMetadata.index[0])
             
             if self.imageMetadata is not None:
-                
-                # try:
-                # record = self.imageMetadata[
-                #     self.imageMetadata["Imagename"]
-                #     == self.imagelist[self.imageindex][:-4]
-                # ]
-                # TODO: check if the record is empty
-                # TODO: ideally we need to dynamically generate the widgets to host metadata
-                # maybe no worth to display all of them - add some fields ina white/black list
                 record = self.imageMetadata.iloc[self.imageindex]
-                #print(" #################### " )
-                #print("record:", record)
-                #print(" #################### " )
-                
                 self.imagemetadata_gui.metadata_scroll_area.setEnabled(True)
-            
+
                 if len(record) != 0:
-                    main_layout = QVBoxLayout()
-                    time_layout = QHBoxLayout()
-                    time_label = QLabel("Time")
-                    data_time = ExtendedDateTimeEdit()
-                    data_time.setDateTime(record.name)
-                    data_time.setMaximumSize(QSize(250, 16777215))
-                    data_time.setMinimumWidth(160)
-                    data_time.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
-                    data_time.setReadOnly(True)
-                    data_time.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
-                    time_layout.addWidget(time_label)
-                    spacer = QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
-                    time_layout.addItem(spacer)
-                    time_layout.addWidget(data_time)
-                    main_layout.addLayout(time_layout)
-                    for i in self.imageMetadata.columns:
-                        # print(i, record[i], type(record[i]))
-                        item_layout = QHBoxLayout()
-                        label = QLabel(i)
-                        if i == "Imagename":
-                            line_edit = QLabel()
-                            line_edit.setText(
-                                '<a href="file://%s">%s</a>'
-                                % (
-                                    os.path.join(
-                                        self.dirname, self.imageMetadata["Imagename"].iloc[self.imageindex]+".jpg"),
-                                    str(record["Imagename"]),
-                                )
-                            )
-                            line_edit.setOpenExternalLinks(True)
-                        else:
-                            if i == "Annotation" and isinstance(record[i], dict):
-                                occurrences = self.count_string_occurrences(record[i]["Species"])
-                                line_edit = QTextEdit()
-                                line_edit.setReadOnly(True)
-                                line_edit.setPlainText("\n".join([f"{string}: {count}" for string, count in occurrences.items()]))
-                            else:
-                                line_edit = QLineEdit(str(record[i]))
-                                line_edit.setReadOnly(True)
-                        line_edit.setMaximumSize(QSize(250, 16777215))
-                        
-                        line_edit.setMinimumWidth(160)
-                        line_edit.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
-                        item_layout.addWidget(label)
-                        spacer = QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum)
-                        item_layout.addItem(spacer)
-                        item_layout.addWidget(line_edit)
-                        main_layout.addLayout(item_layout)
-                        
-                        
-                        
-                    self.imagemetadata_gui.metadata_scroll_area.setWidgetResizable(True)
-                    scroll_widget = QWidget()
-                    scroll_widget.setLayout(main_layout)
-                    self.imagemetadata_gui.metadata_scroll_area.setWidget(scroll_widget)
-                    
+                    self._update_metadata_panel(record)
+
                     self.w.longitude.setText(
                         str(round(record["habcam_lon"], 8))
                     )
