@@ -131,8 +131,7 @@ class Ui_paramscale(object):
         self.manual.setObjectName("manual")
         self.verticalLayout_2 = QtWidgets.QVBoxLayout(self.manual)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
-        self.webView = QtWebEngineWidgets.QWebEngineView(self.manual)
-        self.webView.setUrl(QtCore.QUrl("about:blank"))
+        self.webView = QtWidgets.QTextBrowser(self.manual)
         self.webView.setObjectName("webView")
         self.verticalLayout_2.addWidget(self.webView)
         self.tabWidget.addTab(self.manual, "")
@@ -202,5 +201,4 @@ class Ui_paramscale(object):
         self.run.setText(_translate("paramscale", "Run"))
         self.exit.setText(_translate("paramscale", "Close"))
         self.add_output.setText(_translate("paramscale", "Add Geomorphic forms into layer tree"))
-from qgis.PyQt import QtWebEngineWidgets
 import groundtruther.resources_rc

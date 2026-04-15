@@ -110,8 +110,7 @@ class Ui_geomorphon(object):
         self.manual.setObjectName("manual")
         self.verticalLayout_2 = QtWidgets.QVBoxLayout(self.manual)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
-        self.webView = QtWebEngineWidgets.QWebEngineView(self.manual)
-        self.webView.setUrl(QtCore.QUrl("about:blank"))
+        self.webView = QtWidgets.QTextBrowser(self.manual)
         self.webView.setObjectName("webView")
         self.verticalLayout_2.addWidget(self.webView)
         self.tabWidget.addTab(self.manual, "")
@@ -169,5 +168,4 @@ class Ui_geomorphon(object):
         self.reload_layers.setText(_translate("geomorphon", "..."))
         self.exit.setText(_translate("geomorphon", "Close"))
         self.add_output.setText(_translate("geomorphon", "Add Geomorphic forms into layer tree"))
-from qgis.PyQt import QtWebEngineWidgets
 import groundtruther.resources_rc
