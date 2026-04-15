@@ -13,31 +13,31 @@ class HabCam(BaseModel):
 class Mbes(BaseModel):
     """docstring"""
 
-    soundings: FilePath = None
+    soundings: Optional[FilePath] = None
 
 
 class Export(BaseModel):
     """docstring"""
 
-    kmldir: DirectoryPath = None
-    # vrtdir: DirectoryPath = None
+    kmldir: Optional[DirectoryPath] = None
+    # vrtdir: Optional[DirectoryPath] = None
 
 
 class Processing(BaseModel):
     """docstring"""
     gpu_avaibility: bool = False
-    grass_api_endpoint: AnyUrl = None
+    grass_api_endpoint: Optional[AnyUrl] = None
 
 # class Mapviewer(BaseModel):
 #     """docstring"""
 
-#     basemap: AnyUrl = None
+#     basemap: Optional[AnyUrl] = None
 
 
 class Filesystem(BaseModel):
     """docstring"""
 
-    filemanager: FilePath = None
+    filemanager: Optional[FilePath] = None
 
 
 class HabcamSettings(BaseModel):

@@ -6,7 +6,10 @@ from pathlib import Path
 import yaml
 from starlette.templating import Jinja2Templates
 
-from pydantic.error_wrappers import ValidationError
+try:
+    from pydantic.error_wrappers import ValidationError  # pydantic v1
+except ImportError:
+    from pydantic import ValidationError  # pydantic v2
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox
 
@@ -265,18 +268,22 @@ class ConfigDialog(QDialog, AppSettings):
 
     def get_gui_settings(self):
         """Return a settings dict built from the current form field values."""
+        def _opt(text):
+            """Return None for empty/whitespace strings, else the stripped text."""
+            return text.strip() or None
+
         return {
-            "Filesystem": {"filemanager": self.filemanager.text() or None},
+            "Filesystem": {"filemanager": _opt(self.filemanager.text())},
             "HabCam": {
-                "imagepath": self.image_path.text(),
-                "imagemetadata": self.metadata_path.text(),
-                "imageannotation": self.imageannotation_path.text(),
+                "imagepath": self.image_path.text().strip(),
+                "imagemetadata": self.metadata_path.text().strip(),
+                "imageannotation": _opt(self.imageannotation_path.text()),
             },
-            "Mbes": {"soundings": self.mbes_path.text()},
-            "Export": {"kmldir": self.kml_path.text()},
+            "Mbes": {"soundings": _opt(self.mbes_path.text())},
+            "Export": {"kmldir": _opt(self.kml_path.text())},
             "Processing": {
                 "gpu_avaibility": self.gpu_avaibility_value,
-                "grass_api_endpoint": self.grass_api_endpoint.text(),
+                "grass_api_endpoint": _opt(self.grass_api_endpoint.text()),
             },
         }
 
