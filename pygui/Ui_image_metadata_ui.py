@@ -172,7 +172,7 @@ class Ui_imagemetadata(object):
         self.dateTimeEdit.setFocusPolicy(QtCore.Qt.FocusPolicy.NoFocus)
         self.dateTimeEdit.setStyleSheet("")
         self.dateTimeEdit.setReadOnly(True)
-        self.dateTimeEdit.setButtonSymbols(QtWidgets.QAbstractSpinBox.NoButtons)
+        self.dateTimeEdit.setButtonSymbols(QtWidgets.QAbstractSpinBox.ButtonSymbols.NoButtons)
         self.dateTimeEdit.setDateTime(QtCore.QDateTime(QtCore.QDate(2000, 1, 1), QtCore.QTime(0, 0, 0)))
         self.dateTimeEdit.setObjectName("dateTimeEdit")
         self.gridLayout.addWidget(self.dateTimeEdit, 1, 1, 1, 1)

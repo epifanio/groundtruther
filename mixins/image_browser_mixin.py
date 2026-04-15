@@ -314,7 +314,7 @@ class ImageBrowserMixin:
             QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Preferred)
         self._meta_time_widget.setReadOnly(True)
         self._meta_time_widget.setButtonSymbols(
-            QtWidgets.QAbstractSpinBox.NoButtons)
+            QtWidgets.QAbstractSpinBox.ButtonSymbols.NoButtons)
         time_row.addWidget(self._meta_time_widget)
         main_layout.addLayout(time_row)
 

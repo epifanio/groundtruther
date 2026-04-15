@@ -148,7 +148,7 @@ class Ui_MainWindow(object):
         self.range = QtWidgets.QSpinBox(self.groupBox_6)
         self.range.setAccelerated(True)
         self.range.setMaximum(900000)
-        self.range.setStepType(QtWidgets.QAbstractSpinBox.AdaptiveDecimalStepType)
+        self.range.setStepType(QtWidgets.QAbstractSpinBox.StepType.AdaptiveDecimalStepType)
         self.range.setProperty("value", 200)
         self.range.setObjectName("range")
         self.horizontalLayout_13.addWidget(self.range)
