@@ -141,7 +141,7 @@ class GrassTools(QMainWindow):
         # self.grassWidgetContents.addToolBar(editToolBar)
         # Using a QToolBar object and a toolbar area
         # helpToolBar = QToolBar("Help", self.grassWidgetContents)
-        # self.grassWidgetContents.addToolBar(Qt.LeftToolBarArea, helpToolBar)
+        # self.grassWidgetContents.addToolBar(Qt.ToolBarArea.LeftToolBarArea, helpToolBar)
         
         #
         # self.geomorphon_dialog = GeoMorphonDialog(self)
