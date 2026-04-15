@@ -39,7 +39,7 @@ class Ui_appsettings(object):
         font = QtGui.QFont()
         font.setStyleStrategy(QtGui.QFont.PreferDefault)
         self.image_path_label.setFont(font)
-        self.image_path_label.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.image_path_label.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
         self.image_path_label.setAutoFillBackground(False)
         self.image_path_label.setObjectName("image_path_label")
         self.horizontalLayout.addWidget(self.image_path_label)

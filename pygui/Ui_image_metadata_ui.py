@@ -110,7 +110,7 @@ class Ui_imagemetadata(object):
         font = QtGui.QFont()
         font.setStyleStrategy(QtGui.QFont.PreferDefault)
         self.label_22.setFont(font)
-        self.label_22.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.label_22.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
         self.label_22.setAutoFillBackground(False)
         self.label_22.setObjectName("label_22")
         self.gridLayout.addWidget(self.label_22, 0, 0, 1, 1)

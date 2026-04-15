@@ -167,7 +167,7 @@ class Ui_Form(object):
         self.horizontalLayout_6 = QtWidgets.QHBoxLayout()
         self.horizontalLayout_6.setObjectName("horizontalLayout_6")
         self.Tessellate = QtWidgets.QCheckBox(self.kml_marker)
-        self.Tessellate.setLayoutDirection(QtCore.Qt.LeftToRight)
+        self.Tessellate.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
         self.Tessellate.setText("")
         self.Tessellate.setObjectName("Tessellate")
         self.horizontalLayout_6.addWidget(self.Tessellate)
