@@ -34,7 +34,7 @@ class AppSettings(QWidget, Ui_appsettings):
             self.metadata_path.setText(fileName)
 
     def set_image_path(self):    
-        options = QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly
+        options = QFileDialog.Option.DontResolveSymlinks | QFileDialog.Option.ShowDirsOnly
         directory = QFileDialog.getExistingDirectory(self,
                 "QFileDialog.getExistingDirectory()",
                 self.image_path.text(), options=options)

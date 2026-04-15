@@ -214,7 +214,7 @@ class ConfigDialog(QDialog, AppSettings):
     def set_image_path(self):
         directory = QFileDialog.getExistingDirectory(
             self, "Set HabCam image directory", self.image_path.text(),
-            QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly,
+            QFileDialog.Option.DontResolveSymlinks | QFileDialog.Option.ShowDirsOnly,
         )
         if directory:
             self.image_path.setText(directory)
@@ -246,7 +246,7 @@ class ConfigDialog(QDialog, AppSettings):
     def set_kml_path(self):
         directory = QFileDialog.getExistingDirectory(
             self, "Set KML export directory", self.kml_path.text(),
-            QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly,
+            QFileDialog.Option.DontResolveSymlinks | QFileDialog.Option.ShowDirsOnly,
         )
         if directory:
             self.kml_path.setText(directory)
@@ -254,7 +254,7 @@ class ConfigDialog(QDialog, AppSettings):
     def set_vrt_path(self):
         directory = QFileDialog.getExistingDirectory(
             self, "Set VRT export directory", self.vrt_path.text(),
-            QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly,
+            QFileDialog.Option.DontResolveSymlinks | QFileDialog.Option.ShowDirsOnly,
         )
         if directory:
             self.vrt_path.setText(directory)
