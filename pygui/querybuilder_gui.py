@@ -36,7 +36,10 @@ from pyproj import Proj
 from scipy.spatial import ConvexHull
 from scipy import stats
 import numpy as np
-import sip
+try:
+    from PyQt6 import sip  # PyQt6 / QGIS 4
+except ImportError:
+    import sip  # PyQt5 / QGIS 3
 # import cuspatial
 try:
     import cudf
