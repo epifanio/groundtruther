@@ -233,8 +233,8 @@ class Ui_GRASSAPI(object):
 "            border-radius: 1px;\n"
 "            background-color: rgb(51, 209, 122);\n"
 "            }")
-        self.frame.setFrameShape(QtWidgets.QFrame.Shape.StyledPanel)
-        self.frame.setFrameShadow(QtWidgets.QFrame.Shadow.Raised)
+        self.frame.setFrameShape(QtWidgets.QFrame.StyledPanel)
+        self.frame.setFrameShadow(QtWidgets.QFrame.Raised)
         self.frame.setObjectName("frame")
         self.horizontalLayout_8.addWidget(self.frame)
         self.exit = QtWidgets.QPushButton(GRASSAPI)

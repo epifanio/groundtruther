@@ -1,14 +1,14 @@
 ---
 Filesystem:
-    filemanager: C:/Users/Field/Downloads/groundtruther_test_dataset/groundtruther_test_dataset/mbes_2015.parquet
+    filemanager: 
 HabCam:
-    imagepath: /home/epinux/dev/PHD/letsmoveon/Groundtruther/data/imgs_jpg
-    imagemetadata: /home/epinux/dev/PHD/letsmoveon/Groundtruther/data/imagemetadata.pq
-    imageannotation: /home/epinux/Desktop/test_datasets/groundtruther_test_dataset/ccom_detector.csv
+    imagepath: C:/Users/massi/DEV/QGIS_PLUGIN/groundtruther_test_dataset/image_subset
+    imagemetadata: C:/Users/massi/DEV/QGIS_PLUGIN/groundtruther_test_dataset/test_imagemetadata.parquet
+    imageannotation: C:/Users/massi/DEV/QGIS_PLUGIN/groundtruther_test_dataset/test_detector_output.csv
 Mbes:
-    soundings: /home/epinux/dev/PHD/letsmoveon/Groundtruther/data/mbes_2015.parquet
+    soundings: C:/Users/massi/DEV/QGIS_PLUGIN/groundtruther_test_dataset/mbes_2015.parquet
 Export:
-    kmldir: /home/epinux/Downloads
+    kmldir: C:/Users/massi/DEV/QGIS_PLUGIN/groundtruther_test_dataset
 Processing:
     gpu_avaibility: False
     grass_api_endpoint: https://mbapi.wps.met.no

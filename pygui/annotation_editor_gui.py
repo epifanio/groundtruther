@@ -207,7 +207,7 @@ class AnnotationEditorWidget(QWidget):
 
         # --- Inline new-annotation form (hidden until box is drawn) ---
         self._new_ann_frame = QFrame()
-        self._new_ann_frame.setFrameShape(QFrame.Shape.StyledPanel)
+        self._new_ann_frame.setFrameShape(QFrame.StyledPanel)
         new_layout = QVBoxLayout(self._new_ann_frame)
         new_layout.setContentsMargins(4, 4, 4, 4)
         new_layout.setSpacing(4)
