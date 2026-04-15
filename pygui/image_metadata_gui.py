@@ -35,7 +35,7 @@ class ImageMetadata(QWidget, Ui_imagemetadata):
         self.copy_image_metadata.hide()
 
     def send_image_metadata_txt(self):
-        QgsMessageLog.logMessage("send_image_metadata_txt triggered", 'GroundTruther', Qgis.Information)
+        QgsMessageLog.logMessage("send_image_metadata_txt triggered", 'GroundTruther', Qgis.Info)
 
     def copy_image_metadata_txt(self):
-        QgsMessageLog.logMessage("copy_image_metadata_txt triggered", 'GroundTruther', Qgis.Information)
+        QgsMessageLog.logMessage("copy_image_metadata_txt triggered", 'GroundTruther', Qgis.Info)

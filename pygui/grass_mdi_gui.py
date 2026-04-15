@@ -222,7 +222,7 @@ class GrassTools(QMainWindow):
             self.grass_mdi.grass_layers.setItem(row, 1, empty_cell)  
             
     def add_query_result(self, result):
-        QgsMessageLog.logMessage(f"query result: {result}", 'GroundTruther', Qgis.Information)
+        QgsMessageLog.logMessage(f"query result: {result}", 'GroundTruther', Qgis.Info)
         result_dict = {}
         for dictionary in result:
             key = next(iter(dictionary))  # Get the key of the first level dictionary
@@ -289,7 +289,7 @@ class GrassTools(QMainWindow):
             log_exception("get_grass_layers: unexpected API response", exc)
             return []
 
-        QgsMessageLog.logMessage(f"grass layers: {grass_layers}", 'GroundTruther', Qgis.Information)
+        QgsMessageLog.logMessage(f"grass layers: {grass_layers}", 'GroundTruther', Qgis.Info)
         return grass_layers    
         # print(self.settings, grass_settings)
         
@@ -299,7 +299,7 @@ class GrassTools(QMainWindow):
         self.settings = self.parent.settings
         self.region_response = self.parent.region_response
         self.project = self.parent.project
-        QgsMessageLog.logMessage(f"region_response: {self.region_response}", 'GroundTruther', Qgis.Information)
+        QgsMessageLog.logMessage(f"region_response: {self.region_response}", 'GroundTruther', Qgis.Info)
     
     def onZoomInClicked(self):
         self.grass_mdi.gis_tool_report.zoomIn(1)

@@ -56,14 +56,14 @@ class SettingsMixin:
             if os.getenv("HBC_DEBUG") == "VERBOSE":
                 QgsMessageLog.logMessage(
                     f"image metadata columns: {self.imageMetadata.columns.tolist()}",
-                    'GroundTruther', Qgis.Information,
+                    'GroundTruther', Qgis.Info,
                 )
 
             self.imagemetadata_gui.metadata_scroll_area.setEnabled(True)
 
             if Path(self.imageannotationfile).is_file():
                 QgsMessageLog.logMessage(
-                    "Annotation file loaded", 'GroundTruther', Qgis.Information)
+                    "Annotation file loaded", 'GroundTruther', Qgis.Info)
                 self.w.actionAnnotation.setEnabled(True)
                 annotations_by_image = parse_annotation(self.imageannotationfile)
                 self.imageMetadata = img_mgr.attach_annotations(

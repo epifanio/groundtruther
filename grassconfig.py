@@ -99,7 +99,7 @@ class GrassConfigDialog(QDialog, GrassSettings):
             self.set_georef_file.setEnabled(True)
 
     def update_mapset(self, index):
-        QgsMessageLog.logMessage(f"update_mapset: {self.grass_location_list.itemText(index)}", 'GroundTruther', Qgis.Information)
+        QgsMessageLog.logMessage(f"update_mapset: {self.grass_location_list.itemText(index)}", 'GroundTruther', Qgis.Info)
         locationlist = self.get_location_list()
         if locationlist['status'] == 'SUCCESS':
             try:
@@ -183,7 +183,7 @@ class GrassConfigDialog(QDialog, GrassSettings):
             QgsMessageLog.logMessage(f"update_location failed: {locationlist['status']}", 'GroundTruther', Qgis.Warning)
 
     def create_new_grass_location(self):
-        QgsMessageLog.logMessage("create_new_grass_location triggered", 'GroundTruther', Qgis.Information)
+        QgsMessageLog.logMessage("create_new_grass_location triggered", 'GroundTruther', Qgis.Info)
         if self.choice_epsg.isChecked():
             results = self.create_location_epsg()
         else:
@@ -252,7 +252,7 @@ class GrassConfigDialog(QDialog, GrassSettings):
                     f'{endpoint}/api/create_location_file',
                     params=params, headers=headers, files=files)
             payload = response.json()
-            QgsMessageLog.logMessage(f"create_location_georef response: {payload}", 'GroundTruther', Qgis.Information)
+            QgsMessageLog.logMessage(f"create_location_georef response: {payload}", 'GroundTruther', Qgis.Info)
             self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
             self.set_status_color(payload.get('status', 'FAILED'))
             return payload
@@ -290,7 +290,7 @@ class GrassConfigDialog(QDialog, GrassSettings):
             response = requests.get(
                 f'{endpoint}/api/gisenv', params=params, headers=headers, timeout=30)
             payload = response.json()
-            QgsMessageLog.logMessage(f"set_grass_location response: {payload}", 'GroundTruther', Qgis.Information)
+            QgsMessageLog.logMessage(f"set_grass_location response: {payload}", 'GroundTruther', Qgis.Info)
             self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
             self.set_status_color(payload.get('status', 'FAILED'))
             if payload.get('status') == 'SUCCESS':
@@ -330,7 +330,7 @@ class GrassConfigDialog(QDialog, GrassSettings):
         fileName, _ = QFileDialog.getOpenFileName(
             self, "QFileDialog.getOpenFileName()", "", "All Files (*);;Tif Files (*.tif)", options=options)
         if fileName:
-            QgsMessageLog.logMessage(f"georef file selected: {fileName}", 'GroundTruther', Qgis.Information)
+            QgsMessageLog.logMessage(f"georef file selected: {fileName}", 'GroundTruther', Qgis.Info)
             # should first check if the file is a valid gereof file
             # try with gdal open?
             self.georef_file.setText(fileName)

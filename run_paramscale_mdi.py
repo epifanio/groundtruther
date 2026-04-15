@@ -44,7 +44,7 @@ class ParamScaleWidget(QWidget, Ui_paramscale):
         self.threadpool = QThreadPool()
         QgsMessageLog.logMessage(
             f"ParamScale: thread pool ready ({self.threadpool.maxThreadCount()} threads)",
-            'GroundTruther', Qgis.Information)
+            'GroundTruther', Qgis.Info)
         self.setupUi(self)
         self.module_name = 'paramscale'
         self.reload_layers.clicked.connect(self.get_rvr_list)

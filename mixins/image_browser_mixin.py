@@ -74,10 +74,10 @@ class MyImageView(pg.ImageView):
                 if item.sceneBoundingRect().contains(pos):
                     QgsMessageLog.logMessage(
                         f"Mouse position intersects GraphItem: {item}",
-                        'GroundTruther', Qgis.Information)
+                        'GroundTruther', Qgis.Info)
                     QgsMessageLog.logMessage(
                         f"GraphItem attribute: {item.getCustomAttribute()}",
-                        'GroundTruther', Qgis.Information)
+                        'GroundTruther', Qgis.Info)
                     self.mousePressEventSignal.emit(item.getCustomAttribute())
                     item.setPen('w')
                 else:
@@ -173,7 +173,7 @@ class ImageBrowserMixin:
 
     def set_image_index(self, lat: float, lon: float):
         QgsMessageLog.logMessage(
-            f"vquery at {lat}, {lon}", 'GroundTruther', Qgis.Information)
+            f"vquery at {lat}, {lon}", 'GroundTruther', Qgis.Info)
         index = self.getImageIndex(lon, lat)
         self.w.ImageIndexSlider.setValue(index)
 
@@ -261,7 +261,7 @@ class ImageBrowserMixin:
                         f"label={annotation['Species'][i]}, "
                         f"confidence={annotation['Confidence'][i]} "
                         f"(threshold={self.annotation_confidence_treshold})",
-                        'GroundTruther', Qgis.Information)
+                        'GroundTruther', Qgis.Info)
                     g = CustomGraphItem()
                     g.setCustomAttribute(annotation["Species"][i])
                     pos, adj, lines, symbols = self.build_box(bbox["bbox"])
@@ -276,7 +276,7 @@ class ImageBrowserMixin:
         else:
             QgsMessageLog.logMessage(
                 "no annotation found for current image",
-                'GroundTruther', Qgis.Information)
+                'GroundTruther', Qgis.Info)
             self.clear_image_annotation()
 
     def count_string_occurrences(self, string_list):

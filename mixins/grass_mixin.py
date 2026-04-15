@@ -38,7 +38,7 @@ class GrassIntegrationMixin:
         self.grass_dialog.exec()
         QgsMessageLog.logMessage(
             f"GRASS dialog closed, grassenabled={self.grass_dialog.grassenabled}",
-            'GroundTruther', Qgis.Information)
+            'GroundTruther', Qgis.Info)
         if self.grass_dialog.grassenabled:
             self.init_grass_contextual_menu()
 
@@ -96,13 +96,13 @@ class GrassIntegrationMixin:
         QgsMessageLog.logMessage(
             f"set_grass_region_from_raster: layer={iface.activeLayer()}, "
             f"info={get_layer_info(iface.activeLayer())}",
-            'GroundTruther', Qgis.Information)
+            'GroundTruther', Qgis.Info)
 
     def set_grass_region_from_vector(self):
         QgsMessageLog.logMessage(
             f"set_grass_region_from_vector: layer={iface.activeLayer()}, "
             f"info={get_layer_info(iface.activeLayer())}",
-            'GroundTruther', Qgis.Information)
+            'GroundTruther', Qgis.Info)
         layer = iface.activeLayer()
         if layer is None:
             return
@@ -112,7 +112,7 @@ class GrassIntegrationMixin:
             QgsMessageLog.logMessage(
                 f"Feature ID: {feature.id()}, Geometry: {feature.geometry().asWkt()}, "
                 f"Attributes: {feature.attributes()}",
-                'GroundTruther', Qgis.Information)
+                'GroundTruther', Qgis.Info)
             rect = feature.geometry().boundingBox()
             x_min.append(rect.xMinimum())
             y_min.append(rect.yMinimum())
@@ -122,13 +122,13 @@ class GrassIntegrationMixin:
             return
         bbox = [min(x_min), min(y_min), max(x_max), max(y_max)]
         QgsMessageLog.logMessage(
-            f"bbox_selection: {bbox}", 'GroundTruther', Qgis.Information)
+            f"bbox_selection: {bbox}", 'GroundTruther', Qgis.Info)
 
     def import_active_raster_layer_to_grass(self):
         QgsMessageLog.logMessage(
             f"import_active_raster_layer_to_grass: layer={iface.activeLayer()}, "
             f"info={get_layer_info(iface.activeLayer())}",
-            'GroundTruther', Qgis.Information)
+            'GroundTruther', Qgis.Info)
 
     def import_active_vector_layer_to_grass(self):
         geojson = convert_to_geojson_using_gdal(iface.activeLayer().source())
@@ -136,7 +136,7 @@ class GrassIntegrationMixin:
             f"import_active_vector_layer_to_grass – geojson ready, "
             f"endpoint: {self.grass_api_endpoint}\n"
             f"{geojson[:200] if isinstance(geojson, str) else geojson}",
-            'GroundTruther', Qgis.Information)
+            'GroundTruther', Qgis.Info)
 
     # ------------------------------------------------------------------ #
     # GRASS region                                                         #

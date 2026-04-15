@@ -37,7 +37,7 @@ import pyqtgraph as pg
 
 try:
     from qgis.core import Qgis, QgsMessageLog
-    def _log(msg, level=Qgis.Information):
+    def _log(msg, level=Qgis.Info):
         QgsMessageLog.logMessage(msg, 'GroundTruther', level)
 except ImportError:
     def _log(msg, level=None):

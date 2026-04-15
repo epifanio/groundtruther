@@ -46,7 +46,7 @@ class GeoMorphonWidget(QWidget, Ui_geomorphon):
         self.threadpool = QThreadPool()
         QgsMessageLog.logMessage(
             f"GeoMorphon: thread pool ready ({self.threadpool.maxThreadCount()} threads)",
-            'GroundTruther', Qgis.Information)
+            'GroundTruther', Qgis.Info)
         self.setupUi(self)
         self.module_name = 'geomorphon'
         self.reload_layers.clicked.connect(self.get_rvr_list)

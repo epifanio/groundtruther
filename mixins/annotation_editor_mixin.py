@@ -103,7 +103,7 @@ class AnnotationEditorMixin:
         ] = edited
         QgsMessageLog.logMessage(
             f"Annotation updated for image index {image_index}",
-            'GroundTruther', Qgis.Information,
+            'GroundTruther', Qgis.Info,
         )
 
     def _save_annotations(self):

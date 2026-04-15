@@ -127,7 +127,7 @@ class GroundTrutherDockWidget(
 
         QgsMessageLog.logMessage(
             f"GroundTruther dock widget initialised (iface: {iface})",
-            'GroundTruther', Qgis.Information)
+            'GroundTruther', Qgis.Info)
 
     # ------------------------------------------------------------------ #
     # UI construction                                                      #

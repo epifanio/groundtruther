@@ -23,7 +23,7 @@ class AppSettings(QWidget, Ui_appsettings):
         
 
     def print_val(self):
-        QgsMessageLog.logMessage(f"image_path: {self.image_path.text()}", 'GroundTruther', Qgis.Information)
+        QgsMessageLog.logMessage(f"image_path: {self.image_path.text()}", 'GroundTruther', Qgis.Info)
 
     def set_metadata_path(self):    
         options = QFileDialog.Options()

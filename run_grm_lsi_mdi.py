@@ -44,7 +44,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         self.threadpool = QThreadPool()
         QgsMessageLog.logMessage(
             f"GrmLsi: thread pool ready ({self.threadpool.maxThreadCount()} threads)",
-            'GroundTruther', Qgis.Information)
+            'GroundTruther', Qgis.Info)
         self.setupUi(self)
         self.add_output.hide()
         self.module_name = 'GRMLSI'

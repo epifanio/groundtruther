@@ -146,7 +146,7 @@ def send_layer_as_geojson(layer, api_endpoint):
                                                     "utf-8", layer.crs(), "GeoJSON")
     
     if error == QgsVectorFileWriter.NoError:
-        QgsMessageLog.logMessage("convert_to_geojson_using_gdal: write succeeded", 'GroundTruther', Qgis.Information)
+        QgsMessageLog.logMessage("convert_to_geojson_using_gdal: write succeeded", 'GroundTruther', Qgis.Info)
 
     
     # Read the GeoJSON data from the temporary file

@@ -138,7 +138,7 @@ class SaveKml(QWidget, Ui_Form):
     def SavetoPDF(self):
         filename = QFileDialog.getSaveFileName(self, 'Save to PDF')
         if filename:
-            QgsMessageLog.logMessage(f"SavetoPDF: {filename}", 'GroundTruther', Qgis.Information)
+            QgsMessageLog.logMessage(f"SavetoPDF: {filename}", 'GroundTruther', Qgis.Info)
             printer = QPrinter(QPrinter.HighResolution)
             printer.setPageSize(QPrinter.A4)
             printer.setColorMode(QPrinter.Color)
@@ -166,7 +166,7 @@ class SaveKml(QWidget, Ui_Form):
         #self.description.verticalScrollBar().setValue(
         #    self.description.verticalScrollBar().maximum()
         #)
-        QgsMessageLog.logMessage(f"selected_points_path={self.selected_points_path}, string={self.selected_points_string}", 'GroundTruther', Qgis.Information)
+        QgsMessageLog.logMessage(f"selected_points_path={self.selected_points_path}, string={self.selected_points_string}", 'GroundTruther', Qgis.Info)
 
     def font_size(self):
         self.description.setFontPointSize(float(self.fontsize.value()))
@@ -277,7 +277,7 @@ class SaveKml(QWidget, Ui_Form):
     @pyqtSlot(str)
     def testsignal_lat(self, message):
         # if not self.lock_location.isChecked():
-        QgsMessageLog.logMessage(f"testsignal_lat: lock_location={self.lock_location.isChecked()}", 'GroundTruther', Qgis.Information)
+        QgsMessageLog.logMessage(f"testsignal_lat: lock_location={self.lock_location.isChecked()}", 'GroundTruther', Qgis.Info)
         self.latitude.setText(message)
 
     def setLonValue(self, lon):
@@ -494,6 +494,6 @@ class SaveKml(QWidget, Ui_Form):
         kmldir = str(kmldirectory) + "/"
         # kmltosave = kmldir + self.kmlname.text() + ".kml"
         kmztosave = kmldir + self.kmlname.text() + ".kmz"
-        QgsMessageLog.logMessage(f"saving KMZ: {kmztosave}", 'GroundTruther', Qgis.Information)
+        QgsMessageLog.logMessage(f"saving KMZ: {kmztosave}", 'GroundTruther', Qgis.Info)
         kml.savekmz(kmztosave)
         # kmz = self.compress_kml(str(kmltosave), str(self.iconpath))
