@@ -18,9 +18,9 @@ class AnnotationEditorMixin:
         self.annotation_editor_dock = QtWidgets.QDockWidget("Edit Annotations", self.w)
         self.annotation_editor_dock.setWidget(self.annotation_editor)
         self.annotation_editor_dock.setAllowedAreas(
-            Qt.RightDockWidgetArea | Qt.LeftDockWidgetArea)
+            Qt.DockWidgetArea.RightDockWidgetArea | Qt.DockWidgetArea.LeftDockWidgetArea)
         self.annotation_editor_dock.hide()
-        self.w.addDockWidget(Qt.RightDockWidgetArea, self.annotation_editor_dock)
+        self.w.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.annotation_editor_dock)
 
         # Toggle button in the browser toolbar
         self._ann_editor_action = QtWidgets.QAction("Edit annotations", self.w)

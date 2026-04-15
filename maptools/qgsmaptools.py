@@ -111,7 +111,7 @@ class GCRTool(QgsMapToolEmitPoint):
         self.canvas = canvas
         QgsMapToolEmitPoint.__init__(self, self.canvas)
         self.rubberBand = QgsRubberBand(self.canvas)
-        self.rubberBand.setColor(QtCore.Qt.transparent)
+        self.rubberBand.setColor(QtCore.Qt.GlobalColor.transparent)
         self.rubberBand.setFillColor(QColor(0, 0, 255, 50))
 
         self.start_point = None

@@ -68,7 +68,7 @@ class MyImageView(pg.ImageView):
         self.plot_items = []
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             pos = event.pos()
             for item in self.plot_items:
                 if item.sceneBoundingRect().contains(pos):
@@ -306,12 +306,12 @@ class ImageBrowserMixin:
         time_row = QHBoxLayout()
         time_row.addWidget(QLabel("Time"))
         time_row.addItem(
-            QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+            QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
         self._meta_time_widget = ExtendedDateTimeEdit()
         self._meta_time_widget.setMaximumSize(QSize(250, 16777215))
         self._meta_time_widget.setMinimumWidth(160)
         self._meta_time_widget.setSizePolicy(
-            QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
+            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Preferred)
         self._meta_time_widget.setReadOnly(True)
         self._meta_time_widget.setButtonSymbols(
             QtWidgets.QAbstractSpinBox.NoButtons)
@@ -322,7 +322,7 @@ class ImageBrowserMixin:
             row = QHBoxLayout()
             row.addWidget(QLabel(col))
             row.addItem(
-                QSpacerItem(20, 20, QSizePolicy.Expanding, QSizePolicy.Minimum))
+                QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
             if col == "Imagename":
                 w = QLabel()
                 w.setOpenExternalLinks(True)
@@ -335,7 +335,7 @@ class ImageBrowserMixin:
                 w.setReadOnly(True)
             w.setMaximumWidth(250)
             w.setMinimumWidth(160)
-            w.setSizePolicy(QSizePolicy.MinimumExpanding, QSizePolicy.Preferred)
+            w.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Preferred)
             row.addWidget(w)
             main_layout.addLayout(row)
             self._meta_widgets[col] = w

@@ -191,16 +191,16 @@ class SaveKml(QWidget, Ui_Form):
             self.description.setFontUnderline(False)
 
     def align_left(self):
-        self.description.setAlignment(Qt.AlignLeft)
+        self.description.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
     def align_right(self):
-        self.description.setAlignment(Qt.AlignRight)
+        self.description.setAlignment(Qt.AlignmentFlag.AlignRight)
 
     def align_center(self):
-        self.description.setAlignment(Qt.AlignCenter)
+        self.description.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def align_justify(self):
-        self.description.setAlignment(Qt.AlignJustify)
+        self.description.setAlignment(Qt.AlignmentFlag.AlignJustify)
 
     @pyqtSlot(str)
     def from_main_imagepath_signal(self, image_path):
