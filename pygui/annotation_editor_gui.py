@@ -177,7 +177,7 @@ class AnnotationEditorWidget(QWidget):
 
         # --- Bounding-box list ---
         self._list = QListWidget()
-        self._list.setSelectionMode(QAbstractItemView.SingleSelection)
+        self._list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self._list.currentRowChanged.connect(self._on_row_changed)
         layout.addWidget(self._list)
@@ -207,7 +207,7 @@ class AnnotationEditorWidget(QWidget):
 
         # --- Inline new-annotation form (hidden until box is drawn) ---
         self._new_ann_frame = QFrame()
-        self._new_ann_frame.setFrameShape(QFrame.StyledPanel)
+        self._new_ann_frame.setFrameShape(QFrame.Shape.StyledPanel)
         new_layout = QVBoxLayout(self._new_ann_frame)
         new_layout.setContentsMargins(4, 4, 4, 4)
         new_layout.setSpacing(4)
