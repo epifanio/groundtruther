@@ -108,7 +108,7 @@ class Ui_imagemetadata(object):
         self.label_22 = QtWidgets.QLabel(self.scrollAreaWidgetContents)
         self.label_22.setMaximumSize(QtCore.QSize(100, 16777215))
         font = QtGui.QFont()
-        font.setStyleStrategy(QtGui.QFont.PreferDefault)
+        font.setStyleStrategy(QtGui.QFont.StyleStrategy.PreferDefault)
         self.label_22.setFont(font)
         self.label_22.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
         self.label_22.setAutoFillBackground(False)

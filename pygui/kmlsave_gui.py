@@ -174,9 +174,9 @@ class SaveKml(QWidget, Ui_Form):
     def bold_text(self):
         # print(dir(self.description)) 50 57 75
         if self.description.fontWeight() == 75:
-            self.description.setFontWeight(QFont.Normal)
+            self.description.setFontWeight(QFont.Weight.Normal)
         else:
-            self.description.setFontWeight(QFont.Bold)
+            self.description.setFontWeight(QFont.Weight.Bold)
 
     def italic_text(self):
         if self.description.fontItalic() == False:

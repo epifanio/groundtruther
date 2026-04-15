@@ -37,7 +37,7 @@ class Ui_appsettings(object):
         self.image_path_label = QtWidgets.QLabel(self.habcam_config_box)
         self.image_path_label.setMaximumSize(QtCore.QSize(90, 16777215))
         font = QtGui.QFont()
-        font.setStyleStrategy(QtGui.QFont.PreferDefault)
+        font.setStyleStrategy(QtGui.QFont.StyleStrategy.PreferDefault)
         self.image_path_label.setFont(font)
         self.image_path_label.setLayoutDirection(QtCore.Qt.LayoutDirection.LeftToRight)
         self.image_path_label.setAutoFillBackground(False)
