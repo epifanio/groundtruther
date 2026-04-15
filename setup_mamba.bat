@@ -35,7 +35,7 @@ if %ERRORLEVEL% EQU 0 (
     mamba env update --name %ENV_NAME% --file "%ENV_FILE%" --prune
 ) else (
     echo  Creating environment "%ENV_NAME%"...
-    mamba env create --file "%ENV_FILE%"
+    mamba env create --user --file "%ENV_FILE%"
 )
 
 if %ERRORLEVEL% NEQ 0 (
