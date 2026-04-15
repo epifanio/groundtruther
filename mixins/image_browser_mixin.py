@@ -17,9 +17,9 @@ from qgis.core import (
 )
 from qgis.gui import QgsVertexMarker
 
-from PyQt5.QtCore import Qt, QSize
-from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import (
+from qgis.PyQt.QtCore import Qt, QSize
+from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtWidgets import (
     QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QWidget,
     QSizePolicy, QSpacerItem, QTextEdit,
 )
@@ -74,10 +74,10 @@ class MyImageView(pg.ImageView):
                 if item.sceneBoundingRect().contains(pos):
                     QgsMessageLog.logMessage(
                         f"Mouse position intersects GraphItem: {item}",
-                        'GroundTruther', Qgis.Info)
+                        'GroundTruther', Qgis.Information)
                     QgsMessageLog.logMessage(
                         f"GraphItem attribute: {item.getCustomAttribute()}",
-                        'GroundTruther', Qgis.Info)
+                        'GroundTruther', Qgis.Information)
                     self.mousePressEventSignal.emit(item.getCustomAttribute())
                     item.setPen('w')
                 else:
@@ -173,7 +173,7 @@ class ImageBrowserMixin:
 
     def set_image_index(self, lat: float, lon: float):
         QgsMessageLog.logMessage(
-            f"vquery at {lat}, {lon}", 'GroundTruther', Qgis.Info)
+            f"vquery at {lat}, {lon}", 'GroundTruther', Qgis.Information)
         index = self.getImageIndex(lon, lat)
         self.w.ImageIndexSlider.setValue(index)
 
@@ -261,7 +261,7 @@ class ImageBrowserMixin:
                         f"label={annotation['Species'][i]}, "
                         f"confidence={annotation['Confidence'][i]} "
                         f"(threshold={self.annotation_confidence_treshold})",
-                        'GroundTruther', Qgis.Info)
+                        'GroundTruther', Qgis.Information)
                     g = CustomGraphItem()
                     g.setCustomAttribute(annotation["Species"][i])
                     pos, adj, lines, symbols = self.build_box(bbox["bbox"])
@@ -276,7 +276,7 @@ class ImageBrowserMixin:
         else:
             QgsMessageLog.logMessage(
                 "no annotation found for current image",
-                'GroundTruther', Qgis.Info)
+                'GroundTruther', Qgis.Information)
             self.clear_image_annotation()
 
     def count_string_occurrences(self, string_list):

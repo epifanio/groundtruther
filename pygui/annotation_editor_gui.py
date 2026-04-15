@@ -22,7 +22,7 @@ import csv
 import json
 import numpy as np
 
-from PyQt5.QtWidgets import (
+from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QListWidget, QListWidgetItem,
     QLabel, QInputDialog, QMessageBox, QFileDialog,
@@ -30,14 +30,14 @@ from PyQt5.QtWidgets import (
     QComboBox, QLineEdit, QDoubleSpinBox, QFrame,
     QGraphicsRectItem,
 )
-from PyQt5.QtCore import Qt, pyqtSignal, QObject, QEvent, QRectF
-from PyQt5.QtGui import QPen, QColor
+from qgis.PyQt.QtCore import Qt, pyqtSignal, QObject, QEvent, QRectF
+from qgis.PyQt.QtGui import QPen, QColor
 
 import pyqtgraph as pg
 
 try:
     from qgis.core import Qgis, QgsMessageLog
-    def _log(msg, level=Qgis.Info):
+    def _log(msg, level=Qgis.Information):
         QgsMessageLog.logMessage(msg, 'GroundTruther', level)
 except ImportError:
     def _log(msg, level=None):

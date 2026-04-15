@@ -17,9 +17,9 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 
-from PyQt5.QtCore import Qt, QSize, QSortFilterProxyModel, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QColor, QPixmap, QScreen
-from PyQt5.QtWidgets import (
+from qgis.PyQt.QtCore import Qt, QSize, QSortFilterProxyModel, pyqtSignal, pyqtSlot
+from qgis.PyQt.QtGui import QColor, QPixmap, QScreen
+from qgis.PyQt.QtWidgets import (
     QWidget, QApplication, QFileDialog,
     QVBoxLayout, QHBoxLayout, QGridLayout,
     QSizePolicy, QSpacerItem,
@@ -119,7 +119,7 @@ class Window(QWidget):
 
     def plot(self):
         if self.data is not None:
-            QgsMessageLog.logMessage(f"Window.plot data: {self.data}", 'GroundTruther', Qgis.Info)
+            QgsMessageLog.logMessage(f"Window.plot data: {self.data}", 'GroundTruther', Qgis.Information)
             self.figure.clear()
             self.figure.clf()
             if self.plot_hist_type == 'density_plot':
@@ -139,8 +139,8 @@ class Window(QWidget):
             # refresh canvas
             self.canvas.draw()
             if os.getenv("HBC_DEBUG") and os.getenv("HBC_DEBUG") == 'VERBOSE':
-                QgsMessageLog.logMessage(f"canvas attrs: {dir(self.canvas)}", 'GroundTruther', Qgis.Info)
-                QgsMessageLog.logMessage(f"figure attrs: {dir(self.figure)}", 'GroundTruther', Qgis.Info)
+                QgsMessageLog.logMessage(f"canvas attrs: {dir(self.canvas)}", 'GroundTruther', Qgis.Information)
+                QgsMessageLog.logMessage(f"figure attrs: {dir(self.figure)}", 'GroundTruther', Qgis.Information)
             # close the figure so that we don't create too many figure instances
             plt.close(fig)
         
@@ -433,7 +433,7 @@ class QueryBuilder(QWidget, Ui_Form):
 
     def getshape(self, index):
         self.shape = self.qb_shapeselection.itemText(index)
-        QgsMessageLog.logMessage(f"shape selected: {self.shape}", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage(f"shape selected: {self.shape}", 'GroundTruther', Qgis.Information)
         if self.shape == "Ellipse":
             self.qb_ellipsemajoraxis.show()
             self.qb_ellipseminoraxis.show()
@@ -550,7 +550,7 @@ class QueryBuilder(QWidget, Ui_Form):
         # Write the GeoJSON to a file
         
         geojson_file_path = str(pathlib.Path(self.settings["Export"]["kmldir"]) / 'sampling_ellipse.geojson')
-        QgsMessageLog.logMessage(f"writing sampling shape to: {geojson_file_path}", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage(f"writing sampling shape to: {geojson_file_path}", 'GroundTruther', Qgis.Information)
         # geojson_file_path = pathlib.Path(__file__).parent / 'tmp' / 'sampling_ellipse.geojson'
         with open(f"{geojson_file_path}", "w") as geojson_file:
             geojson.dump(feature, geojson_file)
@@ -586,7 +586,7 @@ class QueryBuilder(QWidget, Ui_Form):
                 int(self.qb_ellipseorientation.text()),
                 out_proj=4326,
             )  # 32619
-            QgsMessageLog.logMessage(f"Ellipse geom type: {type(geom)}", 'GroundTruther', Qgis.Info)
+            QgsMessageLog.logMessage(f"Ellipse geom type: {type(geom)}", 'GroundTruther', Qgis.Information)
         if self.shape == "Rectangle":
             geom_tuple = getRectangleCoords((float(self.qb_longitude.text()),
                                       float(self.qb_latitude.text())),
@@ -596,7 +596,7 @@ class QueryBuilder(QWidget, Ui_Form):
             geom = [list(values) + [values[0]] for values in zip(*geom_tuple)]
             geom = [list(i) for i in zip(*geom_tuple)]
             geom.append(geom[0])
-            QgsMessageLog.logMessage(f"Rectangle geom type: {type(geom)}", 'GroundTruther', Qgis.Info)
+            QgsMessageLog.logMessage(f"Rectangle geom type: {type(geom)}", 'GroundTruther', Qgis.Information)
         geom_array = np.array(geom)
         self.send_shape_to_canvas(geom_array.tolist())
         pp = Proj(
@@ -614,7 +614,7 @@ class QueryBuilder(QWidget, Ui_Form):
             polygon = np.array([xx, yy]).T
             point_selection_index = get_spatial_selection_cpu(points, polygon)
             self.point_selection_pd = self.point_df[point_selection_index]
-        QgsMessageLog.logMessage(f"point selection: {len(self.point_selection_pd)} points", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage(f"point selection: {len(self.point_selection_pd)} points", 'GroundTruther', Qgis.Information)
         # self.image_df
         img_x = self.image_df['Xutm_adj'].values
         img_y = self.image_df['Yutm_adj'].values
@@ -734,7 +734,7 @@ class QueryBuilder(QWidget, Ui_Form):
                 yy,
             )
             self.point_selection = self.point_df[result["geom"]]
-            QgsMessageLog.logMessage(f"point selection (GPU): {len(self.point_selection)} points", 'GroundTruther', Qgis.Info)
+            QgsMessageLog.logMessage(f"point selection (GPU): {len(self.point_selection)} points", 'GroundTruther', Qgis.Information)
             self.point_selection_pd = self.point_selection.to_pandas()
         except KeyError:
             QgsMessageLog.logMessage(

@@ -2,9 +2,9 @@ from qgis.core import *
 from qgis.gui import *
 from qgis.utils import *
 from qgis.PyQt.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+from qgis.PyQt.QtWidgets import *
+from qgis.PyQt.QtCore import *
+from qgis.PyQt.QtGui import *
 from qgis.core import (
     Qgis, QgsMessageLog,
     QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject,
@@ -52,7 +52,7 @@ class GRQueryTool(QgsMapTool):
         """
 
         text = self._get_cursor_data(e)
-        QgsMessageLog.logMessage(f"GRASS query tool: {text}", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage(f"GRASS query tool: {text}", 'GroundTruther', Qgis.Information)
         self.grass_raster_query.emit(text)
         lat, lon = self._get_cursor_position(e)
         self.query_position.emit(lat, lon)
@@ -148,7 +148,7 @@ class GCRTool(QgsMapToolEmitPoint):
         if r is not None:
             self.grass_computational_region.emit(r.yMinimum(), r.yMaximum(),
                                                  r.xMinimum(), r.xMaximum())
-            QgsMessageLog.logMessage(f"GRASS computational region set: {r}", 'GroundTruther', Qgis.Info)
+            QgsMessageLog.logMessage(f"GRASS computational region set: {r}", 'GroundTruther', Qgis.Information)
         self.reset()
 
     def canvasMoveEvent(self, e):
@@ -225,7 +225,7 @@ class QueryTool(QgsMapTool):
         """
 
         lat, lon = self._get_cursor_position(e)
-        QgsMessageLog.logMessage(f"Vector query tool: lat={lat}, lon={lon}", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage(f"Vector query tool: lat={lat}, lon={lon}", 'GroundTruther', Qgis.Information)
         self.query_position.emit(lat, lon)
 
 

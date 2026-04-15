@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QWidget
-from PyQt5.QtCore import QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
+from qgis.PyQt.QtWidgets import QWidget
+from qgis.PyQt.QtCore import QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
 from groundtruther.pygui.Ui_grm_lsi_ui import Ui_grm_lsi
 
 from qgis.core import Qgis, QgsMessageLog, QgsRasterLayer
@@ -44,7 +44,7 @@ class GrmLsiWidget(QWidget, Ui_grm_lsi):
         self.threadpool = QThreadPool()
         QgsMessageLog.logMessage(
             f"GrmLsi: thread pool ready ({self.threadpool.maxThreadCount()} threads)",
-            'GroundTruther', Qgis.Info)
+            'GroundTruther', Qgis.Information)
         self.setupUi(self)
         self.add_output.hide()
         self.module_name = 'GRMLSI'

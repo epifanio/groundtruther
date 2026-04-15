@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 import sys
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from qgis.PyQt.QtCore import *
+from qgis.PyQt.QtGui import *
+from qgis.PyQt.QtWidgets import *
 
 from groundtruther.pygui.Ui_app_settings_ui import Ui_appsettings
 import groundtruther.resources_rc
@@ -23,7 +23,7 @@ class AppSettings(QWidget, Ui_appsettings):
         
 
     def print_val(self):
-        QgsMessageLog.logMessage(f"image_path: {self.image_path.text()}", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage(f"image_path: {self.image_path.text()}", 'GroundTruther', Qgis.Information)
 
     def set_metadata_path(self):    
         options = QFileDialog.Options()

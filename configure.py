@@ -7,8 +7,8 @@ import yaml
 from starlette.templating import Jinja2Templates
 
 from pydantic.error_wrappers import ValidationError
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+from qgis.PyQt.QtCore import pyqtSignal
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from groundtruther.pygui.app_settings_gui import AppSettings
 from groundtruther.config_model import HabcamSettings
@@ -335,4 +335,4 @@ def get_settings2(config_path):
 def show_dialog():
     """Show a standalone configuration dialog (used outside the plugin)."""
     dialog = ConfigDialog()
-    dialog.exec_()
+    dialog.exec()

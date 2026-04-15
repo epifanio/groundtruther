@@ -4,8 +4,8 @@ import sys
 
 import sys
 import pandas as pd
-from PyQt5.QtWidgets import QApplication, QTableView
-from PyQt5.QtCore import QAbstractTableModel, Qt, pyqtProperty
+from qgis.PyQt.QtWidgets import QApplication, QTableView
+from qgis.PyQt.QtCore import QAbstractTableModel, Qt, pyqtProperty
 
 
 class pandasModel(QAbstractTableModel):

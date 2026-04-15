@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QWidget
-from PyQt5.QtCore import QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
+from qgis.PyQt.QtWidgets import QWidget
+from qgis.PyQt.QtCore import QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
 from groundtruther.pygui.Ui_paramscale_ui import Ui_paramscale
 
 from qgis.core import Qgis, QgsMessageLog, QgsRasterLayer
@@ -44,7 +44,7 @@ class ParamScaleWidget(QWidget, Ui_paramscale):
         self.threadpool = QThreadPool()
         QgsMessageLog.logMessage(
             f"ParamScale: thread pool ready ({self.threadpool.maxThreadCount()} threads)",
-            'GroundTruther', Qgis.Info)
+            'GroundTruther', Qgis.Information)
         self.setupUi(self)
         self.module_name = 'paramscale'
         self.reload_layers.clicked.connect(self.get_rvr_list)

@@ -253,10 +253,10 @@ class GroundTruther:
         Activate the query tool
         """
         self.iface.mapCanvas().setMapTool(self.pointTool)
-        QgsMessageLog.logMessage(f"query tool active, pluginIsActive={self.pluginIsActive}", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage(f"query tool active, pluginIsActive={self.pluginIsActive}", 'GroundTruther', Qgis.Information)
 
     def print_message_old(self, grass_raster_query: object):
-        QgsMessageLog.logMessage(f"grass_raster_query: {grass_raster_query}", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage(f"grass_raster_query: {grass_raster_query}", 'GroundTruther', Qgis.Information)
         if self.pluginIsActive:
             self.dockwidget.get_query_message(grass_raster_query)
     
@@ -459,7 +459,7 @@ class GroundTruther:
         if not self.pluginIsActive:
             self.pluginIsActive = True
 
-            QgsMessageLog.logMessage("** STARTING GroundTruther", 'GroundTruther', Qgis.Info)
+            QgsMessageLog.logMessage("** STARTING GroundTruther", 'GroundTruther', Qgis.Information)
 
             # dockwidget may not exist if:
             #    first run of plugin

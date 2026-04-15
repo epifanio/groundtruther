@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 import sys
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from qgis.PyQt.QtCore import *
+from qgis.PyQt.QtGui import *
+from qgis.PyQt.QtWidgets import *
 
 from groundtruther.pygui.Ui_grass_mdi_ui import Ui_grass_mdi
 
@@ -11,7 +11,7 @@ from groundtruther.run_geomorphon_mdi import GeoMorphonWidget
 from groundtruther.run_paramscale_mdi import ParamScaleWidget
 from groundtruther.run_grm_lsi_mdi import GrmLsiWidget
 
-from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QCheckBox, QMenu, QAction
+from qgis.PyQt.QtWidgets import QTableWidgetItem, QWidget, QCheckBox, QMenu, QAction
 import requests
 from qgis.core import Qgis, QgsMessageLog
 from groundtruther.configure import log_exception
@@ -222,7 +222,7 @@ class GrassTools(QMainWindow):
             self.grass_mdi.grass_layers.setItem(row, 1, empty_cell)  
             
     def add_query_result(self, result):
-        QgsMessageLog.logMessage(f"query result: {result}", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage(f"query result: {result}", 'GroundTruther', Qgis.Information)
         result_dict = {}
         for dictionary in result:
             key = next(iter(dictionary))  # Get the key of the first level dictionary
@@ -289,7 +289,7 @@ class GrassTools(QMainWindow):
             log_exception("get_grass_layers: unexpected API response", exc)
             return []
 
-        QgsMessageLog.logMessage(f"grass layers: {grass_layers}", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage(f"grass layers: {grass_layers}", 'GroundTruther', Qgis.Information)
         return grass_layers    
         # print(self.settings, grass_settings)
         
@@ -299,7 +299,7 @@ class GrassTools(QMainWindow):
         self.settings = self.parent.settings
         self.region_response = self.parent.region_response
         self.project = self.parent.project
-        QgsMessageLog.logMessage(f"region_response: {self.region_response}", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage(f"region_response: {self.region_response}", 'GroundTruther', Qgis.Information)
     
     def onZoomInClicked(self):
         self.grass_mdi.gis_tool_report.zoomIn(1)

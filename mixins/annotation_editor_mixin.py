@@ -1,6 +1,6 @@
 """Annotation editor dock mixin."""
 from qgis.PyQt import QtWidgets
-from PyQt5.QtCore import Qt
+from qgis.PyQt.QtCore import Qt
 from qgis.core import Qgis, QgsMessageLog
 
 from groundtruther.pygui.annotation_editor_gui import AnnotationEditorWidget
@@ -103,7 +103,7 @@ class AnnotationEditorMixin:
         ] = edited
         QgsMessageLog.logMessage(
             f"Annotation updated for image index {image_index}",
-            'GroundTruther', Qgis.Info,
+            'GroundTruther', Qgis.Information,
         )
 
     def _save_annotations(self):

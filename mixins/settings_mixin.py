@@ -56,14 +56,14 @@ class SettingsMixin:
             if os.getenv("HBC_DEBUG") == "VERBOSE":
                 QgsMessageLog.logMessage(
                     f"image metadata columns: {self.imageMetadata.columns.tolist()}",
-                    'GroundTruther', Qgis.Info,
+                    'GroundTruther', Qgis.Information,
                 )
 
             self.imagemetadata_gui.metadata_scroll_area.setEnabled(True)
 
             if Path(self.imageannotationfile).is_file():
                 QgsMessageLog.logMessage(
-                    "Annotation file loaded", 'GroundTruther', Qgis.Info)
+                    "Annotation file loaded", 'GroundTruther', Qgis.Information)
                 self.w.actionAnnotation.setEnabled(True)
                 annotations_by_image = parse_annotation(self.imageannotationfile)
                 self.imageMetadata = img_mgr.attach_annotations(
@@ -94,7 +94,7 @@ class SettingsMixin:
         """
         dialog = ConfigDialog()
         dialog.settings_saved.connect(self._apply_settings)
-        dialog.exec_()
+        dialog.exec()
 
     def _open_config_dialog(self):
         """Open the config dialog without connecting to ``_apply_settings``.
@@ -103,4 +103,4 @@ class SettingsMixin:
         The caller is responsible for re-reading settings afterwards.
         """
         dialog = ConfigDialog()
-        dialog.exec_()
+        dialog.exec()

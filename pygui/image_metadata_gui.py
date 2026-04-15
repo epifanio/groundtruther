@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 import sys
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from qgis.PyQt.QtCore import *
+from qgis.PyQt.QtGui import *
+from qgis.PyQt.QtWidgets import *
 
 from groundtruther.pygui.Ui_image_metadata_ui import Ui_imagemetadata
 from qgis.core import Qgis, QgsMessageLog
@@ -35,7 +35,7 @@ class ImageMetadata(QWidget, Ui_imagemetadata):
         self.copy_image_metadata.hide()
 
     def send_image_metadata_txt(self):
-        QgsMessageLog.logMessage("send_image_metadata_txt triggered", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage("send_image_metadata_txt triggered", 'GroundTruther', Qgis.Information)
 
     def copy_image_metadata_txt(self):
-        QgsMessageLog.logMessage("copy_image_metadata_txt triggered", 'GroundTruther', Qgis.Info)
+        QgsMessageLog.logMessage("copy_image_metadata_txt triggered", 'GroundTruther', Qgis.Information)
