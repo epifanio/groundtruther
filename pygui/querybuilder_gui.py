@@ -36,10 +36,6 @@ from pyproj import Proj
 from scipy.spatial import ConvexHull
 from scipy import stats
 import numpy as np
-try:
-    from PyQt6 import sip  # PyQt6 / QGIS 4
-except ImportError:
-    import sip  # PyQt5 / QGIS 3
 # import cuspatial
 try:
     import cudf
@@ -323,8 +319,8 @@ class QueryBuilder(QWidget, Ui_Form):
         # print(dir(self.sc))
         self.plot_layout.removeWidget(self.plotnine_window)
         #self.plot_layout.removeWidget(self.plot_toolbar)
-        sip.delete(self.plotnine_window)
-        # sip.delete(self.plot_toolbar)
+        self.plotnine_window.deleteLater()
+        # self.plot_toolbar.deleteLater()
         self.plotnine_window = None
         # self.plot_toolbar = None
         self.plotnine_window = Window()
