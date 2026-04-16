@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+"""Legacy application-settings widget (superseded by the YAML-based ConfigDialog).
+
+``AppSettings`` is kept for reference but is not shown in the current UI.
+The active settings dialog is ``configure.ConfigDialog``.
+"""
 import sys
 
 from qgis.PyQt.QtCore import *

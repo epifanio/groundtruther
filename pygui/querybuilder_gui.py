@@ -1,4 +1,16 @@
 #!/usr/bin/env python
+"""Backscatter / seafloor query builder panel.
+
+``QueryBuilder`` is a ``QWidget`` tab embedded in the main dock.  It loads
+a soundings CSV (configured in Settings), lets the user draw spatial
+selection shapes (ellipse, rectangle, convex-hull polygon) on a 2-D scatter
+plot, computes summary statistics, and renders 3-D scatter and distribution
+plots.  Results (plot images, selected-point coordinates) can be forwarded
+to the KML report builder via pyqtSignal.
+
+GPU acceleration (cudf / cuspatial) is used automatically when available;
+the code falls back to CPU (scipy / pandas) otherwise.
+"""
 import sys
 import os
 # import tempfile

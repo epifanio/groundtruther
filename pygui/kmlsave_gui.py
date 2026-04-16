@@ -1,4 +1,19 @@
 #!/usr/bin/env python
+"""KML/KMZ report-builder panel.
+
+``SaveKml`` is a ``QWidget`` tab embedded in the main dock.  It lets the user
+compose a rich-text description (with images and metadata tables embedded as
+HTML), assign KML styling (icon, line/label/polygon colours and alpha), and
+save the result as a geo-referenced KMZ file to the configured export
+directory.
+
+Key signals received from the dockwidget:
+  - ``send_image_path`` → ``from_main_imagepath_signal`` — current image path
+  - ``send_imagemetadata_string`` → ``from_main_imagemetadata_signal`` — HTML metadata table
+
+Signals forwarded from the QueryBuilder:
+  - ``send_2dgraph_path``, ``send_3dgraph_path``, ``send_selected_points_path``
+"""
 import sys
 
 from qgis.PyQt.QtCore import Qt, pyqtSignal, pyqtSlot
@@ -52,6 +67,8 @@ filem = "%s/conf/filem.conf" % (apppath)
 from groundtruther.config.config import config
 
 class SaveKml(QWidget, Ui_Form):
+    """Report-builder widget that saves a KMZ point with a rich-text description."""
+
     # procDone = pyqtSignal(str)
     def __init__(self, parent=None):
         super(SaveKml, self).__init__(parent)
