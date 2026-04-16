@@ -464,12 +464,30 @@ class GroundTruther:
                 pass
 
         if self.dockwidget is not None:
+            # Close pyqtgraph ImageView before C++ widget destruction so that
+            # ViewBox.AllViews is cleaned up while the scene is still valid.
+            # (removeDockWidget does not trigger closeEvent on a docked widget,
+            # so this must be done explicitly here.)
+            if hasattr(self.dockwidget, 'imv'):
+                try:
+                    if hasattr(self.dockwidget.imv, 'view'):
+                        self.dockwidget.imv.view.close()
+                    self.dockwidget.imv.close()
+                except Exception:
+                    pass
+
             if getattr(self.dockwidget, 'grass_dialog', None) is not None and self.dockwidget.grass_dialog.grassenabled:
                 self.iface.removeCustomActionForLayerType(self.dockwidget.action_import_raster)
                 self.iface.removeCustomActionForLayerType(self.dockwidget.action_set_computational_region_from_raster)
                 self.iface.removeCustomActionForLayerType(self.dockwidget.action_import_vector)
                 self.iface.removeCustomActionForLayerType(self.dockwidget.action_set_computational_region_from_vector)
             self.iface.removeDockWidget(self.dockwidget)
+            # Schedule C++ deletion for the next event-loop iteration (safe),
+            # then release the Python reference immediately.  Without this the
+            # old dockwidget is GC'd at an arbitrary later time — potentially
+            # mid-operation in the next plugin load — causing further crashes.
+            self.dockwidget.deleteLater()
+            self.dockwidget = None
         for action in self.actions:
             self.iface.removePluginMenu(
                 self.tr(u'&GroundTruther'),

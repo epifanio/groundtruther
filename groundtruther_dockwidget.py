@@ -220,6 +220,20 @@ class GroundTrutherDockWidget(
     # ------------------------------------------------------------------ #
 
     def closeEvent(self, event):
+        # Close the pyqtgraph ImageView FIRST, while the C++ QGraphicsScene
+        # is still alive.  pyqtgraph keeps a global ViewBox.AllViews registry;
+        # calling close() deregisters the ViewBox now so that Python's GC
+        # never tries to destroy a ViewBox wrapper whose underlying C++ scene
+        # is already gone — which causes an access-violation crash during the
+        # next plugin load.
+        if hasattr(self, 'imv'):
+            try:
+                if hasattr(self.imv, 'view'):
+                    self.imv.view.close()   # deregisters from ViewBox.AllViews
+                self.imv.close()
+            except Exception:
+                pass
+
         # Tear down annotation editor before Qt starts destroying widgets.
         if hasattr(self, 'annotation_editor'):
             try:
