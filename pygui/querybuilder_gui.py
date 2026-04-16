@@ -278,7 +278,7 @@ class QueryBuilder(QWidget, Ui_Form):
         self.density_plot_group_scaled.setText('Density-Group scaled')
         self.gridLayout_hist_opts.addWidget(self.density_plot_group_scaled, 0, 3, 1, 1)
         
-        #spacerItem5 = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+        #spacerItem5 = QSpacerItem(20, 40, QSizePolicy.Policy(1), QSizePolicy.Policy(7))
         #self.gridLayout_hist_opts.addItem(spacerItem5, 0, 4, 1, 1)
         
         self.gridLayout_hist_opts.addWidget(self.plot_button, 0, 4, 1, 1)
@@ -643,7 +643,7 @@ class QueryBuilder(QWidget, Ui_Form):
         #
         # self.searchcommands = QLineEdit("")
         # self.searchcommands.setObjectName(u"searchcommands")
-        # self.searchcommands.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        # self.searchcommands.setAlignment(Qt.AlignmentFlag(1))
         #
         # self.proxy_model.setSourceModel(self.source_model)
         # self.tableView.verticalHeader().setVisible(False)
@@ -673,7 +673,7 @@ class QueryBuilder(QWidget, Ui_Form):
 
         self.model_point.setData(xx, yy)
 
-        self.cursor = Qt.CursorShape.CrossCursor
+        self.cursor = Qt.CursorShape(2)  # CrossCursor
         self.graphicsView.setCursor(self.cursor)
 
         self.crosshair_v = pg.InfiniteLine(angle=90, movable=False)
@@ -748,7 +748,7 @@ class QueryBuilder(QWidget, Ui_Form):
         #
         # self.searchcommands = QLineEdit("")
         # self.searchcommands.setObjectName(u"searchcommands")
-        # self.searchcommands.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        # self.searchcommands.setAlignment(Qt.AlignmentFlag(1))
         #
         self.proxy_model.setSourceModel(self.source_model)
         self.tableView.verticalHeader().setVisible(False)

@@ -68,10 +68,10 @@ class MyImageView(pg.ImageView):
         self.plot_items = []
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            pos = event.pos()
+        if event.button() == Qt.MouseButton(1):
+            pos_f = event.position()  # QPointF required by QRectF.contains() in Qt6
             for item in self.plot_items:
-                if item.sceneBoundingRect().contains(pos):
+                if item.sceneBoundingRect().contains(pos_f):
                     QgsMessageLog.logMessage(
                         f"Mouse position intersects GraphItem: {item}",
                         'GroundTruther', Qgis.Info)
@@ -306,15 +306,15 @@ class ImageBrowserMixin:
         time_row = QHBoxLayout()
         time_row.addWidget(QLabel("Time"))
         time_row.addItem(
-            QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+            QSpacerItem(20, 20, QSizePolicy.Policy(7), QSizePolicy.Policy(1)))
         self._meta_time_widget = ExtendedDateTimeEdit()
         self._meta_time_widget.setMaximumSize(QSize(250, 16777215))
         self._meta_time_widget.setMinimumWidth(160)
         self._meta_time_widget.setSizePolicy(
-            QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Preferred)
+            QSizePolicy.Policy(3), QSizePolicy.Policy(5))
         self._meta_time_widget.setReadOnly(True)
         self._meta_time_widget.setButtonSymbols(
-            QtWidgets.QAbstractSpinBox.ButtonSymbols.NoButtons)
+            QtWidgets.QAbstractSpinBox.ButtonSymbols(2))
         time_row.addWidget(self._meta_time_widget)
         main_layout.addLayout(time_row)
 
@@ -322,7 +322,7 @@ class ImageBrowserMixin:
             row = QHBoxLayout()
             row.addWidget(QLabel(col))
             row.addItem(
-                QSpacerItem(20, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum))
+                QSpacerItem(20, 20, QSizePolicy.Policy(7), QSizePolicy.Policy(1)))
             if col == "Imagename":
                 w = QLabel()
                 w.setOpenExternalLinks(True)
@@ -335,7 +335,7 @@ class ImageBrowserMixin:
                 w.setReadOnly(True)
             w.setMaximumWidth(250)
             w.setMinimumWidth(160)
-            w.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Preferred)
+            w.setSizePolicy(QSizePolicy.Policy(3), QSizePolicy.Policy(5))
             row.addWidget(w)
             main_layout.addLayout(row)
             self._meta_widgets[col] = w

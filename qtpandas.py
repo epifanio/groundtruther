@@ -19,13 +19,13 @@ class pandasModel(QAbstractTableModel):
     def columnCount(self, parnet=None):
         return self._data.shape[1]
 
-    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
+    def data(self, index, role=Qt.ItemDataRole(0)):
         if index.isValid():
-            if role == Qt.ItemDataRole.DisplayRole:
+            if role == Qt.ItemDataRole(0):
                 return str(self._data.iloc[index.row(), index.column()])
         return None
 
     def headerData(self, col, orientation, role):
-        if orientation == Qt.Orientation.Horizontal and role == Qt.ItemDataRole.DisplayRole:
+        if orientation == Qt.Orientation(1) and role == Qt.ItemDataRole(0):
             return self._data.columns[col]
         return None

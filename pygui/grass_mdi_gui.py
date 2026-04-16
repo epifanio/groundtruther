@@ -79,7 +79,7 @@ class GrassTools(QMainWindow):
         self.r_gemorphon_window.setWidget(self.r_gemorphon)
         self.r_gemorphon_window.setToolTip("r.geomorphon")
         self.grass_mdi.grassTools.addSubWindow(self.r_gemorphon_window)
-        self.r_gemorphon_window.setWindowFlags(Qt.WindowType.WindowMinimizeButtonHint|Qt.WindowType.WindowMaximizeButtonHint)
+        self.r_gemorphon_window.setWindowFlags(Qt.WindowType(3072))
         self.r_gemorphon_window.hide()
         self.r_gemorphon.exit.clicked.connect(self.view_r_gemorphon)
         gemorphon_icon_path = ':/icons/qtui/icons/element-cell.gif'
@@ -100,7 +100,7 @@ class GrassTools(QMainWindow):
         self.r_paramscale_window.setWidget(self.r_paramscale)
         self.r_paramscale_window.setToolTip("r.param.scale")
         self.grass_mdi.grassTools.addSubWindow(self.r_paramscale_window)
-        self.r_paramscale_window.setWindowFlags(Qt.WindowType.WindowMinimizeButtonHint|Qt.WindowType.WindowMaximizeButtonHint)
+        self.r_paramscale_window.setWindowFlags(Qt.WindowType(3072))
         self.r_paramscale_window.hide()
         self.r_paramscale.exit.clicked.connect(self.view_r_paramscale)
         paramscale_icon_path = ':/icons/qtui/icons/element-cell.gif'
@@ -120,7 +120,7 @@ class GrassTools(QMainWindow):
         self.r_grm_lsi_window.setToolTip("r.grm.lsi")
         self.grass_mdi.grassTools.addSubWindow(self.r_grm_lsi_window)
         #self.r_grm_lsi_window.setWindowTitle("r.grm.lsi")
-        self.r_grm_lsi_window.setWindowFlags(Qt.WindowType.WindowMinimizeButtonHint|Qt.WindowType.WindowMaximizeButtonHint)
+        self.r_grm_lsi_window.setWindowFlags(Qt.WindowType(3072))
         self.r_grm_lsi_window.hide()
         self.r_grm_lsi.exit.clicked.connect(self.view_r_grm_lsi)
         grm_lsi_icon_path = ':/icons/qtui/icons/element-cell.gif'
@@ -162,7 +162,7 @@ class GrassTools(QMainWindow):
         self.grass_mdi.filterLineEdit.setPlaceholderText("Filter...")
         self.grass_mdi.filterLineEdit.textChanged.connect(self.filter_table)
         
-        self.grass_mdi.grass_layers.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.grass_mdi.grass_layers.setContextMenuPolicy(Qt.ContextMenuPolicy(3))
         self.grass_mdi.grass_layers.customContextMenuRequested.connect(self.show_context_menu)
         # self.grass_mdi.grass_layers.viewport().customContextMenuRequested.connect(self.show_context_menu)
 

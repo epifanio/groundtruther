@@ -174,9 +174,9 @@ class SaveKml(QWidget, Ui_Form):
     def bold_text(self):
         # print(dir(self.description)) 50 57 75
         if self.description.fontWeight() == 75:
-            self.description.setFontWeight(QFont.Weight.Normal)
+            self.description.setFontWeight(QFont.Weight(50))
         else:
-            self.description.setFontWeight(QFont.Weight.Bold)
+            self.description.setFontWeight(QFont.Weight(75))
 
     def italic_text(self):
         if self.description.fontItalic() == False:
@@ -191,16 +191,16 @@ class SaveKml(QWidget, Ui_Form):
             self.description.setFontUnderline(False)
 
     def align_left(self):
-        self.description.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.description.setAlignment(Qt.AlignmentFlag(1))
 
     def align_right(self):
-        self.description.setAlignment(Qt.AlignmentFlag.AlignRight)
+        self.description.setAlignment(Qt.AlignmentFlag(2))
 
     def align_center(self):
-        self.description.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.description.setAlignment(Qt.AlignmentFlag(132))
 
     def align_justify(self):
-        self.description.setAlignment(Qt.AlignmentFlag.AlignJustify)
+        self.description.setAlignment(Qt.AlignmentFlag(8))
 
     @pyqtSlot(str)
     def from_main_imagepath_signal(self, image_path):

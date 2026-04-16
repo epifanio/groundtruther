@@ -92,14 +92,14 @@ class _DrawEventFilter(QObject):
 
     def eventFilter(self, obj, event):
         t = event.type()
-        if t == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+        if t == QEvent.Type(2) and event.button() == Qt.MouseButton(1):
             self._active = True
             self.press.emit(event.pos())
             return True
-        if t == QEvent.MouseMove and self._active:
+        if t == QEvent.Type(5) and self._active:
             self.move.emit(event.pos())
             return True
-        if t == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
+        if t == QEvent.Type(3) and event.button() == Qt.MouseButton(1):
             if self._active:
                 self._active = False
                 self.release.emit(event.pos())
@@ -172,13 +172,13 @@ class AnnotationEditorWidget(QWidget):
         layout.setSpacing(6)
 
         title = QLabel("<b>Annotation Editor</b>")
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setAlignment(Qt.AlignmentFlag(132))
         layout.addWidget(title)
 
         # --- Bounding-box list ---
         self._list = QListWidget()
-        self._list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        self._list.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._list.setSelectionMode(QAbstractItemView.SelectionMode(1))
+        self._list.setSizePolicy(QSizePolicy.Policy(7), QSizePolicy.Policy(7))
         self._list.currentRowChanged.connect(self._on_row_changed)
         layout.addWidget(self._list)
 
@@ -207,7 +207,7 @@ class AnnotationEditorWidget(QWidget):
 
         # --- Inline new-annotation form (hidden until box is drawn) ---
         self._new_ann_frame = QFrame()
-        self._new_ann_frame.setFrameShape(QFrame.StyledPanel)
+        self._new_ann_frame.setFrameShape(QFrame.Shape(6))  # StyledPanel=6
         new_layout = QVBoxLayout(self._new_ann_frame)
         new_layout.setContentsMargins(4, 4, 4, 4)
         new_layout.setSpacing(4)
@@ -254,7 +254,7 @@ class AnnotationEditorWidget(QWidget):
             "Drag a ROI or its handles to resize.<br>"
             "Click a ROI to select it in the list.</small>"
         )
-        hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint.setAlignment(Qt.AlignmentFlag(132))
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
@@ -346,7 +346,7 @@ class AnnotationEditorWidget(QWidget):
         self._draw_filter.move.connect(self._on_draw_move)
         self._draw_filter.release.connect(self._on_draw_release)
         gv.installEventFilter(self._draw_filter)
-        gv.setCursor(Qt.CursorShape.CrossCursor)
+        gv.setCursor(Qt.CursorShape(2))
 
     def stop_draw_mode(self):
         """Disable rubber-band draw mode and restore normal navigation."""
@@ -526,7 +526,7 @@ class AnnotationEditorWidget(QWidget):
             gv.releaseMouse()
         except Exception:
             pass
-        gv.setCursor(Qt.CursorShape.ArrowCursor)
+        gv.setCursor(Qt.CursorShape(0))
 
         self._remove_preview()
         self._draw_start = None
