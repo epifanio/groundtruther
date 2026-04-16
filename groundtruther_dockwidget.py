@@ -29,7 +29,7 @@ from qgis.PyQt.QtCore import pyqtSignal
 from qgis.utils import iface
 from qgis.core import Qgis, QgsMessageLog, QgsProject
 
-from PyQt5.QtCore import Qt
+from qgis.PyQt.QtCore import Qt
 
 import pyqtgraph as pg
 
@@ -50,7 +50,7 @@ from groundtruther.mixins.grass_mixin import GrassIntegrationMixin
 from groundtruther.mixins.annotation_editor_mixin import AnnotationEditorMixin
 from groundtruther.mixins.settings_mixin import SettingsMixin
 
-from PyQt5.QtWidgets import QLabel, QLineEdit
+from qgis.PyQt.QtWidgets import QLabel, QLineEdit
 
 
 class GroundTrutherDockWidget(
@@ -156,8 +156,8 @@ class GroundTrutherDockWidget(
         self.image = QLabel()
         self.w.latitude = QLineEdit()
         self.w.longitude = QLineEdit()
-        self.w.longitude.setFocusPolicy(Qt.NoFocus)
-        self.w.latitude.setFocusPolicy(Qt.NoFocus)
+        self.w.longitude.setFocusPolicy(Qt.FocusPolicy(0))
+        self.w.latitude.setFocusPolicy(Qt.FocusPolicy(0))
         self.w.latitude.setFixedWidth(90)
         self.w.longitude.setFixedWidth(90)
         self.w.longitude.setText("0")

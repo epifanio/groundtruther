@@ -1,6 +1,5 @@
-from PyQt5.QtCore import QRegExp
-from PyQt5.QtGui import QRegExpValidator, QPalette, QColor
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox, QButtonGroup, QFrame
+from qgis.PyQt.QtGui import QPalette, QColor
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox, QButtonGroup, QFrame
 from pygui.grass_settings_gui import GrassSettings
 
 import requests
@@ -69,7 +68,7 @@ class GrassConfigDialog(QDialog, GrassSettings):
 
     def show_searchepsg_dialog(self):
         """docstring"""
-        self.searchepsg_dialog.exec_()
+        self.searchepsg_dialog.exec()
 
     def set_status_color(self, status):
         if status == "SUCCESS":
@@ -327,7 +326,7 @@ class GrassConfigDialog(QDialog, GrassSettings):
 
     def openFileNameDialog(self):
         options = QFileDialog.Options()
-        options |= QFileDialog.DontUseNativeDialog
+        options |= QFileDialog.Option.DontUseNativeDialog
         fileName, _ = QFileDialog.getOpenFileName(
             self, "QFileDialog.getOpenFileName()", "", "All Files (*);;Tif Files (*.tif)", options=options)
         if fileName:

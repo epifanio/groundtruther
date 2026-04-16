@@ -6,9 +6,12 @@ from pathlib import Path
 import yaml
 from starlette.templating import Jinja2Templates
 
-from pydantic.error_wrappers import ValidationError
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtWidgets import QDialog, QFileDialog, QMessageBox
+try:
+    from pydantic.error_wrappers import ValidationError  # pydantic v1
+except ImportError:
+    from pydantic import ValidationError  # pydantic v2
+from qgis.PyQt.QtCore import pyqtSignal
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox
 
 from groundtruther.pygui.app_settings_gui import AppSettings
 from groundtruther.config_model import HabcamSettings
@@ -214,7 +217,7 @@ class ConfigDialog(QDialog, AppSettings):
     def set_image_path(self):
         directory = QFileDialog.getExistingDirectory(
             self, "Set HabCam image directory", self.image_path.text(),
-            QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly,
+            QFileDialog.Option.DontResolveSymlinks | QFileDialog.Option.ShowDirsOnly,
         )
         if directory:
             self.image_path.setText(directory)
@@ -246,7 +249,7 @@ class ConfigDialog(QDialog, AppSettings):
     def set_kml_path(self):
         directory = QFileDialog.getExistingDirectory(
             self, "Set KML export directory", self.kml_path.text(),
-            QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly,
+            QFileDialog.Option.DontResolveSymlinks | QFileDialog.Option.ShowDirsOnly,
         )
         if directory:
             self.kml_path.setText(directory)
@@ -254,7 +257,7 @@ class ConfigDialog(QDialog, AppSettings):
     def set_vrt_path(self):
         directory = QFileDialog.getExistingDirectory(
             self, "Set VRT export directory", self.vrt_path.text(),
-            QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly,
+            QFileDialog.Option.DontResolveSymlinks | QFileDialog.Option.ShowDirsOnly,
         )
         if directory:
             self.vrt_path.setText(directory)
@@ -265,18 +268,22 @@ class ConfigDialog(QDialog, AppSettings):
 
     def get_gui_settings(self):
         """Return a settings dict built from the current form field values."""
+        def _opt(text):
+            """Return None for empty/whitespace strings, else the stripped text."""
+            return text.strip() or None
+
         return {
-            "Filesystem": {"filemanager": self.filemanager.text() or None},
+            "Filesystem": {"filemanager": _opt(self.filemanager.text())},
             "HabCam": {
-                "imagepath": self.image_path.text(),
-                "imagemetadata": self.metadata_path.text(),
-                "imageannotation": self.imageannotation_path.text(),
+                "imagepath": self.image_path.text().strip(),
+                "imagemetadata": self.metadata_path.text().strip(),
+                "imageannotation": _opt(self.imageannotation_path.text()),
             },
-            "Mbes": {"soundings": self.mbes_path.text()},
-            "Export": {"kmldir": self.kml_path.text()},
+            "Mbes": {"soundings": _opt(self.mbes_path.text())},
+            "Export": {"kmldir": _opt(self.kml_path.text())},
             "Processing": {
                 "gpu_avaibility": self.gpu_avaibility_value,
-                "grass_api_endpoint": self.grass_api_endpoint.text(),
+                "grass_api_endpoint": _opt(self.grass_api_endpoint.text()),
             },
         }
 
@@ -335,4 +342,4 @@ def get_settings2(config_path):
 def show_dialog():
     """Show a standalone configuration dialog (used outside the plugin)."""
     dialog = ConfigDialog()
-    dialog.exec_()
+    dialog.exec()

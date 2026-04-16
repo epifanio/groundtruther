@@ -1,10 +1,25 @@
 #!/usr/bin/env python
+"""KML/KMZ report-builder panel.
+
+``SaveKml`` is a ``QWidget`` tab embedded in the main dock.  It lets the user
+compose a rich-text description (with images and metadata tables embedded as
+HTML), assign KML styling (icon, line/label/polygon colours and alpha), and
+save the result as a geo-referenced KMZ file to the configured export
+directory.
+
+Key signals received from the dockwidget:
+  - ``send_image_path`` → ``from_main_imagepath_signal`` — current image path
+  - ``send_imagemetadata_string`` → ``from_main_imagemetadata_signal`` — HTML metadata table
+
+Signals forwarded from the QueryBuilder:
+  - ``send_2dgraph_path``, ``send_3dgraph_path``, ``send_selected_points_path``
+"""
 import sys
 
-from PyQt5.QtCore import Qt, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QColor, QFont
-from PyQt5.QtWidgets import QWidget, QFileDialog, QColorDialog
-from PyQt5.QtPrintSupport import QPrinter
+from qgis.PyQt.QtCore import Qt, pyqtSignal, pyqtSlot
+from qgis.PyQt.QtGui import QColor, QFont
+from qgis.PyQt.QtWidgets import QWidget, QFileDialog, QColorDialog
+from qgis.PyQt.QtPrintSupport import QPrinter
 from groundtruther.pygui.Ui_kmlsave_ui import Ui_Form
 import os
 import zipfile
@@ -52,6 +67,8 @@ filem = "%s/conf/filem.conf" % (apppath)
 from groundtruther.config.config import config
 
 class SaveKml(QWidget, Ui_Form):
+    """Report-builder widget that saves a KMZ point with a rich-text description."""
+
     # procDone = pyqtSignal(str)
     def __init__(self, parent=None):
         super(SaveKml, self).__init__(parent)
@@ -174,9 +191,9 @@ class SaveKml(QWidget, Ui_Form):
     def bold_text(self):
         # print(dir(self.description)) 50 57 75
         if self.description.fontWeight() == 75:
-            self.description.setFontWeight(QFont.Normal)
+            self.description.setFontWeight(QFont.Weight(50))
         else:
-            self.description.setFontWeight(QFont.Bold)
+            self.description.setFontWeight(QFont.Weight(75))
 
     def italic_text(self):
         if self.description.fontItalic() == False:
@@ -191,16 +208,16 @@ class SaveKml(QWidget, Ui_Form):
             self.description.setFontUnderline(False)
 
     def align_left(self):
-        self.description.setAlignment(Qt.AlignLeft)
+        self.description.setAlignment(Qt.AlignmentFlag(1))
 
     def align_right(self):
-        self.description.setAlignment(Qt.AlignRight)
+        self.description.setAlignment(Qt.AlignmentFlag(2))
 
     def align_center(self):
-        self.description.setAlignment(Qt.AlignCenter)
+        self.description.setAlignment(Qt.AlignmentFlag(132))
 
     def align_justify(self):
-        self.description.setAlignment(Qt.AlignJustify)
+        self.description.setAlignment(Qt.AlignmentFlag(8))
 
     @pyqtSlot(str)
     def from_main_imagepath_signal(self, image_path):

@@ -94,7 +94,7 @@ class SettingsMixin:
         """
         dialog = ConfigDialog()
         dialog.settings_saved.connect(self._apply_settings)
-        dialog.exec_()
+        dialog.exec()
 
     def _open_config_dialog(self):
         """Open the config dialog without connecting to ``_apply_settings``.
@@ -103,4 +103,4 @@ class SettingsMixin:
         The caller is responsible for re-reading settings afterwards.
         """
         dialog = ConfigDialog()
-        dialog.exec_()
+        dialog.exec()

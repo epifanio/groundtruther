@@ -1,4 +1,16 @@
 #!/usr/bin/env python
+"""Backscatter / seafloor query builder panel.
+
+``QueryBuilder`` is a ``QWidget`` tab embedded in the main dock.  It loads
+a soundings CSV (configured in Settings), lets the user draw spatial
+selection shapes (ellipse, rectangle, convex-hull polygon) on a 2-D scatter
+plot, computes summary statistics, and renders 3-D scatter and distribution
+plots.  Results (plot images, selected-point coordinates) can be forwarded
+to the KML report builder via pyqtSignal.
+
+GPU acceleration (cudf / cuspatial) is used automatically when available;
+the code falls back to CPU (scipy / pandas) otherwise.
+"""
 import sys
 import os
 # import tempfile
@@ -17,9 +29,9 @@ parent = os.path.dirname(current)
 sys.path.append(parent)
 
 
-from PyQt5.QtCore import Qt, QSize, QSortFilterProxyModel, pyqtSignal, pyqtSlot
-from PyQt5.QtGui import QColor, QPixmap, QScreen
-from PyQt5.QtWidgets import (
+from qgis.PyQt.QtCore import Qt, QSize, QSortFilterProxyModel, pyqtSignal, pyqtSlot
+from qgis.PyQt.QtGui import QColor, QPixmap, QScreen
+from qgis.PyQt.QtWidgets import (
     QWidget, QApplication, QFileDialog,
     QVBoxLayout, QHBoxLayout, QGridLayout,
     QSizePolicy, QSpacerItem,
@@ -36,7 +48,6 @@ from pyproj import Proj
 from scipy.spatial import ConvexHull
 from scipy import stats
 import numpy as np
-import sip
 # import cuspatial
 try:
     import cudf
@@ -279,7 +290,7 @@ class QueryBuilder(QWidget, Ui_Form):
         self.density_plot_group_scaled.setText('Density-Group scaled')
         self.gridLayout_hist_opts.addWidget(self.density_plot_group_scaled, 0, 3, 1, 1)
         
-        #spacerItem5 = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        #spacerItem5 = QSpacerItem(20, 40, QSizePolicy.Policy(1), QSizePolicy.Policy(7))
         #self.gridLayout_hist_opts.addItem(spacerItem5, 0, 4, 1, 1)
         
         self.gridLayout_hist_opts.addWidget(self.plot_button, 0, 4, 1, 1)
@@ -320,8 +331,8 @@ class QueryBuilder(QWidget, Ui_Form):
         # print(dir(self.sc))
         self.plot_layout.removeWidget(self.plotnine_window)
         #self.plot_layout.removeWidget(self.plot_toolbar)
-        sip.delete(self.plotnine_window)
-        # sip.delete(self.plot_toolbar)
+        self.plotnine_window.deleteLater()
+        # self.plot_toolbar.deleteLater()
         self.plotnine_window = None
         # self.plot_toolbar = None
         self.plotnine_window = Window()
@@ -644,7 +655,7 @@ class QueryBuilder(QWidget, Ui_Form):
         #
         # self.searchcommands = QLineEdit("")
         # self.searchcommands.setObjectName(u"searchcommands")
-        # self.searchcommands.setAlignment(Qt.AlignLeft)
+        # self.searchcommands.setAlignment(Qt.AlignmentFlag(1))
         #
         # self.proxy_model.setSourceModel(self.source_model)
         # self.tableView.verticalHeader().setVisible(False)
@@ -674,7 +685,7 @@ class QueryBuilder(QWidget, Ui_Form):
 
         self.model_point.setData(xx, yy)
 
-        self.cursor = Qt.CrossCursor
+        self.cursor = Qt.CursorShape(2)  # CrossCursor
         self.graphicsView.setCursor(self.cursor)
 
         self.crosshair_v = pg.InfiniteLine(angle=90, movable=False)
@@ -749,7 +760,7 @@ class QueryBuilder(QWidget, Ui_Form):
         #
         # self.searchcommands = QLineEdit("")
         # self.searchcommands.setObjectName(u"searchcommands")
-        # self.searchcommands.setAlignment(Qt.AlignLeft)
+        # self.searchcommands.setAlignment(Qt.AlignmentFlag(1))
         #
         self.proxy_model.setSourceModel(self.source_model)
         self.tableView.verticalHeader().setVisible(False)

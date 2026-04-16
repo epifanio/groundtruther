@@ -4,7 +4,7 @@
 
 [general]
 name=GroundTruther
-qgisMinimumVersion=3.0
+qgisMinimumVersion=4.0
 description=A toolset for Seafloor Caracterization
 version=0.4
 author=epinux

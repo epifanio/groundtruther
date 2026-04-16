@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QWidget
-from PyQt5.QtCore import QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
+from qgis.PyQt.QtWidgets import QWidget
+from qgis.PyQt.QtCore import QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject
 from groundtruther.pygui.Ui_paramscale_ui import Ui_paramscale
 
 from qgis.core import Qgis, QgsMessageLog, QgsRasterLayer

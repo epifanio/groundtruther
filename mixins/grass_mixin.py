@@ -1,7 +1,7 @@
 """GRASS GIS integration mixin."""
 import requests
-from PyQt5.QtWidgets import QAction
-from PyQt5.QtGui import QColor
+from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtGui import QColor
 from qgis.utils import iface
 from qgis.core import (
     Qgis, QgsMessageLog, QgsMapLayerType,
@@ -35,7 +35,7 @@ class GrassIntegrationMixin:
         self.w.actiongrass_settings.triggered.connect(self.show_grass_dialog)
 
     def show_grass_dialog(self):
-        self.grass_dialog.exec_()
+        self.grass_dialog.exec()
         QgsMessageLog.logMessage(
             f"GRASS dialog closed, grassenabled={self.grass_dialog.grassenabled}",
             'GroundTruther', Qgis.Info)

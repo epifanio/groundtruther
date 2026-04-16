@@ -1,9 +1,14 @@
 #!/usr/bin/env python
+"""Legacy application-settings widget (superseded by the YAML-based ConfigDialog).
+
+``AppSettings`` is kept for reference but is not shown in the current UI.
+The active settings dialog is ``configure.ConfigDialog``.
+"""
 import sys
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from qgis.PyQt.QtCore import *
+from qgis.PyQt.QtGui import *
+from qgis.PyQt.QtWidgets import *
 
 from groundtruther.pygui.Ui_app_settings_ui import Ui_appsettings
 import groundtruther.resources_rc
@@ -34,7 +39,7 @@ class AppSettings(QWidget, Ui_appsettings):
             self.metadata_path.setText(fileName)
 
     def set_image_path(self):    
-        options = QFileDialog.DontResolveSymlinks | QFileDialog.ShowDirsOnly
+        options = QFileDialog.Option.DontResolveSymlinks | QFileDialog.Option.ShowDirsOnly
         directory = QFileDialog.getExistingDirectory(self,
                 "QFileDialog.getExistingDirectory()",
                 self.image_path.text(), options=options)

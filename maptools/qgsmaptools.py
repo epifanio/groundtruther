@@ -2,9 +2,9 @@ from qgis.core import *
 from qgis.gui import *
 from qgis.utils import *
 from qgis.PyQt.QtCore import pyqtSignal as Signal, pyqtSlot as Slot
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
+from qgis.PyQt.QtWidgets import *
+from qgis.PyQt.QtCore import *
+from qgis.PyQt.QtGui import *
 from qgis.core import (
     Qgis, QgsMessageLog,
     QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject,
@@ -111,7 +111,7 @@ class GCRTool(QgsMapToolEmitPoint):
         self.canvas = canvas
         QgsMapToolEmitPoint.__init__(self, self.canvas)
         self.rubberBand = QgsRubberBand(self.canvas)
-        self.rubberBand.setColor(QtCore.Qt.transparent)
+        self.rubberBand.setColor(QtCore.Qt.GlobalColor.transparent)
         self.rubberBand.setFillColor(QColor(0, 0, 255, 50))
 
         self.start_point = None

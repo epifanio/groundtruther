@@ -1,9 +1,28 @@
 #!/usr/bin/env python
+"""GRASS GIS MDI panel — layer list, query results, and module launchers.
+
+Key classes
+-----------
+GrassMdi
+    The central widget (generated from ``Ui_grass_mdi``): contains the MDI
+    sub-window area (``grassTools``), the query-result browser
+    (``gis_tool_report``), and the layer table (``grass_layers``).
+
+GrassLayerTableWidgetItem
+    Lightweight QTableWidgetItem subclass that carries a ``layer_enabled``
+    property alongside the display text.
+
+GrassTools
+    QMainWindow that owns the ``GrassMdi`` widget and provides the toolbar
+    for controlling MDI layout and launching individual GRASS module panels
+    (r.geomorphon, r.param.scale, r.grm.lsi).  Delegates zoom/clear actions
+    to ``GrassIntegrationMixin`` methods on the parent dockwidget.
+"""
 import sys
 
-from PyQt5.QtCore import *
-from PyQt5.QtGui import *
-from PyQt5.QtWidgets import *
+from qgis.PyQt.QtCore import *
+from qgis.PyQt.QtGui import *
+from qgis.PyQt.QtWidgets import *
 
 from groundtruther.pygui.Ui_grass_mdi_ui import Ui_grass_mdi
 
@@ -11,22 +30,39 @@ from groundtruther.run_geomorphon_mdi import GeoMorphonWidget
 from groundtruther.run_paramscale_mdi import ParamScaleWidget
 from groundtruther.run_grm_lsi_mdi import GrmLsiWidget
 
-from PyQt5.QtWidgets import QTableWidgetItem, QWidget, QCheckBox, QMenu, QAction
+from qgis.PyQt.QtWidgets import QTableWidgetItem, QWidget, QCheckBox, QMenu, QAction
 import requests
 from qgis.core import Qgis, QgsMessageLog
 from groundtruther.configure import log_exception
 class GrassLayerTableWidgetItem(QTableWidgetItem):
+    """QTableWidgetItem that also stores whether the GRASS layer is enabled."""
+
     def __init__(self, text, layer_enabled):
         super().__init__(text)
         self.layer_enabled = layer_enabled
 
+
 class GrassMdi(QWidget, Ui_grass_mdi):
+    """Central GRASS widget built from the Designer-generated Ui_grass_mdi layout."""
+
     def __init__(self, parent=None):
         super(GrassMdi, self).__init__(parent)
         self.setupUi(self)
-        
-        
+
+
 class GrassTools(QMainWindow):
+    """QMainWindow container for GRASS module panels and the layer/query table.
+
+    Layout overview:
+    - Central widget: ``GrassMdi`` (MDI area + query result browser + layer table)
+    - Toolbar: MDI-layout selector, layer-table toggle, module action buttons
+
+    Module sub-windows (r.geomorphon, r.param.scale, r.grm.lsi) are created
+    here and shown/hidden via their respective toolbar actions.  Query results
+    and zoom/clear actions delegate to ``GrassIntegrationMixin`` via the
+    parent dockwidget.
+    """
+
     def __init__(self, parent=None):
         super(GrassTools, self).__init__(parent)
         self.parent = parent
@@ -79,7 +115,7 @@ class GrassTools(QMainWindow):
         self.r_gemorphon_window.setWidget(self.r_gemorphon)
         self.r_gemorphon_window.setToolTip("r.geomorphon")
         self.grass_mdi.grassTools.addSubWindow(self.r_gemorphon_window)
-        self.r_gemorphon_window.setWindowFlags(Qt.WindowMinimizeButtonHint|Qt.WindowMaximizeButtonHint)
+        self.r_gemorphon_window.setWindowFlags(Qt.WindowType(3072))
         self.r_gemorphon_window.hide()
         self.r_gemorphon.exit.clicked.connect(self.view_r_gemorphon)
         gemorphon_icon_path = ':/icons/qtui/icons/element-cell.gif'
@@ -100,7 +136,7 @@ class GrassTools(QMainWindow):
         self.r_paramscale_window.setWidget(self.r_paramscale)
         self.r_paramscale_window.setToolTip("r.param.scale")
         self.grass_mdi.grassTools.addSubWindow(self.r_paramscale_window)
-        self.r_paramscale_window.setWindowFlags(Qt.WindowMinimizeButtonHint|Qt.WindowMaximizeButtonHint)
+        self.r_paramscale_window.setWindowFlags(Qt.WindowType(3072))
         self.r_paramscale_window.hide()
         self.r_paramscale.exit.clicked.connect(self.view_r_paramscale)
         paramscale_icon_path = ':/icons/qtui/icons/element-cell.gif'
@@ -120,7 +156,7 @@ class GrassTools(QMainWindow):
         self.r_grm_lsi_window.setToolTip("r.grm.lsi")
         self.grass_mdi.grassTools.addSubWindow(self.r_grm_lsi_window)
         #self.r_grm_lsi_window.setWindowTitle("r.grm.lsi")
-        self.r_grm_lsi_window.setWindowFlags(Qt.WindowMinimizeButtonHint|Qt.WindowMaximizeButtonHint)
+        self.r_grm_lsi_window.setWindowFlags(Qt.WindowType(3072))
         self.r_grm_lsi_window.hide()
         self.r_grm_lsi.exit.clicked.connect(self.view_r_grm_lsi)
         grm_lsi_icon_path = ':/icons/qtui/icons/element-cell.gif'
@@ -141,7 +177,7 @@ class GrassTools(QMainWindow):
         # self.grassWidgetContents.addToolBar(editToolBar)
         # Using a QToolBar object and a toolbar area
         # helpToolBar = QToolBar("Help", self.grassWidgetContents)
-        # self.grassWidgetContents.addToolBar(Qt.LeftToolBarArea, helpToolBar)
+        # self.grassWidgetContents.addToolBar(Qt.ToolBarArea.LeftToolBarArea, helpToolBar)
         
         #
         # self.geomorphon_dialog = GeoMorphonDialog(self)
@@ -162,7 +198,7 @@ class GrassTools(QMainWindow):
         self.grass_mdi.filterLineEdit.setPlaceholderText("Filter...")
         self.grass_mdi.filterLineEdit.textChanged.connect(self.filter_table)
         
-        self.grass_mdi.grass_layers.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.grass_mdi.grass_layers.setContextMenuPolicy(Qt.ContextMenuPolicy(3))
         self.grass_mdi.grass_layers.customContextMenuRequested.connect(self.show_context_menu)
         # self.grass_mdi.grass_layers.viewport().customContextMenuRequested.connect(self.show_context_menu)
 
@@ -170,6 +206,7 @@ class GrassTools(QMainWindow):
         # self.show()
         
     def show_context_menu(self, position):
+        """Show a right-click context menu on the layer table."""
         indexes = self.grass_mdi.grass_layers.selectedIndexes()
         if indexes:
             menu = QMenu(self)
@@ -177,15 +214,17 @@ class GrassTools(QMainWindow):
             delete_action.triggered.connect(self.delete_row)
             menu.addAction(delete_action)
             menu.exec_(self.grass_mdi.grass_layers.viewport().mapToGlobal(position))
-            
+
     def delete_row(self):
-        # this is a placeholder for now
-        # I want to add the following actions:
-        # 1.: zoom to selected layer
-        # 2.: add selected layer to map
-        # 3.: set the GRASS region for selected layer
-        # 4.: delete selected layer from GRASS DB
-        # 5.: get layer history / metadata
+        """Remove the selected row(s) from the layer table.
+
+        Planned future actions (not yet implemented):
+          1. Zoom to selected layer
+          2. Add selected layer to QGIS map canvas
+          3. Set the GRASS region for selected layer
+          4. Delete selected layer from the GRASS database
+          5. Show layer history / metadata
+        """
         indexes = self.grass_mdi.grass_layers.selectedIndexes()
         if indexes:
             rows = set()
@@ -195,6 +234,7 @@ class GrassTools(QMainWindow):
                 self.grass_mdi.grass_layers.removeRow(row)
             
     def toggle_grass_layers_table(self):
+        """Show or hide the GRASS layers table and its associated filter bar."""
         self.grass_mdi.grass_layers.setVisible(not self.grass_mdi.grass_layers.isVisible())
         self.grass_mdi.reload_grass_layers.setVisible(not self.grass_mdi.reload_grass_layers.isVisible())        
         self.grass_mdi.filterLineEdit_label.setVisible(not self.grass_mdi.filterLineEdit_label.isVisible())
@@ -203,12 +243,13 @@ class GrassTools(QMainWindow):
         # self.get_grass_layers()
         
     def load_grass_layers(self):
+        """Fetch the raster layer list from the GRASS API and populate the table."""
         self.grass_mdi.grass_layers.clear()
         grass_layers = self.get_grass_layers()
-        # self.grass_mdi.grass_layers.addItems(grass_layers)
         self.populate_table(grass_layers)
-        
+
     def populate_table(self, items):
+        """Populate the layer table with checkboxes for each GRASS raster layer."""
         self.grass_mdi.grass_layers.setRowCount(len(items))
         self.grass_mdi.grass_layers.setColumnCount(2)
         self.grass_mdi.grass_layers.setHorizontalHeaderLabels(["Layer Name", "Value"])
@@ -222,6 +263,14 @@ class GrassTools(QMainWindow):
             self.grass_mdi.grass_layers.setItem(row, 1, empty_cell)  
             
     def add_query_result(self, result):
+        """Write r.what query results into the matching rows of the layer table.
+
+        Parameters
+        ----------
+        result:
+            List of single-key dicts returned by the GRASS ``/api/r_what``
+            endpoint, e.g. ``[{"layer_name": {"value": "3.14", ...}}, ...]``.
+        """
         QgsMessageLog.logMessage(f"query result: {result}", 'GroundTruther', Qgis.Info)
         result_dict = {}
         for dictionary in result:
@@ -235,6 +284,7 @@ class GrassTools(QMainWindow):
                 self.grass_mdi.grass_layers.setItem(row, 1, value_cell)
             
     def get_checked_items(self):
+        """Collect the names of checked layers into ``self.checked_layers``."""
         self.checked_layers = []
         for row in range(self.grass_mdi.grass_layers.rowCount()):
             checkbox_item = self.grass_mdi.grass_layers.cellWidget(row, 0)
@@ -243,6 +293,7 @@ class GrassTools(QMainWindow):
                 self.checked_layers.append(item)
                 
     def filter_table(self):
+        """Hide rows whose layer name does not contain the filter text."""
         filter_text = self.grass_mdi.filterLineEdit.text().strip().lower()
         for row in range(self.grass_mdi.grass_layers.rowCount()):
             checkbox_item = self.grass_mdi.grass_layers.cellWidget(row, 0)
@@ -255,6 +306,12 @@ class GrassTools(QMainWindow):
 
         
     def get_grass_layers(self):
+        """Return a list of raster layer names from the GRASS API.
+
+        Pulls the GRASS location/mapset from the parent's ``grass_dialog``,
+        then calls ``/api/get_rvg_list``.  Returns an empty list on any
+        connection or parsing error.
+        """
         self.grass_dialog = self.parent.grass_dialog
         self.settings = self.parent.settings
         self.grass_api_endpoint = self.settings["Processing"]["grass_api_endpoint"]
@@ -295,6 +352,7 @@ class GrassTools(QMainWindow):
         
         
     def reload_parent_objects(self):
+        """Refresh references to parent-owned objects (dialog, settings, region)."""
         self.grass_dialog = self.parent.grass_dialog
         self.settings = self.parent.settings
         self.region_response = self.parent.region_response

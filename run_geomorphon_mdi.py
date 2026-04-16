@@ -1,5 +1,5 @@
-from PyQt5.QtWidgets import QDialog, QWidget
-from PyQt5.QtCore import QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject, pyqtSlot
+from qgis.PyQt.QtWidgets import QDialog, QWidget
+from qgis.PyQt.QtCore import QRunnable, pyqtSlot, QThreadPool, pyqtSignal, QObject, pyqtSlot
 # from pygui.geomorphon_gui import GeoMorphon
 from groundtruther.pygui.Ui_geomorphon_ui import Ui_geomorphon
 
