@@ -16,6 +16,12 @@ pyarrow
 scikit-image
 scipy
 
+# ---- Video support ----
+# Use the headless variant to avoid bundling a second copy of Qt that would
+# conflict with QGIS's own Qt libraries.
+# GPU/CUDA decode requires a CUDA-enabled build — see notes below.
+opencv-python-headless>=4.8
+
 # ---- Plotting / visualisation ----
 pyqtgraph
 PyOpenGL

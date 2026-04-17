@@ -1,19 +1,21 @@
 """Annotation editor panel for the GroundTruther image browser.
 
-Injected as a QDockWidget on the right side of the HBCBrowserGui
-QMainWindow.  When visible it overlays pg.RectROI handles on the image
-view so the user can:
+Two-panel layout mirroring ``VideoAnnotationEditorWidget``:
 
-  - select a bounding box from the list (or by clicking/dragging a ROI)
-  - drag its corner/edge handles to reshape it
-  - rename its label via a dialog
-  - delete it
-  - draw a completely new bounding box by clicking and dragging
-  - save all annotations for the current session back to a CSV file
+**Top — Annotated Images list**
+    Persistent sorted list of every image that carries at least one bounding
+    box.  Clicking a row emits ``seek_requested(image_index)`` so the mixin
+    can navigate the image browser to that image.
+
+**Bottom — Current Image Annotations editor**
+    Bounding-box list for the currently displayed image with Add / Edit /
+    Delete / Draw controls identical to the original single-panel editor.
+    A "💾 Save annotations" button lives at the bottom; "📂 Load" is in the
+    top panel.
 
 The widget never modifies the parent DataFrame directly; it emits
-``annotation_changed(image_index)`` and the dockwidget commits the
-edit into the DataFrame via ``commit()``.
+``annotation_changed(image_index)`` and the mixin commits the edit via
+``commit()``.
 """
 from __future__ import annotations
 
@@ -28,7 +30,7 @@ from qgis.PyQt.QtWidgets import (
     QLabel, QInputDialog, QMessageBox, QFileDialog,
     QAbstractItemView, QSizePolicy,
     QComboBox, QLineEdit, QDoubleSpinBox, QFrame,
-    QGraphicsRectItem,
+    QGraphicsRectItem, QSplitter, QGroupBox,
 )
 from qgis.PyQt.QtCore import Qt, pyqtSignal, QObject, QEvent, QRectF
 from qgis.PyQt.QtGui import QPen, QColor
@@ -45,7 +47,6 @@ except ImportError:
 
 
 def _is_nan(value) -> bool:
-    """Return True when *value* is NaN or None (no annotation)."""
     if value is None:
         return True
     try:
@@ -55,18 +56,12 @@ def _is_nan(value) -> bool:
 
 
 def _bbox_to_rect(coords: list) -> tuple[float, float, float, float]:
-    """Return (x0, y0, x1, y1) from an 8-element bbox coord list."""
     xs = coords[0::2]
     ys = coords[1::2]
     return min(xs), min(ys), max(xs), max(ys)
 
 
 def _rect_to_bbox(x0: float, y0: float, x1: float, y1: float) -> list:
-    """Reconstruct the 8-element bbox format used by parse_annotation.
-
-    Winding: [TL_x, BR_y, BR_x, BR_y, BR_x, TL_y, TL_x, TL_y]
-    which matches build_box corner order (BL, BR, TR, TL).
-    """
     return [x0, y1, x1, y1, x1, y0, x0, y0]
 
 
@@ -75,16 +70,9 @@ def _rect_to_bbox(x0: float, y0: float, x1: float, y1: float) -> list:
 # ---------------------------------------------------------------------------
 
 class _DrawEventFilter(QObject):
-    """Widget-level event filter installed on the ImageView's graphicsView.
-
-    Captures left-button press/move/release events for drawing a new
-    bounding box.  Returns True (consuming the event) so that pyqtgraph's
-    pan/zoom behaviour does not interfere while drawing is active.
-    """
-
-    press   = pyqtSignal(object)   # QPoint in widget coordinates
-    move    = pyqtSignal(object)   # QPoint in widget coordinates
-    release = pyqtSignal(object)   # QPoint in widget coordinates
+    press   = pyqtSignal(object)
+    move    = pyqtSignal(object)
+    release = pyqtSignal(object)
 
     def __init__(self, parent: QObject = None):
         super().__init__(parent)
@@ -112,29 +100,31 @@ class _DrawEventFilter(QObject):
 # ---------------------------------------------------------------------------
 
 class AnnotationEditorWidget(QWidget):
-    """Side-panel editor for per-image annotation bounding boxes.
+    """Two-panel image annotation editor.
 
-    Parameters
-    ----------
-    image_view:
-        The ``MyImageView`` (pg.ImageView subclass) that displays the
-        current frame.  ROIs are added to / removed from its ViewBox.
-    parent:
-        Optional Qt parent.
+    Top panel: persistent list of all annotated images — click to navigate.
+    Bottom panel: per-image bbox editor for the currently displayed image.
 
     Signals
     -------
     annotation_changed(int)
-        Emitted with the current image index whenever the user modifies
-        an annotation so the parent dockwidget can push the change into
-        the DataFrame and refresh the image overlay.
+        Current image index; emitted when the user modifies an annotation.
     draw_mode_exited()
-        Emitted when draw mode is stopped so the parent toolbar action
-        can update its checked state.
+        Emitted when draw mode ends so the toolbar action can sync.
+    seek_requested(int)
+        Emitted when the user clicks an entry in the Annotated Images list;
+        the mixin navigates the image browser to that index.
+    save_clicked()
+        Emitted by the Save button so the mixin persists all annotations.
+    load_clicked()
+        Emitted by the Load button so the mixin can load from a CSV file.
     """
 
     annotation_changed = pyqtSignal(int)
     draw_mode_exited   = pyqtSignal()
+    seek_requested     = pyqtSignal(int)
+    save_clicked       = pyqtSignal()
+    load_clicked       = pyqtSignal()
 
     # ------------------------------------------------------------------ #
     # Construction                                                         #
@@ -144,15 +134,17 @@ class AnnotationEditorWidget(QWidget):
         super().__init__(parent)
         self._imv = image_view
         self._rois: list[pg.RectROI] = []
-        self._annotation: dict | None = None   # deep-copy of current frame
+        self._annotation: dict | None = None
         self._image_index: int = 0
         self._imagename: str = ""
         self._csv_path: str = ""
         self._dirty: bool = False
 
-        # Known labels (built from CSV + persisted in sidecar JSON)
         self._known_labels: list[str] = []
         self._labels_path: str = ""
+
+        # Parallel list: row index → image_index for the annotated-images panel
+        self._annotated_image_indices: list[int] = []
 
         # Draw-mode state
         self._draw_filter: _DrawEventFilter | None = None
@@ -160,20 +152,68 @@ class AnnotationEditorWidget(QWidget):
         self._preview_item: QGraphicsRectItem | None = None
         self._draw_mode: bool = False
 
-        # Pending new-annotation state (box drawn, waiting for label input)
+        # Pending new-annotation state
         self._pending_bbox: tuple[float, float, float, float] | None = None
         self._pending_item: QGraphicsRectItem | None = None
 
         self._build_ui()
 
     def _build_ui(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(6)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(4, 4, 4, 4)
+        root.setSpacing(4)
 
-        title = QLabel("<b>Annotation Editor</b>")
-        title.setAlignment(Qt.AlignmentFlag(132))
-        layout.addWidget(title)
+        splitter = QSplitter(Qt.Orientation(2))   # Vertical
+        splitter.setChildrenCollapsible(False)
+        root.addWidget(splitter)
+
+        splitter.addWidget(self._build_images_panel())
+        splitter.addWidget(self._build_editor_panel())
+        splitter.setSizes([160, 300])
+
+    # ------------------------------------------------------------------ #
+    # Top panel — annotated images list                                   #
+    # ------------------------------------------------------------------ #
+
+    def _build_images_panel(self) -> QGroupBox:
+        box = QGroupBox("Annotated Images")
+        layout = QVBoxLayout(box)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(2)
+
+        self._images_list = QListWidget()
+        self._images_list.setSelectionMode(QAbstractItemView.SelectionMode(1))
+        self._images_list.setSizePolicy(
+            QSizePolicy.Policy(7), QSizePolicy.Policy(7))
+        self._images_list.setToolTip(
+            "Click an image to navigate the browser to it")
+        self._images_list.currentRowChanged.connect(
+            self._on_images_list_row_changed)
+        layout.addWidget(self._images_list)
+
+        btn_row = QHBoxLayout()
+        self._btn_load = QPushButton("📂 Load")
+        self._btn_load.setToolTip("Load annotations from a CSV file")
+        self._btn_load.clicked.connect(self.load_clicked)
+        btn_row.addWidget(self._btn_load)
+        btn_row.addStretch()
+        layout.addLayout(btn_row)
+
+        hint = QLabel("<small>Click a row to jump to that image</small>")
+        hint.setAlignment(Qt.AlignmentFlag(132))
+        layout.addWidget(hint)
+
+        return box
+
+    # ------------------------------------------------------------------ #
+    # Bottom panel — per-image bbox editor                                #
+    # ------------------------------------------------------------------ #
+
+    def _build_editor_panel(self) -> QGroupBox:
+        self._editor_box = QGroupBox("Image — Annotations")
+        layout = QVBoxLayout(self._editor_box)
+        layout.setContentsMargins(4, 6, 4, 4)
+        layout.setSpacing(4)
 
         # --- Bounding-box list ---
         self._list = QListWidget()
@@ -205,9 +245,9 @@ class AnnotationEditorWidget(QWidget):
 
         layout.addLayout(btn_layout)
 
-        # --- Inline new-annotation form (hidden until box is drawn) ---
+        # --- Inline new-annotation form ---
         self._new_ann_frame = QFrame()
-        self._new_ann_frame.setFrameShape(QFrame.Shape(6))  # StyledPanel=6
+        self._new_ann_frame.setFrameShape(QFrame.Shape(6))
         new_layout = QVBoxLayout(self._new_ann_frame)
         new_layout.setContentsMargins(4, 4, 4, 4)
         new_layout.setSpacing(4)
@@ -237,7 +277,7 @@ class AnnotationEditorWidget(QWidget):
 
         btn_row2 = QHBoxLayout()
         self._new_confirm_btn = QPushButton("✔ Add")
-        self._new_cancel_btn = QPushButton("✘ Cancel")
+        self._new_cancel_btn  = QPushButton("✘ Cancel")
         btn_row2.addWidget(self._new_confirm_btn)
         btn_row2.addWidget(self._new_cancel_btn)
         new_layout.addLayout(btn_row2)
@@ -247,10 +287,8 @@ class AnnotationEditorWidget(QWidget):
         self._new_ann_frame.setVisible(False)
         layout.addWidget(self._new_ann_frame)
 
-        # Hint text
         hint = QLabel(
-            "<small>Draw mode: click and drag<br>"
-            "on the image to create a box.<br>"
+            "<small>Draw mode: click and drag on the image.<br>"
             "Drag a ROI or its handles to resize.<br>"
             "Click a ROI to select it in the list.</small>"
         )
@@ -258,8 +296,12 @@ class AnnotationEditorWidget(QWidget):
         hint.setWordWrap(True)
         layout.addWidget(hint)
 
-        self.setMinimumWidth(180)
-        self.setMaximumWidth(300)
+        self._btn_save = QPushButton("💾 Save annotations")
+        self._btn_save.setToolTip("Save all annotation edits to CSV")
+        self._btn_save.clicked.connect(self.save_clicked)
+        layout.addWidget(self._btn_save)
+
+        return self._editor_box
 
     # ------------------------------------------------------------------ #
     # Public API                                                           #
@@ -267,23 +309,23 @@ class AnnotationEditorWidget(QWidget):
 
     def load_image(self, image_index: int, imagename: str,
                    annotation, csv_path: str = "") -> bool:
-        """Switch to a new image frame."""
+        """Switch the bottom panel to *image_index*."""
         if self._dirty:
+            _Yes    = QMessageBox.StandardButton.Yes
+            _No     = QMessageBox.StandardButton.No
+            _Cancel = QMessageBox.StandardButton.Cancel
             reply = QMessageBox.question(
                 self, "Unsaved changes",
                 "There are unsaved annotation changes.\n"
                 "Commit them before switching image?",
-                QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel,
+                _Yes | _No | _Cancel,
             )
-            if reply == QMessageBox.Cancel:
+            if reply == _Cancel:
                 return False
-            if reply == QMessageBox.Yes:
+            if reply == _Yes:
                 self.annotation_changed.emit(self._image_index)
 
-        # Cancel pending new annotation silently
         self._dismiss_pending(silent=True)
-
-        # Exit draw mode silently when switching images
         if self._draw_mode:
             self._exit_draw_mode_internal()
 
@@ -302,7 +344,44 @@ class AnnotationEditorWidget(QWidget):
 
         self._rebuild_list()
         self._rebuild_rois()
+        self._update_editor_title()
+        self._highlight_image_in_list(image_index)
         return True
+
+    def update_annotated_images(self, image_metadata) -> None:
+        """Rebuild the top-panel Annotated Images list from *image_metadata*.
+
+        Should be called by the mixin whenever an annotation is added,
+        edited, or deleted, and when the editor is first opened.
+        """
+        self._images_list.blockSignals(True)
+        self._images_list.clear()
+        self._annotated_image_indices = []
+
+        if image_metadata is None:
+            self._images_list.blockSignals(False)
+            return
+
+        for idx in range(len(image_metadata)):
+            ann = image_metadata["Annotation"].iloc[idx]
+            if _is_nan(ann):
+                continue
+            n = len(ann.get("bbox", []))
+            if n == 0:
+                continue
+            imagename = str(image_metadata["Imagename"].iloc[idx])
+            species = ann.get("Species", [])
+            sp_str = ", ".join(str(s) for s in species[:3])
+            if len(species) > 3:
+                sp_str += f" +{len(species) - 3}"
+            plural = "es" if n != 1 else ""
+            item = QListWidgetItem(
+                f"[{idx}] {imagename}  [{n} box{plural}]  {sp_str}")
+            self._images_list.addItem(item)
+            self._annotated_image_indices.append(idx)
+
+        self._images_list.blockSignals(False)
+        self._highlight_image_in_list(self._image_index)
 
     def commit(self) -> dict | None:
         """Return a deep copy of the current (possibly edited) annotation."""
@@ -320,11 +399,7 @@ class AnnotationEditorWidget(QWidget):
             self._populate_new_label_combo()
 
     def cleanup(self):
-        """Safe full teardown — call before the parent widget is destroyed.
-
-        Removes all ROIs, cancels any pending annotation, exits draw mode,
-        and releases the mouse grab so no dangling C++ references remain.
-        """
+        """Safe full teardown — call before the parent widget is destroyed."""
         self._dismiss_pending(silent=True)
         if self._draw_mode:
             self._exit_draw_mode_internal()
@@ -409,6 +484,25 @@ class AnnotationEditorWidget(QWidget):
             return False
 
     # ------------------------------------------------------------------ #
+    # Internal helpers — UI updates                                        #
+    # ------------------------------------------------------------------ #
+
+    def _update_editor_title(self) -> None:
+        name = self._imagename or str(self._image_index)
+        self._editor_box.setTitle(f"Image {self._image_index} ({name}) — Annotations")
+
+    def _highlight_image_in_list(self, image_index: int) -> None:
+        self._images_list.blockSignals(True)
+        try:
+            row = self._annotated_image_indices.index(image_index)
+            self._images_list.setCurrentRow(row)
+            self._images_list.scrollToItem(self._images_list.item(row))
+        except ValueError:
+            self._images_list.clearSelection()
+        finally:
+            self._images_list.blockSignals(False)
+
+    # ------------------------------------------------------------------ #
     # Internal helpers — ROI / list management                            #
     # ------------------------------------------------------------------ #
 
@@ -427,7 +521,6 @@ class AnnotationEditorWidget(QWidget):
         self._list.blockSignals(False)
 
     def _rebuild_rois(self):
-        """Replace any existing ROIs with one RectROI per bbox."""
         self._remove_rois()
         if not self._annotation:
             return
@@ -444,10 +537,8 @@ class AnnotationEditorWidget(QWidget):
             )
             roi.handleSize = 10
             roi._gt_index = i
-            # Dragging a ROI selects it in the list
             roi.sigRegionChangeStarted.connect(
-                lambda _r, idx=i: self._list.setCurrentRow(idx)
-            )
+                lambda _r, idx=i: self._list.setCurrentRow(idx))
             roi.sigRegionChangeFinished.connect(self._on_roi_changed)
             view.addItem(roi)
             self._rois.append(roi)
@@ -455,8 +546,6 @@ class AnnotationEditorWidget(QWidget):
     def _remove_rois(self):
         view = self._imv.getView()
         for roi in self._rois:
-            # Disconnect signals first to prevent callbacks firing on a
-            # partially-destroyed ROI after removeItem().
             try:
                 roi.sigRegionChangeStarted.disconnect()
             except Exception:
@@ -513,26 +602,21 @@ class AnnotationEditorWidget(QWidget):
     # ------------------------------------------------------------------ #
 
     def _exit_draw_mode_internal(self):
-        """Core draw-mode teardown (no signal emitted)."""
         self._draw_mode = False
         self._btn_add.setChecked(False)
-
         gv = self._imv.ui.graphicsView
         if self._draw_filter is not None:
             gv.removeEventFilter(self._draw_filter)
             self._draw_filter = None
-        # Safety: release mouse grab if it was left active
         try:
             gv.releaseMouse()
         except Exception:
             pass
         gv.setCursor(Qt.CursorShape(0))
-
         self._remove_preview()
         self._draw_start = None
 
     def _remove_preview(self):
-        """Remove the rubber-band preview rectangle from the ViewBox."""
         if self._preview_item is not None:
             try:
                 self._imv.getView().removeItem(self._preview_item)
@@ -541,7 +625,6 @@ class AnnotationEditorWidget(QWidget):
             self._preview_item = None
 
     def _widget_to_view(self, widget_pos) -> tuple[float, float]:
-        """Convert a widget-space QPoint to image/view coordinates."""
         gv = self._imv.ui.graphicsView
         scene_pos = gv.mapToScene(widget_pos)
         view_pos = self._imv.getView().mapSceneToView(scene_pos)
@@ -554,26 +637,21 @@ class AnnotationEditorWidget(QWidget):
     def _populate_new_label_combo(self):
         self._new_label_combo.blockSignals(True)
         self._new_label_combo.clear()
-        self._new_label_combo.addItem("")          # blank placeholder
+        self._new_label_combo.addItem("")
         for lbl in self._known_labels:
             self._new_label_combo.addItem(lbl)
         self._new_label_combo.blockSignals(False)
 
     def _show_new_annotation_form(self, x0: float, y0: float,
                                    x1: float, y1: float):
-        """Show the inline label form and a green preview of the drawn box."""
         self._pending_bbox = (x0, y0, x1, y1)
-
-        # Green non-interactive rectangle in image coordinates
         self._dismiss_pending_item()
-        self._pending_item = QGraphicsRectItem(
-            QRectF(x0, y0, x1 - x0, y1 - y0))
+        self._pending_item = QGraphicsRectItem(QRectF(x0, y0, x1 - x0, y1 - y0))
         pen = QPen(QColor("lime"))
         pen.setCosmetic(True)
         pen.setWidth(2)
         self._pending_item.setPen(pen)
         self._imv.getView().addItem(self._pending_item)
-
         self._populate_new_label_combo()
         self._new_label_edit.clear()
         self._new_conf_spin.setValue(1.0)
@@ -581,7 +659,6 @@ class AnnotationEditorWidget(QWidget):
         self._new_label_edit.setFocus()
 
     def _dismiss_pending_item(self):
-        """Remove the pending preview rectangle from the ViewBox."""
         if self._pending_item is not None:
             try:
                 self._imv.getView().removeItem(self._pending_item)
@@ -590,7 +667,6 @@ class AnnotationEditorWidget(QWidget):
             self._pending_item = None
 
     def _dismiss_pending(self, silent: bool = False):
-        """Cancel the pending new annotation (item + form)."""
         self._dismiss_pending_item()
         self._pending_bbox = None
         self._new_ann_frame.setVisible(False)
@@ -602,11 +678,9 @@ class AnnotationEditorWidget(QWidget):
     def _add_annotation(self, x0: float, y0: float,
                          x1: float, y1: float,
                          label: str, confidence: float = 1.0):
-        """Append a new bbox entry and refresh the ROI list."""
         if self._annotation is None:
             self._annotation = {"bbox": [], "Species": [], "Confidence": []}
-        new_bbox = {"bbox": _rect_to_bbox(x0, y0, x1, y1)}
-        self._annotation["bbox"].append(new_bbox)
+        self._annotation["bbox"].append({"bbox": _rect_to_bbox(x0, y0, x1, y1)})
         self._annotation["Species"].append(label)
         self._annotation["Confidence"].append(confidence)
         self._dirty = True
@@ -615,21 +689,26 @@ class AnnotationEditorWidget(QWidget):
         self._rebuild_rois()
         self._list.setCurrentRow(len(self._annotation["bbox"]) - 1)
         self.annotation_changed.emit(self._image_index)
-        _log(
-            f"New annotation added: label={label!r} "
-            f"({x0:.1f},{y0:.1f})-({x1:.1f},{y1:.1f}) "
-            f"conf={confidence:.2f}"
-        )
+        _log(f"New annotation added: label={label!r} "
+             f"({x0:.1f},{y0:.1f})-({x1:.1f},{y1:.1f}) conf={confidence:.2f}")
 
     # ------------------------------------------------------------------ #
-    # Slots — existing ROI / list interaction                              #
+    # Slots — annotated images list                                        #
+    # ------------------------------------------------------------------ #
+
+    def _on_images_list_row_changed(self, row: int) -> None:
+        if row < 0 or row >= len(self._annotated_image_indices):
+            return
+        self.seek_requested.emit(self._annotated_image_indices[row])
+
+    # ------------------------------------------------------------------ #
+    # Slots — per-image list / ROI interaction                            #
     # ------------------------------------------------------------------ #
 
     def _on_row_changed(self, row: int):
         self._highlight_roi(row)
 
     def _on_roi_changed(self, roi: pg.RectROI):
-        """Sync in-memory bbox when the user finishes dragging a handle."""
         idx = roi._gt_index
         if self._annotation is None or idx >= len(self._annotation["bbox"]):
             return
@@ -666,12 +745,14 @@ class AnnotationEditorWidget(QWidget):
                                     "Select an annotation in the list first.")
             return
         species = self._annotation["Species"][row]
+        _Yes = QMessageBox.StandardButton.Yes
+        _No  = QMessageBox.StandardButton.No
         reply = QMessageBox.question(
             self, "Delete annotation",
             f"Delete «{species}» (box {row + 1})?",
-            QMessageBox.Yes | QMessageBox.No,
+            _Yes | _No,
         )
-        if reply != QMessageBox.Yes:
+        if reply != _Yes:
             return
         self._annotation["bbox"].pop(row)
         self._annotation["Species"].pop(row)
@@ -694,10 +775,8 @@ class AnnotationEditorWidget(QWidget):
             self.stop_draw_mode()
 
     def _on_draw_press(self, widget_pos):
-        """Record the start corner of the new box in image coordinates."""
         vx, vy = self._widget_to_view(widget_pos)
         self._draw_start = (vx, vy)
-
         self._remove_preview()
         self._preview_item = QGraphicsRectItem(QRectF(vx, vy, 0.1, 0.1))
         pen = QPen(QColor("lime"))
@@ -705,12 +784,9 @@ class AnnotationEditorWidget(QWidget):
         pen.setWidth(2)
         self._preview_item.setPen(pen)
         self._imv.getView().addItem(self._preview_item)
-
-        # Grab mouse so move/release are delivered even if cursor drifts out
         self._imv.ui.graphicsView.grabMouse()
 
     def _on_draw_move(self, widget_pos):
-        """Resize the rubber-band preview as the mouse moves."""
         if self._draw_start is None or self._preview_item is None:
             return
         vx1, vy1 = self._widget_to_view(widget_pos)
@@ -721,23 +797,18 @@ class AnnotationEditorWidget(QWidget):
         ))
 
     def _on_draw_release(self, widget_pos):
-        """Finalise the drawn box and show the inline label form."""
         if self._draw_start is None:
             return
         self._imv.ui.graphicsView.releaseMouse()
-
         vx1, vy1 = self._widget_to_view(widget_pos)
         vx0, vy0 = self._draw_start
         self._remove_preview()
         self._draw_start = None
-
         rx0, rx1 = min(vx0, vx1), max(vx0, vx1)
         ry0, ry1 = min(vy0, vy1), max(vy0, vy1)
-
         if (rx1 - rx0) < 3 or (ry1 - ry0) < 3:
             _log("Draw mode: box too small, ignoring.")
             return
-
         self._show_new_annotation_form(rx0, ry0, rx1, ry1)
 
     # ------------------------------------------------------------------ #
@@ -745,7 +816,6 @@ class AnnotationEditorWidget(QWidget):
     # ------------------------------------------------------------------ #
 
     def _on_new_combo_changed(self, idx: int):
-        """Copy the selected label into the text field."""
         if idx > 0:
             self._new_label_edit.setText(self._new_label_combo.currentText())
 

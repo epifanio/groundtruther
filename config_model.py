@@ -71,6 +71,30 @@ class Filesystem(BaseModel):
     filemanager: Optional[FilePath] = None
 
 
+class VideoSettings(BaseModel):
+    """Video playback and annotation settings (all fields optional).
+
+    Named ``VideoSettings`` (not ``Video``) to avoid the pydantic v1 bug
+    where a field name that matches the nested model class name causes
+    ``Optional[T]`` coercion to silently fail.
+
+    Attributes:
+        videofile: Path to the primary video file (MP4/H.264 recommended).
+        videometadata: CSV file with per-frame geo-location data.
+            Required columns: ``frame_index``, ``timestamp``, ``latitude``,
+            ``longitude``.  Optional: ``depth``, ``altitude``, ``heading``,
+            ``pitch``, ``roll``.
+        videoannotation: CSV file mapping frame indices to bounding-box
+            annotations.  Required columns: ``frame_index``, ``bboxes``
+            (JSON list of ``[x0,y0,x1,y1]``), ``species`` (JSON list of
+            strings), ``confidences`` (JSON list of floats).
+    """
+
+    videofile: Optional[str] = None
+    videometadata: Optional[str] = None
+    videoannotation: Optional[str] = None
+
+
 class HabcamSettings(BaseModel):
     """Root configuration model — mirrors ``config/config.yaml``.
 
@@ -85,3 +109,4 @@ class HabcamSettings(BaseModel):
     # Mapviewer: Mapviewer
     Processing: Union[Processing]
     Filesystem: Filesystem
+    Video: Optional[VideoSettings] = None
