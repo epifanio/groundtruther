@@ -49,6 +49,10 @@ from groundtruther.mixins.image_browser_mixin import ImageBrowserMixin, MyImageV
 from groundtruther.mixins.grass_mixin import GrassIntegrationMixin
 from groundtruther.mixins.annotation_editor_mixin import AnnotationEditorMixin
 from groundtruther.mixins.settings_mixin import SettingsMixin
+from groundtruther.mixins.video_browser_mixin import VideoBrowserMixin
+from groundtruther.mixins.video_annotation_mixin import VideoAnnotationMixin
+from groundtruther.mixins.report_dock_mixin import ReportDockMixin
+from groundtruther.mixins.layout_mixin import LayoutMixin
 
 from qgis.PyQt.QtWidgets import QLabel, QLineEdit
 
@@ -60,6 +64,10 @@ class GroundTrutherDockWidget(
     GrassIntegrationMixin,
     AnnotationEditorMixin,
     SettingsMixin,
+    VideoBrowserMixin,
+    VideoAnnotationMixin,
+    ReportDockMixin,
+    LayoutMixin,
 ):
     """Main dock widget — thin orchestrator; all logic lives in mixins."""
 
@@ -149,8 +157,36 @@ class GroundTrutherDockWidget(
         # --- Misc supporting objects ---
         self.appsettings = AppSettings()
         self.grass_config_widget = GrassSettings()
-        self.w.toolWidget.hide()
+        self.w.menuBar().hide()
         self.w.gisTools.hide()
+
+        # Strip self.w of ALL QMainWindow-managed items so its QMainWindowLayout
+        # has nothing to iterate during dock-move/tabify events in QGIS.
+        # Any remaining addToolBar/addDockWidget registration triggers the
+        # QToolBar::widgetForAction access-violation crash when Qt walks the
+        # widget tree during dock operations.
+        #
+        # 1. Toolbar — de-register and re-insert as a plain VBox widget.
+        self.w.removeToolBar(self.w.toolBar)
+        self.w.toolBar.show()   # removeToolBar() hides the widget; restore it
+        #
+        # 2. Dock widgets — de-register toolWidget and gisTools from self.w.
+        #    toolWidget is empty and not used; just detach and hide it.
+        #    gisTools becomes a regular child placed below self.w in the container.
+        self.w.removeDockWidget(self.w.toolWidget)
+        self.w.toolWidget.hide()
+        self.w.removeDockWidget(self.w.gisTools)
+        # imageBrowsing is removed from self.w by _init_image_browser_dock()
+        # called later, leaving self.w with zero registered docks.
+
+        _main_container = QtWidgets.QWidget()
+        _main_vbox = QtWidgets.QVBoxLayout(_main_container)
+        _main_vbox.setContentsMargins(0, 0, 0, 0)
+        _main_vbox.setSpacing(0)
+        _main_vbox.addWidget(self.w.toolBar)
+        _main_vbox.addWidget(self.w)
+        _main_vbox.addWidget(self.w.gisTools)     # hidden; shown by showGisTools()
+        self.setWidget(_main_container)
 
         # --- Status-bar lat/lon display ---
         self.image = QLabel()
@@ -165,23 +201,26 @@ class GroundTrutherDockWidget(
         self.w.statusbar.addPermanentWidget(self.w.latitude, stretch=0)
         self.w.statusbar.addPermanentWidget(self.w.longitude, stretch=0)
 
+        # Remove the now-empty Tools action from toolbar and menu
+        self.w.toolBar.removeAction(self.w.actionTools)
+
         # --- Toolbar + menu wiring for settings / tools visibility ---
-        self.w.actionTools.triggered.connect(self.showTools)
         self.w.actionGisTools.triggered.connect(self.showGisTools)
         self.w.actionWizard.triggered.connect(self.show_dialog)
 
         # --- Tool tabs ---
+        # imagemetadata_gui is now a side panel inside the image browser dock;
+        # it is wired in _init_image_browser_dock() rather than added here.
         self.imagemetadata_gui = ImageMetadata()
-        self.w.tools.insertTab(0, self.imagemetadata_gui, "Image Metadata")
 
         self.savekml = SaveKml(self)
         self.send_image_path.connect(self.savekml.from_main_imagepath_signal)
         self.send_imagemetadata_string.connect(
             self.savekml.from_main_imagemetadata_signal)
-        self.w.tools.insertTab(1, self.savekml, "Report Builder")
+        # savekml is now a standalone dock; not inserted into the tab widget.
 
         self.querybuilder = QueryBuilder(self)
-        self.w.tools.insertTab(2, self.querybuilder, "BS Query Builder")
+        # querybuilder is now a standalone dock; not inserted into the tab widget.
 
         self.querybuilder.send_2dgraph_path.connect(
             self.savekml.from_querybuilder_2dplot_signal)
@@ -191,22 +230,22 @@ class GroundTrutherDockWidget(
             self.savekml.from_querybuilder_selected_points_signal)
 
         # --- Mixin initialisation (order matters) ---
-        self._init_image_browser()      # ImageBrowserMixin
-        self._apply_settings()          # SettingsMixin — loads data
-        self._init_annotation_editor()  # AnnotationEditorMixin
+        self._init_image_browser()       # ImageBrowserMixin — wire signals
+        self._init_image_browser_dock()  # ImageBrowserMixin — floating dock + inner window
+        self._apply_settings()           # SettingsMixin — loads data
+        self._init_annotation_editor()   # AnnotationEditorMixin — docks inside image window
         self._init_grass()              # GrassIntegrationMixin
+        self._init_video_browser()             # VideoBrowserMixin — floating dock
+        self._apply_video_settings()          # VideoBrowserMixin — load video/metadata/annotations
+        self._init_video_annotation_editor()  # VideoAnnotationMixin — annotation editor dock
+        self._init_report_dock()             # create Report Builder floating dock
+        self._init_layout()                  # LayoutMixin — restore saved positions + reset action
 
         self.w.show()
 
     # ------------------------------------------------------------------ #
     # Simple UI-visibility toggles (too small to deserve a mixin)         #
     # ------------------------------------------------------------------ #
-
-    def showTools(self):
-        if self.w.toolWidget.isVisible():
-            self.w.toolWidget.hide()
-        else:
-            self.w.toolWidget.show()
 
     def showGisTools(self):
         if self.w.gisTools.isVisible():
@@ -220,6 +259,12 @@ class GroundTrutherDockWidget(
     # ------------------------------------------------------------------ #
 
     def closeEvent(self, event):
+        # Persist dock positions before any widget is torn down.
+        try:
+            self._save_layout()
+        except Exception:
+            pass
+
         # Close the pyqtgraph ImageView FIRST, while the C++ QGraphicsScene
         # is still alive.  pyqtgraph keeps a global ViewBox.AllViews registry;
         # calling close() deregisters the ViewBox now so that Python's GC
@@ -240,6 +285,30 @@ class GroundTrutherDockWidget(
                 self.annotation_editor.cleanup()
             except Exception:
                 pass
+
+        # Tear down image browser dock (annotation editor lives inside it).
+        try:
+            self._cleanup_image_browser_dock()
+        except Exception:
+            pass
+
+        # Tear down video annotation editor before the video browser.
+        try:
+            self._cleanup_video_annotation_editor()
+        except Exception:
+            pass
+
+        # Tear down video browser (releases OpenCV capture, removes floating dock).
+        try:
+            self._cleanup_video_browser()
+        except Exception:
+            pass
+
+        # Tear down report builder dock.
+        try:
+            self._cleanup_report_dock()
+        except Exception:
+            pass
 
         # Remove canvas items only if the canvas scene is still alive.
         try:

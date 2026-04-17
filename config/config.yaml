@@ -12,3 +12,7 @@ Export:
 Processing:
     gpu_avaibility: False
     grass_api_endpoint: https://mbapi.wps.met.no
+Video:
+    videofile: C:/Users/massi/DEV/QGIS_PLUGIN/groundtruther_test_dataset/R2521VL2582_hang_a_b.mp4
+    videometadata: C:/Users/massi/DEV/QGIS_PLUGIN/groundtruther_test_dataset/R2521VL2582.log
+    videoannotation: 

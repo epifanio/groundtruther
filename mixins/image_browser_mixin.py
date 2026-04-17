@@ -22,6 +22,7 @@ from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import (
     QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QWidget,
     QSizePolicy, QSpacerItem, QTextEdit,
+    QDockWidget, QMainWindow, QAction, QDoubleSpinBox, QToolBar,
 )
 
 from groundtruther.configure import log_exception
@@ -106,12 +107,18 @@ class ImageBrowserMixin:
         self.w.ImageIndexSlider.valueChanged.connect(self.add_image)
 
         self.w.range.valueChanged.connect(self.setValuerangeSpinBox)
-        self.w.actionImageBrowser.triggered.connect(self.showImageViewer)
+        self.w.toolBar.removeAction(self.w.actionImageBrowser)
         self.w.annotation_confidence_spinBox.valueChanged.connect(
             self.setValue_annotation_confidence)
         self.w.actionAnnotation.triggered.connect(self.showAnnotationThreshold)
         self.w.annotation_confidence_spinBox.hide()
         self.w.annotation_confidence_spinBox_label.hide()
+
+        # Image counter label — appended to the navigation button row so it
+        # travels with the imageBrowsing dock.
+        self._image_counter_label = QLabel("0 / 0")
+        self._image_counter_label.setMinimumWidth(70)
+        self.w.horizontalLayout_13.addWidget(self._image_counter_label)
 
         if platform == "darwin":
             self.w.fwd.hide()
@@ -421,7 +428,8 @@ class ImageBrowserMixin:
             self._update_metadata_panel(record)
             self.w.longitude.setText(str(round(record["habcam_lon"], 8)))
             self.w.latitude.setText(str(round(record["habcam_lat"], 8)))
-            self.w.statusbar.showMessage("Image : %s" % self.imageindex)
+            total = len(self.imageMetadata)
+            self._image_counter_label.setText(f"{self.imageindex} / {total - 1}")
             if self.w.zoomto.isChecked():
                 self.zoom_to()
             self.on_send()
@@ -461,19 +469,236 @@ class ImageBrowserMixin:
     # UI toggles                                                           #
     # ------------------------------------------------------------------ #
 
-    def showImageViewer(self):
-        if self.imv.isVisible():
-            self.imv.hide()
-            self.imageviewer_is_hidden = True
-            if self.w.link_to_image_viewer.isChecked():
-                self.w.imageBrowsing.hide()
+    def _init_image_browser_dock(self) -> None:
+        """Create the floating image browser dock containing self.imv.
+
+        Mirrors _init_video_browser(): wraps self.imv in an inner QMainWindow
+        (so the annotation editor can dock inside it) and floats the whole
+        thing as a QDockWidget in the main QGIS window.  Must be called after
+        self.imv exists and _init_image_browser() has wired all signals.
+
+        Design notes
+        ------------
+        * self.w.imageBrowsing (navigation controls) intentionally stays in
+          self.w.  Moving a Designer-generated dock between QMainWindows
+          corrupts Qt's internal dock-layout state for self.w and causes
+          access-violation crashes when mouse events route through self.w's
+          toolbar/statusbar machinery.
+        * self._image_toolbar is a plain QToolBar added to a VBox layout
+          container, NOT via QMainWindow.addToolBar().  Using addToolBar()
+          creates QToolBarWidgetAction wrappers that can dangle when the
+          floating outer dock is moved or resized.  The plain-widget approach
+          mirrors VideoPlayerWidget.player_toolbar.
+        """
+        from qgis.utils import iface as _iface
+
+        # Inner QMainWindow (Widget flag): needed only for addDockWidget()
+        self._image_inner_window = QMainWindow()
+        self._image_inner_window.setWindowFlags(Qt.WindowType(1))   # Widget
+        self._image_inner_window.statusBar().hide()
+        self._image_inner_window.menuBar().hide()
+
+        # Container: plain QWidget holding toolbar + optional conf row + image viewer.
+        # Plain QToolBar in a layout is stable across floating/resize — avoids the
+        # QMainWindow toolbar-widget bookkeeping that causes access violations.
+        container = QWidget()
+        vbox = QVBoxLayout(container)
+        vbox.setContentsMargins(0, 0, 0, 0)
+        vbox.setSpacing(0)
+
+        self._image_toolbar = QToolBar()
+        self._image_toolbar.setMovable(False)
+        vbox.addWidget(self._image_toolbar)
+
+        # Detection-confidence row — hidden until actionAnnotation is checked.
+        # Lives here instead of in self.w so it stays with the image viewer.
+        self._image_conf_widget = QWidget()
+        conf_row = QHBoxLayout(self._image_conf_widget)
+        conf_row.setContentsMargins(6, 2, 6, 2)
+        conf_row.setSpacing(6)
+        conf_row.addWidget(QLabel("Detection Confidence"))
+        self._image_conf_spinbox = QDoubleSpinBox()
+        self._image_conf_spinbox.setRange(0.0, 1.0)
+        self._image_conf_spinbox.setSingleStep(0.01)
+        self._image_conf_spinbox.setDecimals(2)
+        self._image_conf_spinbox.setValue(
+            self.w.annotation_confidence_spinBox.value())
+        self._image_conf_spinbox.setToolTip("Image annotation confidence threshold")
+        self._image_conf_spinbox.setFixedWidth(80)
+        self._image_conf_spinbox.valueChanged.connect(self._on_image_conf_changed)
+        conf_row.addWidget(self._image_conf_spinbox)
+        conf_row.addStretch()
+        self._image_conf_widget.setVisible(False)
+        vbox.addWidget(self._image_conf_widget)
+
+        # Reparent imv from self.w into the container
+        vbox.addWidget(self.imv)
+        self._image_inner_window.setCentralWidget(container)
+        # Clear self.w's central widget (imv has been reparented away)
+        self.w.setCentralWidget(QWidget())
+
+        # Move the navigation controls dock (slider, spinbox, fwd/rwd buttons,
+        # step, zoom-to, range) from self.w into the image browser inner window.
+        # Safe now that the inner window has no addToolBar() toolbar — the old
+        # crash was caused by addToolBar()'s QToolBarWidgetAction bookkeeping,
+        # not by dock reparenting itself.
+        self.w.removeDockWidget(self.w.imageBrowsing)
+        self._image_inner_window.addDockWidget(
+            Qt.DockWidgetArea.BottomDockWidgetArea, self.w.imageBrowsing)
+        self.w.imageBrowsing.show()
+
+        # Outer floating dock in the main QGIS window
+        self._image_dock = QDockWidget("Image Browser", _iface.mainWindow())
+        self._image_dock.setObjectName("GroundTrutherImageDock")
+        self._image_dock.setAllowedAreas(Qt.DockWidgetArea(15))       # AllDockWidgetAreas
+        self._image_dock.setFeatures(
+            QDockWidget.DockWidgetFeature(7))                         # Closable|Movable|Floatable
+        self._image_dock.setWidget(self._image_inner_window)
+
+        # Docked on the left side of QGIS by default.
+        # DockWidgetFloatable is set in features so the user can detach it freely.
+        _iface.addDockWidget(Qt.DockWidgetArea(2), self._image_dock)
+        self._image_dock.hide()  # all plugin docks start hidden; user opens via toolbar
+
+        # Toggle action in self.w toolbar so the user can re-open the dock
+        from groundtruther.mixins.toolbar_icons import make_toggle_icon
+        self._image_dock_action = QAction(self)
+        self._image_dock_action.setIcon(make_toggle_icon("file-image.svg"))
+        self._image_dock_action.setCheckable(True)
+        self._image_dock_action.setChecked(False)
+        self._image_dock_action.setToolTip("Show / hide the Image Browser")
+        self._image_dock_action.toggled.connect(self._toggle_image_dock)
+        self._image_dock.visibilityChanged.connect(self._on_image_dock_visibility)
+        first = self.w.toolBar.actions()
+        self.w.toolBar.insertAction(first[0] if first else None,
+                                    self._image_dock_action)
+
+        # Move actionAnnotation from self.w toolbar into the image browser toolbar
+        self.w.toolBar.removeAction(self.w.actionAnnotation)
+        self._image_toolbar.addAction(self.w.actionAnnotation)
+        # Replace the old showAnnotationThreshold connection with one that
+        # shows/hides the confidence row inside this dock
+        try:
+            self.w.actionAnnotation.triggered.disconnect(self.showAnnotationThreshold)
+        except Exception:
+            pass
+        self.w.actionAnnotation.toggled.connect(
+            lambda checked: self._image_conf_widget.setVisible(checked))
+        # Permanently hide the originals in self.w (they have moved here)
+        self.w.annotation_confidence_spinBox.hide()
+        self.w.annotation_confidence_spinBox_label.hide()
+
+        # Metadata side panel — docked on the left of the image browser inner window
+        self._image_metadata_dock = QDockWidget("Image Metadata",
+                                                self._image_inner_window)
+        self._image_metadata_dock.setObjectName("GroundTrutherImageMetadataDock")
+        self._image_metadata_dock.setAllowedAreas(
+            Qt.DockWidgetArea.LeftDockWidgetArea | Qt.DockWidgetArea.RightDockWidgetArea)
+        self._image_metadata_dock.setWidget(self.imagemetadata_gui)
+        self._image_metadata_dock.hide()
+        self._image_inner_window.addDockWidget(
+            Qt.DockWidgetArea.LeftDockWidgetArea, self._image_metadata_dock)
+
+        self._meta_panel_action = QAction("Metadata", self._image_inner_window)
+        self._meta_panel_action.setCheckable(True)
+        self._meta_panel_action.setToolTip("Show / hide the image metadata panel")
+        self._meta_panel_action.toggled.connect(self._image_metadata_dock.setVisible)
+        self._image_metadata_dock.visibilityChanged.connect(
+            self._meta_panel_action.setChecked)
+        self._image_toolbar.addSeparator()
+        self._image_toolbar.addAction(self._meta_panel_action)
+
+        QgsMessageLog.logMessage(
+            "Image browser dock created", "GroundTruther", Qgis.Info)
+
+    def _on_image_conf_changed(self, value: float) -> None:
+        """Update the threshold and immediately redraw the annotation overlay."""
+        self.annotation_confidence_treshold = value
+        if self.imageMetadata is None:
+            return
+        # Skip redraw when the editor dock is open — it owns the ROI display
+        ann_editor_open = (
+            hasattr(self, 'annotation_editor_dock')
+            and self.annotation_editor_dock.isVisible()
+        )
+        if self.w.actionAnnotation.isChecked() and not ann_editor_open:
+            self.add_image_annotation()
+
+    def _cleanup_image_browser_dock(self) -> None:
+        """Remove the floating image browser dock from QGIS."""
+        if not hasattr(self, '_image_dock') or self._image_dock is None:
+            return
+        dock = self._image_dock
+        self._image_dock = None
+        self._image_inner_window = None
+        try:
+            dock.hide()
+            dock.setWidget(None)
+            from qgis.utils import iface as _iface
+            _iface.removeDockWidget(dock)
+            dock.deleteLater()
+        except Exception:
+            pass
+
+    def _toggle_image_dock(self, checked: bool) -> None:
+        dock = getattr(self, '_image_dock', None)
+        if dock is None:
+            return
+        if checked:
+            dock.show()
+            dock.raise_()
         else:
-            self.imv.show()
+            dock.hide()
+
+    def _on_image_dock_visibility(self, visible: bool) -> None:
+        action = getattr(self, '_image_dock_action', None)
+        if action is None:
+            return
+        action.blockSignals(True)
+        action.setChecked(visible)
+        action.blockSignals(False)
+
+    def showImageViewer(self):
+        dock = getattr(self, '_image_dock', None)
+        if dock is None:
+            # Fallback when dock hasn't been created yet or has been torn down
+            try:
+                if self.imv.isVisible():
+                    self.imv.hide()
+                    self.imageviewer_is_hidden = True
+                else:
+                    self.imv.show()
+                    self.imageviewer_is_hidden = False
+            except RuntimeError:
+                pass
+            return
+        if dock.isVisible():
+            dock.hide()
+            self.imageviewer_is_hidden = True
+            if hasattr(self, '_image_dock_action') and self._image_dock_action:
+                self._image_dock_action.blockSignals(True)
+                self._image_dock_action.setChecked(False)
+                self._image_dock_action.blockSignals(False)
+        else:
+            dock.show()
+            dock.raise_()
             self.imageviewer_is_hidden = False
-            if self.w.link_to_image_viewer.isChecked():
-                self.w.imageBrowsing.show()
+            if hasattr(self, '_image_dock_action') and self._image_dock_action:
+                self._image_dock_action.blockSignals(True)
+                self._image_dock_action.setChecked(True)
+                self._image_dock_action.blockSignals(False)
 
     def showImageBrowser(self):
+        dock = getattr(self, '_image_dock', None)
+        if dock is not None:
+            if dock.isVisible():
+                dock.hide()
+                self.imageviewer_is_hidden = True
+            else:
+                dock.show()
+                self.imageviewer_is_hidden = False
+            return
+        # Fallback
         if self.imv.isVisible():
             self.w.imageBrowsing.hide()
             self.imageviewer_is_hidden = True

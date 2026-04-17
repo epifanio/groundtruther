@@ -50,8 +50,11 @@ class SettingsMixin:
 
         try:
             self.imageMetadata = img_mgr.load_metadata(self.metadatafile)
-            self.w.ImageIndexspinBox.setMaximum(len(self.imageMetadata) - 1)
-            self.w.ImageIndexSlider.setMaximum(len(self.imageMetadata) - 1)
+            total = len(self.imageMetadata)
+            self.w.ImageIndexspinBox.setMaximum(total - 1)
+            self.w.ImageIndexSlider.setMaximum(total - 1)
+            if hasattr(self, '_image_counter_label'):
+                self._image_counter_label.setText(f"0 / {total - 1}")
 
             if os.getenv("HBC_DEBUG") == "VERBOSE":
                 QgsMessageLog.logMessage(
@@ -94,6 +97,7 @@ class SettingsMixin:
         """
         dialog = ConfigDialog()
         dialog.settings_saved.connect(self._apply_settings)
+        dialog.settings_saved.connect(self._apply_video_settings)
         dialog.exec()
 
     def _open_config_dialog(self):

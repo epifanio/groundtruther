@@ -430,12 +430,7 @@ class GroundTruther:
         # disconnects
         self.dockwidget.closingPlugin.disconnect(self.onClosePlugin)
 
-        # remove this statement if dockwidget is to remain
-        # for reuse if plugin is reopened
-        # Commented next statement since it causes QGIS crashe
-        # when closing the docked window:
-        # self.dockwidget = None
-
+        self.dockwidget = None
         self.pluginIsActive = False
 
 
@@ -464,6 +459,12 @@ class GroundTruther:
                 pass
 
         if self.dockwidget is not None:
+            # Persist dock positions before any teardown alters them.
+            try:
+                self.dockwidget._save_layout()
+            except Exception:
+                pass
+
             # Close pyqtgraph ImageView before C++ widget destruction so that
             # ViewBox.AllViews is cleaned up while the scene is still valid.
             # (removeDockWidget does not trigger closeEvent on a docked widget,
@@ -475,6 +476,34 @@ class GroundTruther:
                     self.dockwidget.imv.close()
                 except Exception:
                     pass
+
+            # Tear down floating docks before removeDockWidget() is called.
+            # removeDockWidget() does not trigger closeEvent on a docked widget,
+            # so these cleanup methods would never run otherwise.
+            try:
+                self.dockwidget._cleanup_image_browser_dock()
+            except Exception:
+                pass
+            try:
+                self.dockwidget._cleanup_video_browser()
+            except Exception:
+                pass
+            try:
+                self.dockwidget._cleanup_report_dock()
+            except Exception:
+                pass
+
+            # Remove canvas marker left by the image-browser zoom_to feature.
+            try:
+                canvas = self.iface.mapCanvas()
+                scene = canvas.scene() if canvas else None
+                if scene is not None:
+                    for attr in ('m1', 'r'):
+                        item = getattr(self.dockwidget, attr, None)
+                        if item is not None:
+                            scene.removeItem(item)
+            except Exception:
+                pass
 
             if getattr(self.dockwidget, 'grass_dialog', None) is not None and self.dockwidget.grass_dialog.grassenabled:
                 self.iface.removeCustomActionForLayerType(self.dockwidget.action_import_raster)
@@ -519,9 +548,12 @@ class GroundTruther:
             self.dockwidget.closingPlugin.connect(self.onClosePlugin)
 
             # show the dockwidget
-            # TODO: fix to allow choice of dock location
             self.iface.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.dockwidget)
             self.dockwidget.show()
+            # On first run position child docks below the main dock.
+            # With a saved layout they were already restored to the right place.
+            if not self.dockwidget._has_saved_layout():
+                self.dockwidget._position_child_docks_below()
             if self.dockwidget is not None:
                 if self.dockwidget.m1 is not None:
                     self.iface.mapCanvas().scene().addItem(self.dockwidget.m1)

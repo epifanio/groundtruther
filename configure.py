@@ -86,6 +86,11 @@ def validate_config(settings):
     if not settings:
         return False, "No settings provided"
     try:
+        # Video fields are all Optional[str] — nothing to validate pydantically.
+        # Passing them to HabcamSettings triggers a pydantic v1 bug where a
+        # field named "Video" with type Optional[VideoSettings] silently fails
+        # coercion and reports "value is not None".  Validate only the fields
+        # that have real constraints (paths, URLs, booleans).
         HabcamSettings(
             Mbes={"soundings": settings["Mbes"]["soundings"]},
             HabCam={
@@ -164,6 +169,8 @@ class ConfigDialog(QDialog, AppSettings):
         self.select_imageannotation_path.clicked.connect(self.set_imageannotation_path)
         self.select_mbes_path.clicked.connect(self.set_mbes_path)
         self.select_kml_path.clicked.connect(self.set_kml_path)
+        self.select_video_path.clicked.connect(self.set_video_path)
+        self.select_video_metadata_path.clicked.connect(self.set_video_metadata_path)
         self.gpu_avaibility.currentIndexChanged.connect(self._on_gpu_index_changed)
         self.setOption.clicked.connect(self.write_config)
         self.quit.clicked.connect(self.close)
@@ -195,6 +202,8 @@ class ConfigDialog(QDialog, AppSettings):
         export = settings.get("Export", {})
         proc = settings.get("Processing", {})
 
+        video = settings.get("Video", {}) or {}
+
         self.filemanager.setText(fs.get("filemanager", ""))
         self.image_path.setText(hbc.get("imagepath", ""))
         self.metadata_path.setText(hbc.get("imagemetadata", ""))
@@ -206,6 +215,10 @@ class ConfigDialog(QDialog, AppSettings):
         self.gpu_avaibility_value = bool(gpu)
         self.gpu_avaibility.setCurrentText("Enabled" if gpu else "Disabled")
         self.grass_api_endpoint.setText(proc.get("grass_api_endpoint", ""))
+
+        # Video fields (widgets are now always present via Ui_app_settings_ui)
+        self.video_path.setText(video.get("videofile", ""))
+        self.video_metadata_path.setText(video.get("videometadata", ""))
 
     def _on_gpu_index_changed(self, index):
         self.gpu_avaibility_value = self.gpu_avaibility.itemText(index) == "Enabled"
@@ -262,6 +275,22 @@ class ConfigDialog(QDialog, AppSettings):
         if directory:
             self.vrt_path.setText(directory)
 
+    def set_video_path(self):
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Set video file", self.video_path.text(),
+            "Video files (*.mp4 *.avi *.mov *.mkv);;All files (*)",
+        )
+        if file_name:
+            self.video_path.setText(file_name)
+
+    def set_video_metadata_path(self):
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Set video metadata CSV", self.video_metadata_path.text(),
+            "CSV files (*.csv);;All files (*)",
+        )
+        if file_name:
+            self.video_metadata_path.setText(file_name)
+
     # ------------------------------------------------------------------
     # Settings read-back
     # ------------------------------------------------------------------
@@ -284,6 +313,11 @@ class ConfigDialog(QDialog, AppSettings):
             "Processing": {
                 "gpu_avaibility": self.gpu_avaibility_value,
                 "grass_api_endpoint": _opt(self.grass_api_endpoint.text()),
+            },
+            "Video": {
+                "videofile": _opt(self.video_path.text()),
+                "videometadata": _opt(self.video_metadata_path.text()),
+                "videoannotation": None,
             },
         }
 
@@ -312,6 +346,9 @@ class ConfigDialog(QDialog, AppSettings):
             "kmldir": self.kml_path.text(),
             "gpu_avaibility": self.gpu_avaibility_value,
             "grass_api_endpoint": self.grass_api_endpoint.text(),
+            "videofile": self.video_path.text(),
+            "videometadata": self.video_metadata_path.text(),
+            "videoannotation": "",
         })
         with open(self.config, "w+", encoding="utf8") as yaml_file:
             yaml_file.write(hbc_config)
