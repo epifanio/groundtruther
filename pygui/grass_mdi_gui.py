@@ -237,10 +237,13 @@ class GrassTools(QMainWindow):
         indexes = self.grass_mdi.grass_layers.selectedIndexes()
         if indexes:
             menu = QMenu(self)
+            add_action = QAction("Add to QGIS", self)
+            add_action.triggered.connect(self.add_selected_to_qgis)
+            menu.addAction(add_action)
             delete_action = QAction("Delete Row", self)
             delete_action.triggered.connect(self.delete_row)
             menu.addAction(delete_action)
-            menu.exec_(self.grass_mdi.grass_layers.viewport().mapToGlobal(position))
+            menu.exec(self.grass_mdi.grass_layers.viewport().mapToGlobal(position))
 
     def delete_row(self):
         """Remove the selected row(s) from the layer table.
@@ -443,6 +446,7 @@ class GrassTools(QMainWindow):
         if window is None:
             window = ModuleRunnerWidget(self.parent, name)
             self._init_module_window(window, name)
+            window.exit.clicked.connect(window.hide)   # wire the Close button
             self._module_windows[name] = window
         window.get_rvr_list()
         window.show()
