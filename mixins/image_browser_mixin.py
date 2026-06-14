@@ -107,6 +107,16 @@ class ImageBrowserMixin:
         self.w.ImageIndexSlider.valueChanged.connect(self.add_image)
 
         self.w.range.valueChanged.connect(self.setValuerangeSpinBox)
+        # The zoom-to control is a map *scale* (1:N) selector — CRS-independent,
+        # unlike the old project-unit buffer. Default QSpinBox max is 99, far too
+        # small for a scale denominator, so widen the range here.
+        self.w.range.setRange(50, 10_000_000)
+        self.w.range.setSingleStep(500)
+        self.w.range.setPrefix("1:")
+        self.w.range.setToolTip(
+            "Zoom-to map scale (1:N). Larger value = more zoomed out.")
+        if self.w.range.value() < 50:
+            self.w.range.setValue(2500)
         self.w.toolBar.removeAction(self.w.actionImageBrowser)
         self.w.annotation_confidence_spinBox.valueChanged.connect(
             self.setValue_annotation_confidence)
@@ -210,13 +220,8 @@ class ImageBrowserMixin:
                     "zoom_to: coordinate transform failed", exc, warn=True)
                 return
 
-        distance = float(self.rangevalue) / 10000
         self.w.statusbar.showMessage("System Status | Normal")
 
-        rect = QgsRectangle(
-            point.x() - distance, point.y() - distance,
-            point.x() + distance, point.y() + distance,
-        )
         if self.m1:
             self.canvas.scene().removeItem(self.m1)
         self.m1 = QgsVertexMarker(self.canvas)
@@ -225,7 +230,14 @@ class ImageBrowserMixin:
         self.m1.setIconSize(10)
         self.m1.setIconType(QgsVertexMarker.ICON_X)
         self.m1.setPenWidth(3)
-        self.canvas.setExtent(rect)
+
+        # Centre on the image and zoom by map scale (1:rangevalue). Using the
+        # map scale is CRS-independent — unlike a buffer in project units, which
+        # is microscopic in a metric CRS (metres) but huge in degrees.
+        self.canvas.setCenter(point)
+        scale = float(self.rangevalue)
+        if scale > 0:
+            self.canvas.zoomScale(scale)
         self.canvas.refresh()
 
     # ------------------------------------------------------------------ #
