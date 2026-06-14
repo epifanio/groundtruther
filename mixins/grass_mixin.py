@@ -6,6 +6,7 @@ from qgis.core import (
     Qgis, QgsMessageLog, QgsMapLayerType,
     QgsPointXY, QgsGeometry, QgsWkbTypes,
     QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject,
+    QgsVectorFileWriter,
 )
 from qgis.gui import QgsRubberBand
 
@@ -49,8 +50,13 @@ class GrassIntegrationMixin:
             return
         self.w.gisTools_logger.setText("GRASS GIS enabled")
 
+        # Register the layer context-menu actions only once.
+        if getattr(self, "_grass_ctx_added", False):
+            return
+        self._grass_ctx_added = True
+
         self.action_import_raster = QAction(
-            "Import selected layer into GRASS Server")
+            "Send to active GRASS environment")
         self.action_import_raster.triggered.connect(
             self.import_active_raster_layer_to_grass)
 
@@ -67,7 +73,7 @@ class GrassIntegrationMixin:
             QgsMapLayerType.RasterLayer, True)
 
         self.action_import_vector = QAction(
-            "Import selected layer into GRASS Server")
+            "Send to active GRASS environment")
         self.action_import_vector.triggered.connect(
             self.import_active_vector_layer_to_grass)
 
@@ -127,18 +133,123 @@ class GrassIntegrationMixin:
             f"bbox_selection: {bbox}", 'GroundTruther', Qgis.Info)
 
     def import_active_raster_layer_to_grass(self):
-        QgsMessageLog.logMessage(
-            f"import_active_raster_layer_to_grass: layer={iface.activeLayer()}, "
-            f"info={get_layer_info(iface.activeLayer())}",
-            'GroundTruther', Qgis.Info)
+        """Context-menu action: send the active raster layer to the active env."""
+        self._send_layer_to_grass(iface.activeLayer(), "raster")
 
     def import_active_vector_layer_to_grass(self):
-        geojson = convert_to_geojson_using_gdal(iface.activeLayer().source())
+        """Context-menu action: send the active vector layer to the active env."""
+        self._send_layer_to_grass(iface.activeLayer(), "vector")
+
+    @staticmethod
+    def _grass_safe_name(name: str) -> str:
+        """Sanitize a layer name into a valid GRASS map name."""
+        import re
+        safe = re.sub(r"[^A-Za-z0-9_]", "_", name or "")
+        if safe and safe[0].isdigit():
+            safe = "m_" + safe
+        return safe or "layer"
+
+    def _send_layer_to_grass(self, layer, kind: str):
+        """Upload *layer*'s data to the active GRASS env, reprojecting if needed.
+
+        The data is reprojected from the layer's CRS to the environment's native
+        CRS (client-side, with GDAL/QGIS) before upload, so it lands in the
+        location regardless of the project/layer CRS.
+        """
+        import os
+        if layer is None:
+            error_message("No active layer selected.")
+            return
+        endpoint, api_key, env_id = self.grass_dialog.connection()
+        if not env_id:
+            error_message(
+                "No GRASS environment selected.\n"
+                "Open GRASS settings and choose an environment.")
+            return
+        try:
+            env_crs = self._env_crs(grass_api.projection(endpoint, api_key, env_id))
+        except GrassApiError as exc:
+            error_message(f"GRASS projection error: {exc}")
+            return
+
+        out_name = self._grass_safe_name(layer.name())
+        tmp_path = None
+        try:
+            upload_path, tmp_path = self._prepare_layer_upload(layer, kind, env_crs)
+            if not upload_path:
+                error_message("Could not access the layer's data to send.")
+                return
+            if kind == "raster":
+                res = grass_api.import_raster(
+                    endpoint, api_key, env_id, file_path=upload_path,
+                    output_name=out_name)
+            else:
+                res = grass_api.import_vector(
+                    endpoint, api_key, env_id, file_path=upload_path,
+                    output_name=out_name)
+        except GrassApiError as exc:
+            log_exception(f"send {kind} layer to GRASS", exc, warn=True)
+            error_message(f"Send to GRASS failed: {exc}")
+            return
+        except Exception as exc:  # noqa: BLE001 — reprojection/export failures
+            log_exception(f"send {kind} layer: reproject/export", exc)
+            error_message(f"Could not prepare the layer for upload: {exc}")
+            return
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+
         QgsMessageLog.logMessage(
-            f"import_active_vector_layer_to_grass – geojson ready, "
-            f"endpoint: {self.grass_api_endpoint}\n"
-            f"{geojson[:200] if isinstance(geojson, str) else geojson}",
-            'GroundTruther', Qgis.Info)
+            f"sent '{layer.name()}' to env {env_id}: {res}", 'GroundTruther', Qgis.Info)
+        iface.messageBar().pushMessage(
+            "GroundTruther",
+            f"Sent '{layer.name()}' to the active GRASS environment "
+            f"as '{res.get('output', out_name)}'.",
+            level=Qgis.Success, duration=5)
+        try:
+            self.grassWidgetContents.load_grass_layers()
+        except Exception as exc:  # noqa: BLE001 — best-effort table refresh
+            log_exception("send_layer: refresh GRASS layer table", exc, warn=True)
+
+    def _prepare_layer_upload(self, layer, kind: str, env_crs):
+        """Return ``(path_to_upload, temp_path_or_None)`` for *layer*.
+
+        Reprojects to *env_crs* when the layer CRS differs.  Rasters are warped
+        with GDAL; vectors are written to a temporary GeoPackage via QGIS.
+        """
+        import os
+        import tempfile
+        same_crs = layer.crs() == env_crs
+        source = layer.source().split("|")[0]
+
+        if kind == "raster":
+            if same_crs and os.path.exists(source):
+                return source, None
+            from osgeo import gdal
+            fd, tmp = tempfile.mkstemp(suffix=".tif")
+            os.close(fd)
+            dst_srs = env_crs.authid() or env_crs.toWkt()
+            ds = gdal.Warp(tmp, source, dstSRS=dst_srs)
+            ds = None  # flush/close
+            return tmp, tmp
+
+        # vector: write the loaded layer (reprojected if needed) to a temp GPKG
+        fd, tmp = tempfile.mkstemp(suffix=".gpkg")
+        os.close(fd)
+        opts = QgsVectorFileWriter.SaveVectorOptions()
+        opts.driverName = "GPKG"
+        opts.layerName = self._grass_safe_name(layer.name())
+        if not same_crs:
+            opts.ct = QgsCoordinateTransform(layer.crs(), env_crs, QgsProject.instance())
+        result = QgsVectorFileWriter.writeAsVectorFormatV3(
+            layer, tmp, QgsProject.instance().transformContext(), opts)
+        code = result[0] if isinstance(result, (tuple, list)) else result
+        if code != QgsVectorFileWriter.WriterError.NoError:
+            raise RuntimeError(f"vector export failed: {result}")
+        return tmp, tmp
 
     # ------------------------------------------------------------------ #
     # GRASS region                                                         #
