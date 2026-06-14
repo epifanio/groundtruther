@@ -1,6 +1,7 @@
 """GRASS GIS integration mixin."""
 from qgis.PyQt.QtWidgets import QAction
 from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtCore import Qt
 from qgis.utils import iface
 from qgis.core import (
     Qgis, QgsMessageLog, QgsMapLayerType,
@@ -31,6 +32,9 @@ class GrassIntegrationMixin:
 
     def init_grass_ui(self):
         self.grassWidgetContents = GrassTools(self)
+        # Embed the inner QMainWindow as a plain child widget (Qt.Widget) so it
+        # behaves correctly inside the floating gisTools dock.
+        self.grassWidgetContents.setWindowFlags(Qt.WindowType(1))
         self.grassWidgetContents.setObjectName("grassDockWidgetContents")
         self.w.gisToolSplitter.insertWidget(0, self.grassWidgetContents)
 

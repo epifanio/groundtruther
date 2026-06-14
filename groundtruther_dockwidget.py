@@ -185,8 +185,18 @@ class GroundTrutherDockWidget(
         _main_vbox.setSpacing(0)
         _main_vbox.addWidget(self.w.toolBar)
         _main_vbox.addWidget(self.w)
-        _main_vbox.addWidget(self.w.gisTools)     # hidden; shown by showGisTools()
         self.setWidget(_main_container)
+
+        # Register the GRASS tools panel (toolbar + output browser + layer table)
+        # as an independent QGIS dock so it can be undocked / floated / moved like
+        # the other plugin panels.  Registering it with the QGIS main window
+        # (not the inner self.w QMainWindow) avoids the Qt6 dock-walk crash.
+        self.w.gisTools.setFeatures(
+            QtWidgets.QDockWidget.DockWidgetFeature(7))   # Closable|Movable|Floatable
+        self.w.gisTools.setAllowedAreas(Qt.DockWidgetArea(15))  # AllDockWidgetAreas
+        self.w.gisTools.setWindowTitle("GRASS Tools")
+        iface.addDockWidget(Qt.DockWidgetArea(2), self.w.gisTools)  # RightDockWidgetArea
+        self.w.gisTools.hide()
 
         # --- Status-bar lat/lon display ---
         self.image = QLabel()

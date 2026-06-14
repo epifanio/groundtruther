@@ -492,6 +492,11 @@ class GroundTruther:
                 self.dockwidget._cleanup_report_dock()
             except Exception:
                 pass
+            # GRASS tools is registered as its own QGIS dock — remove it too.
+            try:
+                self.iface.removeDockWidget(self.dockwidget.w.gisTools)
+            except Exception:
+                pass
 
             # Remove canvas marker left by the image-browser zoom_to feature.
             try:
