@@ -347,6 +347,73 @@ class GrassIntegrationMixin:
         return max(ys), min(ys), max(xs), min(xs)
 
     # ------------------------------------------------------------------ #
+    # Show / hide the current GRASS computational region                   #
+    # ------------------------------------------------------------------ #
+
+    def toggle_grass_region(self, checked: bool = True):
+        """Show or hide the active env's current computational region on the map."""
+        if not checked:
+            self._remove_region_rubber()
+            return
+        ok = self.show_grass_region()
+        if not ok:
+            # revert the toolbar toggle if we couldn't draw it
+            btn = getattr(self.grassWidgetContents, "show_region_btn", None)
+            if btn is not None:
+                btn.setChecked(False)
+
+    def show_grass_region(self) -> bool:
+        """Fetch the current region and draw it as a rubber band. Returns success."""
+        endpoint, api_key, env_id = self.grass_dialog.connection()
+        if not env_id:
+            error_message(
+                "No GRASS environment selected.\n"
+                "Open GRASS settings and choose an environment.")
+            return False
+        try:
+            region = grass_api.get_region(endpoint, api_key, env_id)
+            proj = grass_api.projection(endpoint, api_key, env_id)
+        except GrassApiError as exc:
+            log_exception("show_grass_region: API error", exc, warn=True)
+            error_message(f"GRASS region error: {exc}")
+            return False
+        try:
+            n, s = float(region["n"]), float(region["s"])
+            e, w = float(region["e"]), float(region["w"])
+        except (KeyError, TypeError, ValueError) as exc:
+            log_exception("show_grass_region: unexpected region shape", exc)
+            error_message("Unexpected GRASS region response.")
+            return False
+        self._draw_region_rubber(n, s, e, w, self._env_crs(proj))
+        return True
+
+    def _draw_region_rubber(self, north, south, east, west, env_crs):
+        """Draw the region rectangle (env CRS) on the canvas, reprojected to project CRS."""
+        corners = [(west, north), (east, north), (east, south), (west, south)]
+        proj_crs = QgsProject.instance().crs()
+        if env_crs != proj_crs and proj_crs.isValid():
+            xform = QgsCoordinateTransform(env_crs, proj_crs, QgsProject.instance())
+            points = [xform.transform(QgsPointXY(x, y)) for x, y in corners]
+        else:
+            points = [QgsPointXY(x, y) for x, y in corners]
+        self._remove_region_rubber()
+        rb = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
+        rb.setToGeometry(QgsGeometry.fromPolygonXY([points]), None)
+        rb.setColor(QColor(0, 0, 255))
+        rb.setWidth(2)
+        rb.setFillColor(QColor(0, 0, 0, 0))
+        self._region_rubber = rb
+
+    def _remove_region_rubber(self):
+        rb = getattr(self, "_region_rubber", None)
+        if rb is not None:
+            try:
+                self.canvas.scene().removeItem(rb)
+            except Exception:  # noqa: BLE001 — canvas may be gone on teardown
+                pass
+            self._region_rubber = None
+
+    # ------------------------------------------------------------------ #
     # GRASS raster query                                                   #
     # ------------------------------------------------------------------ #
 

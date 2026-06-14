@@ -503,7 +503,7 @@ class GroundTruther:
                 canvas = self.iface.mapCanvas()
                 scene = canvas.scene() if canvas else None
                 if scene is not None:
-                    for attr in ('m1', 'r'):
+                    for attr in ('m1', 'r', '_region_rubber'):
                         item = getattr(self.dockwidget, attr, None)
                         if item is not None:
                             scene.removeItem(item)

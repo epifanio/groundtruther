@@ -149,6 +149,14 @@ class GrassTools(QMainWindow):
         self.add_to_qgis_btn.clicked.connect(self.add_selected_to_qgis)
         self.moduleToolBar.addWidget(self.add_to_qgis_btn)
 
+        # Show/hide the active env's current computational region on the map
+        self.show_region_btn = QToolButton()
+        self.show_region_btn.setText("Region")
+        self.show_region_btn.setCheckable(True)
+        self.show_region_btn.setToolTip("Show/hide the active GRASS computational region on the map")
+        self.show_region_btn.clicked.connect(self.parent.toggle_grass_region)
+        self.moduleToolBar.addWidget(self.show_region_btn)
+
         # The MDI area is no longer used (modules open as top-level windows); hide it.
         self.grass_mdi.grassTools.hide()
 

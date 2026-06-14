@@ -316,6 +316,15 @@ def sample(endpoint: str, api_key: str, env_id: str, *, layers: list[str],
                     json=body)
 
 
+def get_region(endpoint: str, api_key: str, env_id: str) -> dict:
+    """Return the current computational region (``GET /grass/env/{id}/region``).
+
+    Values (n/s/e/w/nsres/ewres/rows/cols/...) are strings in the env's native CRS.
+    """
+    payload = _request("GET", endpoint, f"/grass/env/{env_id}/region", api_key)
+    return (payload or {}).get("region", payload or {})
+
+
 def set_region(endpoint: str, api_key: str, env_id: str, *,
                north: float | None = None, south: float | None = None,
                east: float | None = None, west: float | None = None,
