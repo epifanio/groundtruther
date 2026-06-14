@@ -24,6 +24,32 @@
 """
 
 
+def _bootstrap_venv():
+    """Add the plugin's self-contained virtualenv to sys.path.
+
+    GroundTruther's Python dependencies (pandas, opencv, pyqtgraph, numba, ...)
+    are installed into a ``.venv`` created alongside the plugin source with
+    ``--system-site-packages`` against the same Python QGIS uses.  This makes
+    them importable inside QGIS regardless of how QGIS was launched, without
+    relying on a profile ``startup.py``.  No-op if the venv is absent.
+    """
+    import sys
+    from pathlib import Path
+
+    plugin_dir = Path(__file__).resolve().parent
+    site = (plugin_dir / ".venv" / "lib"
+            / f"python{sys.version_info.major}.{sys.version_info.minor}"
+            / "site-packages")
+    if site.is_dir():
+        p = str(site)
+        if p not in sys.path:
+            # Append so QGIS/system packages keep priority over venv copies.
+            sys.path.append(p)
+
+
+_bootstrap_venv()
+
+
 # noinspection PyPep8Naming
 def classFactory(iface):  # pylint: disable=invalid-name
     """Load GroundTruther class from file GroundTruther.

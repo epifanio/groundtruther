@@ -32,13 +32,17 @@ plotnine
 pyproj
 simplekml
 requests
+geojson
 
 # ---- Config & templating ----
 PyYAML
-# pydantic v1 API (error_wrappers) – pin below v2
-pydantic>=1.9,<2
+# pydantic – config_model.py validates correctly under both v1 and v2;
+# configure.py imports ValidationError with a v1→v2 fallback.
+pydantic>=1.9
 starlette
 Jinja2
 
-# ---- Optional: JIT acceleration (requires LLVM toolchain on Windows) ----
-# numba
+# ---- JIT acceleration ----
+# Required: the BS Query Builder imports pip_cpu (numba) unconditionally.
+# On Windows this needs an LLVM toolchain.
+numba
