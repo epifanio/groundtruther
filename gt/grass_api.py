@@ -233,6 +233,38 @@ def layers(endpoint: str, api_key: str, env_id: str) -> list[dict]:
     return (payload or {}).get("layers", [])
 
 
+def wcs_geotiff(endpoint: str, api_key: str, env_id: str, coverage: str) -> bytes:
+    """Download a raster *coverage* as GeoTIFF bytes via WCS GetCoverage.
+
+    Used to pull a module's output raster back into QGIS.  MapServer's WCS 2.0.1
+    wraps the TIFF in a MIME part (``Content-Disposition: ...\\r\\n\\r\\n<tiff>``),
+    so we strip everything before the TIFF magic and return the raw GeoTIFF (in
+    the env's native CRS).
+    """
+    if not (endpoint and endpoint.strip()):
+        raise GrassApiError("No GRASS API endpoint configured")
+    if not (api_key and api_key.strip()):
+        raise GrassApiError("No GRASS API key configured")
+    url = f"{endpoint.rstrip('/')}/grass/env/{env_id}/wcs"
+    params = {"SERVICE": "WCS", "VERSION": "2.0.1", "REQUEST": "GetCoverage",
+              "COVERAGEID": coverage, "FORMAT": "image/tiff"}
+    try:
+        response = requests.get(
+            url, headers={"accept": "*/*", "X-API-Key": api_key},
+            params=params, timeout=_TIMEOUT_LONG)
+    except requests.exceptions.RequestException as exc:
+        log_exception(f"wcs_geotiff({coverage}): network error", exc, warn=True)
+        raise GrassApiError(f"WCS download failed: {exc}") from exc
+    if not response.ok:
+        raise GrassApiError(_extract_detail(response), response.status_code)
+    data = response.content
+    for magic in (b"II*\x00", b"MM\x00*"):
+        i = data.find(magic)
+        if i >= 0:
+            return data[i:]
+    raise GrassApiError(f"WCS response for '{coverage}' was not a GeoTIFF")
+
+
 def projection(endpoint: str, api_key: str, env_id: str) -> dict:
     """Return the env's CRS info (``GET /grass/env/{id}/general/projection``).
 

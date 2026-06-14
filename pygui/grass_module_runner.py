@@ -19,7 +19,7 @@ the GRASS settings dialog / region tool), so no region argument is sent.
 from qgis.PyQt.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QScrollArea, QLabel,
 )
-from qgis.core import Qgis, QgsMessageLog
+from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsRasterLayer
 
 from groundtruther.configure import log_exception
 from groundtruther.gt import grass_api
@@ -125,6 +125,14 @@ class ModuleRunnerWidget(QWidget):
             self._report("Please fill required parameters: " + ", ".join(missing))
             return
         params, flags = self._form.collect_values()
+        # Remember the connection + existing rasters so _on_success can detect
+        # and pull back any new output rasters into QGIS.
+        self._conn_cache = (endpoint, api_key, env_id)
+        try:
+            self._rasters_before = set(
+                grass_api.list_maps(endpoint, api_key, env_id, type="raster"))
+        except GrassApiError:
+            self._rasters_before = set()
         self._report(f"… running {self.module_name} …")
         self.run.setEnabled(False)
         self.cancel.setEnabled(True)
@@ -143,13 +151,55 @@ class ModuleRunnerWidget(QWidget):
         stdout = result.get("stdout") or []
         stderr = result.get("stderr") or []
         text = "\n".join(stdout) + ("\n" + "\n".join(stderr) if stderr else "")
-        self._report(f"<b>{self.module_name} finished.</b><pre>{text}</pre>")
+        added = self._pull_outputs_to_qgis()
+        note = ("<br><b>Added to QGIS:</b> " + ", ".join(added)) if added else ""
+        self._report(f"<b>{self.module_name} finished.</b>{note}<pre>{text}</pre>")
         # Refresh the queryable raster list now that outputs may exist.
         try:
             self.parent.grassWidgetContents.load_grass_layers()
         except Exception as exc:  # noqa: BLE001 — best-effort refresh
             log_exception(f"{self.module_name}: refresh layers", exc, warn=True)
         self.get_rvr_list()
+
+    def _pull_outputs_to_qgis(self) -> list:
+        """Download rasters created by this run and add them to the QGIS project.
+
+        New rasters are detected by diffing ``g.list`` before/after the run; each
+        is fetched as a GeoTIFF via WCS (native CRS, QGIS reprojects on the fly)
+        and added as a layer.  Returns the names added.
+        """
+        import os
+        import tempfile
+        endpoint, api_key, env_id = getattr(self, "_conn_cache", (None, None, None))
+        if not env_id:
+            return []
+        try:
+            after = set(grass_api.list_maps(endpoint, api_key, env_id, type="raster"))
+        except GrassApiError as exc:
+            log_exception(f"{self.module_name}: list_maps after run", exc, warn=True)
+            return []
+        new_rasters = sorted(after - getattr(self, "_rasters_before", set()))
+        out_dir = os.path.join(tempfile.gettempdir(), "groundtruther_grass")
+        os.makedirs(out_dir, exist_ok=True)
+        added = []
+        for name in new_rasters:
+            try:
+                data = grass_api.wcs_geotiff(endpoint, api_key, env_id, name)
+            except GrassApiError as exc:
+                log_exception(f"{self.module_name}: fetch output '{name}'", exc, warn=True)
+                continue
+            path = os.path.join(out_dir, f"{env_id[:8]}_{name}.tif")
+            with open(path, "wb") as fh:
+                fh.write(data)
+            rlayer = QgsRasterLayer(path, name, "gdal")
+            if rlayer.isValid():
+                QgsProject.instance().addMapLayer(rlayer)
+                added.append(name)
+            else:
+                QgsMessageLog.logMessage(
+                    f"output raster '{name}' downloaded but invalid: {path}",
+                    'GroundTruther', Qgis.Warning)
+        return added
 
     def _on_error(self, detail: str):
         self.run.setEnabled(True)
