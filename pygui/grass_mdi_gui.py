@@ -110,14 +110,9 @@ class GrassTools(QMainWindow):
 
 
 
-        self.r_gemorphon = GeoMorphonWidget(self.parent)    
-        self.r_gemorphon_window = QMdiSubWindow()
-        self.r_gemorphon_window.setWindowTitle("r.geomorphon")
-        self.r_gemorphon_window.setWidget(self.r_gemorphon)
-        self.r_gemorphon_window.setToolTip("r.geomorphon")
-        self.grass_mdi.grassTools.addSubWindow(self.r_gemorphon_window)
-        self.r_gemorphon_window.setWindowFlags(Qt.WindowType(3072))
-        self.r_gemorphon_window.hide()
+        self.r_gemorphon = GeoMorphonWidget(self.parent)
+        self._init_module_window(self.r_gemorphon, "r.geomorphon")
+        self.r_gemorphon_window = self.r_gemorphon
         self.r_gemorphon.exit.clicked.connect(self.view_r_gemorphon)
         gemorphon_icon_path = ':/icons/qtui/icons/element-cell.gif'
         gemorphon_icon = QIcon(gemorphon_icon_path)
@@ -131,14 +126,9 @@ class GrassTools(QMainWindow):
         
         
         
-        self.r_paramscale = ParamScaleWidget(self.parent)    
-        self.r_paramscale_window = QMdiSubWindow()
-        self.r_paramscale_window.setWindowTitle("r.param.scale")
-        self.r_paramscale_window.setWidget(self.r_paramscale)
-        self.r_paramscale_window.setToolTip("r.param.scale")
-        self.grass_mdi.grassTools.addSubWindow(self.r_paramscale_window)
-        self.r_paramscale_window.setWindowFlags(Qt.WindowType(3072))
-        self.r_paramscale_window.hide()
+        self.r_paramscale = ParamScaleWidget(self.parent)
+        self._init_module_window(self.r_paramscale, "r.param.scale")
+        self.r_paramscale_window = self.r_paramscale
         self.r_paramscale.exit.clicked.connect(self.view_r_paramscale)
         paramscale_icon_path = ':/icons/qtui/icons/element-cell.gif'
         paramscale_icon = QIcon(paramscale_icon_path)
@@ -150,15 +140,9 @@ class GrassTools(QMainWindow):
         
         
         
-        self.r_grm_lsi = GrmLsiWidget(self.parent)    
-        self.r_grm_lsi_window = QMdiSubWindow()
-        self.r_grm_lsi_window.setWindowTitle("r.grm.lsi")
-        self.r_grm_lsi_window.setWidget(self.r_grm_lsi)
-        self.r_grm_lsi_window.setToolTip("r.grm.lsi")
-        self.grass_mdi.grassTools.addSubWindow(self.r_grm_lsi_window)
-        #self.r_grm_lsi_window.setWindowTitle("r.grm.lsi")
-        self.r_grm_lsi_window.setWindowFlags(Qt.WindowType(3072))
-        self.r_grm_lsi_window.hide()
+        self.r_grm_lsi = GrmLsiWidget(self.parent)
+        self._init_module_window(self.r_grm_lsi, "grm_lsi")
+        self.r_grm_lsi_window = self.r_grm_lsi
         self.r_grm_lsi.exit.clicked.connect(self.view_r_grm_lsi)
         grm_lsi_icon_path = ':/icons/qtui/icons/element-cell.gif'
         grm_lsi_icon = QIcon(grm_lsi_icon_path)
@@ -350,26 +334,37 @@ class GrassTools(QMainWindow):
     def onClearClicked(self):
         self.grass_mdi.gis_tool_report.clear()
 
-    def view_r_gemorphon(self, module):
-        if self.r_gemorphon_window.isVisible():
-            self.r_gemorphon_window.hide()
-        else:
-            self.r_gemorphon.get_rvr_list()
-            self.r_gemorphon_window.show()
+    def _init_module_window(self, widget, title):
+        """Present a module runner as an independent, movable, resizable window.
 
-    def view_r_paramscale(self, module):
-        if self.r_paramscale_window.isVisible():
-            self.r_paramscale_window.hide()
+        Replaces the old QMdiSubWindow (frameless + trapped in the MDI area):
+        a top-level Qt.Window has a title bar to drag, can be moved anywhere on
+        screen, and resizes — while the runner's internal QScrollArea handles
+        long module forms instead of overflowing the MDI border.
+        """
+        widget.setWindowFlags(Qt.WindowType(1))   # Qt.Window — top-level, framed
+        widget.setWindowTitle(title)
+        widget.resize(480, 640)
+        widget.hide()
+
+    @staticmethod
+    def _toggle_window(window, refresh):
+        if window.isVisible():
+            window.hide()
         else:
-            self.r_paramscale.get_rvr_list()
-            self.r_paramscale_window.show()
-             
-    def view_r_grm_lsi(self, module):
-        if self.r_grm_lsi_window.isVisible():
-            self.r_grm_lsi_window.hide()
-        else:
-            self.r_grm_lsi.get_rvr_list()
-            self.r_grm_lsi_window.show()
+            refresh()
+            window.show()
+            window.raise_()
+            window.activateWindow()
+
+    def view_r_gemorphon(self, module=None):
+        self._toggle_window(self.r_gemorphon_window, self.r_gemorphon.get_rvr_list)
+
+    def view_r_paramscale(self, module=None):
+        self._toggle_window(self.r_paramscale_window, self.r_paramscale.get_rvr_list)
+
+    def view_r_grm_lsi(self, module=None):
+        self._toggle_window(self.r_grm_lsi_window, self.r_grm_lsi.get_rvr_list)
             
     
         
