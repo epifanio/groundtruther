@@ -12,6 +12,7 @@ Export:
 Processing:
     gpu_avaibility: {{gpu_avaibility}}
     grass_api_endpoint: {{grass_api_endpoint}}
+    grass_api_key: {{grass_api_key}}
 Video:
     videofile: {{videofile}}
     videometadata: {{videometadata}}

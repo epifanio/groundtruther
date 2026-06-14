@@ -1,17 +1,21 @@
 """GRASS GIS integration mixin."""
-import requests
 from qgis.PyQt.QtWidgets import QAction
 from qgis.PyQt.QtGui import QColor
+from qgis.PyQt.QtCore import Qt
 from qgis.utils import iface
 from qgis.core import (
     Qgis, QgsMessageLog, QgsMapLayerType,
     QgsPointXY, QgsGeometry, QgsWkbTypes,
+    QgsCoordinateReferenceSystem, QgsCoordinateTransform, QgsProject,
+    QgsVectorFileWriter,
 )
 from qgis.gui import QgsRubberBand
 
 from groundtruther.configure import error_message, log_exception
 from groundtruther.ioutils import get_layer_info, convert_to_geojson_using_gdal
 from groundtruther.pygui.grass_mdi_gui import GrassTools
+from groundtruther.gt import grass_api
+from groundtruther.gt.grass_api import GrassApiError
 
 
 class GrassIntegrationMixin:
@@ -28,6 +32,9 @@ class GrassIntegrationMixin:
 
     def init_grass_ui(self):
         self.grassWidgetContents = GrassTools(self)
+        # Embed the inner QMainWindow as a plain child widget (Qt.Widget) so it
+        # behaves correctly inside the floating gisTools dock.
+        self.grassWidgetContents.setWindowFlags(Qt.WindowType(1))
         self.grassWidgetContents.setObjectName("grassDockWidgetContents")
         self.w.gisToolSplitter.insertWidget(0, self.grassWidgetContents)
 
@@ -47,8 +54,13 @@ class GrassIntegrationMixin:
             return
         self.w.gisTools_logger.setText("GRASS GIS enabled")
 
+        # Register the layer context-menu actions only once.
+        if getattr(self, "_grass_ctx_added", False):
+            return
+        self._grass_ctx_added = True
+
         self.action_import_raster = QAction(
-            "Import selected layer into GRASS Server")
+            "Send to active GRASS environment")
         self.action_import_raster.triggered.connect(
             self.import_active_raster_layer_to_grass)
 
@@ -65,7 +77,7 @@ class GrassIntegrationMixin:
             QgsMapLayerType.RasterLayer, True)
 
         self.action_import_vector = QAction(
-            "Import selected layer into GRASS Server")
+            "Send to active GRASS environment")
         self.action_import_vector.triggered.connect(
             self.import_active_vector_layer_to_grass)
 
@@ -125,18 +137,123 @@ class GrassIntegrationMixin:
             f"bbox_selection: {bbox}", 'GroundTruther', Qgis.Info)
 
     def import_active_raster_layer_to_grass(self):
-        QgsMessageLog.logMessage(
-            f"import_active_raster_layer_to_grass: layer={iface.activeLayer()}, "
-            f"info={get_layer_info(iface.activeLayer())}",
-            'GroundTruther', Qgis.Info)
+        """Context-menu action: send the active raster layer to the active env."""
+        self._send_layer_to_grass(iface.activeLayer(), "raster")
 
     def import_active_vector_layer_to_grass(self):
-        geojson = convert_to_geojson_using_gdal(iface.activeLayer().source())
+        """Context-menu action: send the active vector layer to the active env."""
+        self._send_layer_to_grass(iface.activeLayer(), "vector")
+
+    @staticmethod
+    def _grass_safe_name(name: str) -> str:
+        """Sanitize a layer name into a valid GRASS map name."""
+        import re
+        safe = re.sub(r"[^A-Za-z0-9_]", "_", name or "")
+        if safe and safe[0].isdigit():
+            safe = "m_" + safe
+        return safe or "layer"
+
+    def _send_layer_to_grass(self, layer, kind: str):
+        """Upload *layer*'s data to the active GRASS env, reprojecting if needed.
+
+        The data is reprojected from the layer's CRS to the environment's native
+        CRS (client-side, with GDAL/QGIS) before upload, so it lands in the
+        location regardless of the project/layer CRS.
+        """
+        import os
+        if layer is None:
+            error_message("No active layer selected.")
+            return
+        endpoint, api_key, env_id = self.grass_dialog.connection()
+        if not env_id:
+            error_message(
+                "No GRASS environment selected.\n"
+                "Open GRASS settings and choose an environment.")
+            return
+        try:
+            env_crs = self._env_crs(grass_api.projection(endpoint, api_key, env_id))
+        except GrassApiError as exc:
+            error_message(f"GRASS projection error: {exc}")
+            return
+
+        out_name = self._grass_safe_name(layer.name())
+        tmp_path = None
+        try:
+            upload_path, tmp_path = self._prepare_layer_upload(layer, kind, env_crs)
+            if not upload_path:
+                error_message("Could not access the layer's data to send.")
+                return
+            if kind == "raster":
+                res = grass_api.import_raster(
+                    endpoint, api_key, env_id, file_path=upload_path,
+                    output_name=out_name)
+            else:
+                res = grass_api.import_vector(
+                    endpoint, api_key, env_id, file_path=upload_path,
+                    output_name=out_name)
+        except GrassApiError as exc:
+            log_exception(f"send {kind} layer to GRASS", exc, warn=True)
+            error_message(f"Send to GRASS failed: {exc}")
+            return
+        except Exception as exc:  # noqa: BLE001 — reprojection/export failures
+            log_exception(f"send {kind} layer: reproject/export", exc)
+            error_message(f"Could not prepare the layer for upload: {exc}")
+            return
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+
         QgsMessageLog.logMessage(
-            f"import_active_vector_layer_to_grass – geojson ready, "
-            f"endpoint: {self.grass_api_endpoint}\n"
-            f"{geojson[:200] if isinstance(geojson, str) else geojson}",
-            'GroundTruther', Qgis.Info)
+            f"sent '{layer.name()}' to env {env_id}: {res}", 'GroundTruther', Qgis.Info)
+        iface.messageBar().pushMessage(
+            "GroundTruther",
+            f"Sent '{layer.name()}' to the active GRASS environment "
+            f"as '{res.get('output', out_name)}'.",
+            level=Qgis.Success, duration=5)
+        try:
+            self.grassWidgetContents.load_grass_layers()
+        except Exception as exc:  # noqa: BLE001 — best-effort table refresh
+            log_exception("send_layer: refresh GRASS layer table", exc, warn=True)
+
+    def _prepare_layer_upload(self, layer, kind: str, env_crs):
+        """Return ``(path_to_upload, temp_path_or_None)`` for *layer*.
+
+        Reprojects to *env_crs* when the layer CRS differs.  Rasters are warped
+        with GDAL; vectors are written to a temporary GeoPackage via QGIS.
+        """
+        import os
+        import tempfile
+        same_crs = layer.crs() == env_crs
+        source = layer.source().split("|")[0]
+
+        if kind == "raster":
+            if same_crs and os.path.exists(source):
+                return source, None
+            from osgeo import gdal
+            fd, tmp = tempfile.mkstemp(suffix=".tif")
+            os.close(fd)
+            dst_srs = env_crs.authid() or env_crs.toWkt()
+            ds = gdal.Warp(tmp, source, dstSRS=dst_srs)
+            ds = None  # flush/close
+            return tmp, tmp
+
+        # vector: write the loaded layer (reprojected if needed) to a temp GPKG
+        fd, tmp = tempfile.mkstemp(suffix=".gpkg")
+        os.close(fd)
+        opts = QgsVectorFileWriter.SaveVectorOptions()
+        opts.driverName = "GPKG"
+        opts.layerName = self._grass_safe_name(layer.name())
+        if not same_crs:
+            opts.ct = QgsCoordinateTransform(layer.crs(), env_crs, QgsProject.instance())
+        result = QgsVectorFileWriter.writeAsVectorFormatV3(
+            layer, tmp, QgsProject.instance().transformContext(), opts)
+        code = result[0] if isinstance(result, (tuple, list)) else result
+        if code != QgsVectorFileWriter.WriterError.NoError:
+            raise RuntimeError(f"vector export failed: {result}")
+        return tmp, tmp
 
     # ------------------------------------------------------------------ #
     # GRASS region                                                         #
@@ -147,17 +264,7 @@ class GrassIntegrationMixin:
             float(minlat), float(maxlat), float(minlon), float(maxlon))
         if payload is None:
             return
-        if payload.get("status") != "SUCCESS":
-            error_message(f"GRASS region error: {payload}")
-            return
-        try:
-            self.region_response = payload["data"]["region"]
-        except KeyError as exc:
-            log_exception(
-                "set_grass_cpr: unexpected region response structure", exc)
-            error_message(
-                f"Unexpected GRASS region response structure: {exc}")
-            return
+        self.region_response = payload.get("region")
         if self.r:
             self.canvas.scene().removeItem(self.r)
         self.r = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
@@ -173,86 +280,138 @@ class GrassIntegrationMixin:
     def set_grass_region(
         self, minlat: float, maxlat: float, minlon: float, maxlon: float
     ):
-        """Set the GRASS computational region.
+        """Set the GRASS computational region from a drawn bbox.
 
-        Returns the parsed JSON payload on success, or ``None`` on any error.
+        The bounds arrive in the active *project* CRS (the region tool emits map
+        coordinates) and are reprojected to the environment's native CRS with
+        QGIS before calling the API (the FastGIS region endpoint expects
+        native-CRS bounds).  Returns the region payload
+        (``{"env_id", "region": {...}}``) on success, or ``None`` on any error.
         """
-        headers = {
-            "accept": "application/json",
-            "Content-Type": "application/json",
-        }
-
-        if not self.grass_api_endpoint:
+        endpoint, api_key, env_id = self.grass_dialog.connection()
+        if not env_id:
             error_message(
-                "No GRASS API endpoint configured.\nSet the endpoint in Settings.")
+                "No GRASS environment selected.\n"
+                "Open GRASS settings and choose an environment.")
             return None
-
-        grass_settings = self.grass_dialog.set_grass_location()
-        if grass_settings.get("status") != "SUCCESS":
-            error_message(
-                f"GRASS location error: {grass_settings.get('data', grass_settings)}")
-            return None
-
-        grass_gisenv = grass_settings["data"]["gisenv"]
-
         try:
-            projection_code = int(
-                grass_settings["data"]["region"]["projection"].split(" ")[0])
-        except (KeyError, ValueError, IndexError) as exc:
-            log_exception(
-                "set_grass_region: could not parse projection code", exc, warn=True)
-            projection_code = 0
+            proj = grass_api.projection(endpoint, api_key, env_id)
+            target_crs = self._env_crs(proj)
+            north, south, east, west = self._bounds_to_native(
+                minlat, maxlat, minlon, maxlon, target_crs)
+            return grass_api.set_region(
+                endpoint, api_key, env_id,
+                north=north, south=south, east=east, west=west)
+        except GrassApiError as exc:
+            log_exception("set_grass_region: API error", exc, warn=True)
+            error_message(f"GRASS region error: {exc}")
+            return None
 
-        try:
-            if projection_code == 1:
-                proj_data = {
-                    "location": {
-                        "location_name": grass_gisenv["LOCATION_NAME"],
-                        "mapset_name": grass_gisenv["MAPSET"],
-                        "gisdb": grass_gisenv["GISDBASE"],
-                    },
-                    "coors": [[minlon, maxlat], [maxlon, minlat]],
-                }
-                proj_response = requests.post(
-                    f"{self.grass_api_endpoint}/api/m_proj",
-                    headers=headers, json=proj_data, timeout=60,
-                )
-                corners = proj_response.json()["data"]
-            else:
-                corners = [[minlon, maxlat], [maxlon, minlat]]
+    @staticmethod
+    def _env_crs(proj: dict) -> QgsCoordinateReferenceSystem:
+        """Build a QGIS CRS from a FastGIS projection dict (epsg or wkt)."""
+        epsg = (proj or {}).get("epsg")
+        if epsg:
+            crs = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
+            if crs.isValid():
+                return crs
+        wkt = (proj or {}).get("wkt")
+        if wkt:
+            crs = QgsCoordinateReferenceSystem.fromWkt(wkt)
+            if crs.isValid():
+                return crs
+        return QgsCoordinateReferenceSystem("EPSG:4326")
 
-            region_data = {
-                "location": {
-                    "location_name": grass_gisenv["LOCATION_NAME"],
-                    "mapset_name": grass_gisenv["MAPSET"],
-                    "gisdb": grass_gisenv["GISDBASE"],
-                },
-                "bounds": {
-                    "n": corners[0][1],
-                    "s": corners[1][1],
-                    "e": corners[1][0],
-                    "w": corners[0][0],
-                },
-                "resolution": {"resolution": 0},
-            }
-            response = requests.post(
-                f"{self.grass_api_endpoint}/api/set_region_bounds",
-                headers=headers, json=region_data, timeout=60,
-            )
-            return response.json()
+    @staticmethod
+    def _bounds_to_native(minlat, maxlat, minlon, maxlon, target_crs):
+        """Reproject bbox corners from the project CRS to *target_crs*.
 
-        except requests.exceptions.RequestException as exc:
-            log_exception(
-                "set_grass_region: API request failed", exc, warn=True)
+        The region box tool (``GCRTool``) emits corners in map/canvas (i.e.
+        project) coordinates — eastings/northings, not lon/lat — so the source
+        CRS is the active project CRS, not WGS-84.  ``minlon/maxlon`` are X
+        (east), ``minlat/maxlat`` are Y (north).  Returns ``n, s, e, w`` in the
+        env's native CRS.
+        """
+        corners = [(minlon, minlat), (minlon, maxlat),
+                   (maxlon, minlat), (maxlon, maxlat)]  # (x, y)
+        src = QgsProject.instance().crs()
+        if not src.isValid():
+            src = QgsCoordinateReferenceSystem("EPSG:4326")
+        if src != target_crs:
+            xform = QgsCoordinateTransform(src, target_crs, QgsProject.instance())
+            corners = [(p.x(), p.y())
+                       for p in (xform.transform(QgsPointXY(x, y))
+                                 for x, y in corners)]
+        xs = [c[0] for c in corners]
+        ys = [c[1] for c in corners]
+        return max(ys), min(ys), max(xs), min(xs)
+
+    # ------------------------------------------------------------------ #
+    # Show / hide the current GRASS computational region                   #
+    # ------------------------------------------------------------------ #
+
+    def toggle_grass_region(self, checked: bool = True):
+        """Show or hide the active env's current computational region on the map."""
+        if not checked:
+            self._remove_region_rubber()
+            return
+        ok = self.show_grass_region()
+        if not ok:
+            # revert the toolbar toggle if we couldn't draw it
+            btn = getattr(self.grassWidgetContents, "show_region_btn", None)
+            if btn is not None:
+                btn.setChecked(False)
+
+    def show_grass_region(self) -> bool:
+        """Fetch the current region and draw it as a rubber band. Returns success."""
+        endpoint, api_key, env_id = self.grass_dialog.connection()
+        if not env_id:
             error_message(
-                "Cannot reach the GRASS API server.\n"
-                "Check the endpoint URL in Settings.")
-            return None
-        except (ValueError, KeyError) as exc:
-            log_exception(
-                "set_grass_region: unexpected API response structure", exc)
-            error_message(f"Unexpected GRASS API response: {exc}")
-            return None
+                "No GRASS environment selected.\n"
+                "Open GRASS settings and choose an environment.")
+            return False
+        try:
+            region = grass_api.get_region(endpoint, api_key, env_id)
+            proj = grass_api.projection(endpoint, api_key, env_id)
+        except GrassApiError as exc:
+            log_exception("show_grass_region: API error", exc, warn=True)
+            error_message(f"GRASS region error: {exc}")
+            return False
+        try:
+            n, s = float(region["n"]), float(region["s"])
+            e, w = float(region["e"]), float(region["w"])
+        except (KeyError, TypeError, ValueError) as exc:
+            log_exception("show_grass_region: unexpected region shape", exc)
+            error_message("Unexpected GRASS region response.")
+            return False
+        self._draw_region_rubber(n, s, e, w, self._env_crs(proj))
+        return True
+
+    def _draw_region_rubber(self, north, south, east, west, env_crs):
+        """Draw the region rectangle (env CRS) on the canvas, reprojected to project CRS."""
+        corners = [(west, north), (east, north), (east, south), (west, south)]
+        proj_crs = QgsProject.instance().crs()
+        if env_crs != proj_crs and proj_crs.isValid():
+            xform = QgsCoordinateTransform(env_crs, proj_crs, QgsProject.instance())
+            points = [xform.transform(QgsPointXY(x, y)) for x, y in corners]
+        else:
+            points = [QgsPointXY(x, y) for x, y in corners]
+        self._remove_region_rubber()
+        rb = QgsRubberBand(self.canvas, QgsWkbTypes.PolygonGeometry)
+        rb.setToGeometry(QgsGeometry.fromPolygonXY([points]), None)
+        rb.setColor(QColor(0, 0, 255))
+        rb.setWidth(2)
+        rb.setFillColor(QColor(0, 0, 0, 0))
+        self._region_rubber = rb
+
+    def _remove_region_rubber(self):
+        rb = getattr(self, "_region_rubber", None)
+        if rb is not None:
+            try:
+                self.canvas.scene().removeItem(rb)
+            except Exception:  # noqa: BLE001 — canvas may be gone on teardown
+                pass
+            self._region_rubber = None
 
     # ------------------------------------------------------------------ #
     # GRASS raster query                                                   #
@@ -262,76 +421,39 @@ class GrassIntegrationMixin:
         self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(stringa)
 
     def get_grass_query_data(self, lat: float, lon: float):
-        headers = {
-            "accept": "application/json",
-            "Content-Type": "application/json",
-        }
-        if not self.grass_api_endpoint:
-            self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(
-                "<b>No GRASS API endpoint configured.</b> "
-                "Set the endpoint in Settings.")
+        report = self.grassWidgetContents.grass_mdi.gis_tool_report
+        endpoint, api_key, env_id = self.grass_dialog.connection()
+        if not env_id:
+            report.setHtml(
+                "<b>No GRASS environment selected.</b> "
+                "Open GRASS settings and choose an environment.")
             return
 
-        grass_settings = self.grass_dialog.set_grass_location()
-        if grass_settings.get("status") != "SUCCESS":
-            self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(
-                f"<b>GRASS location error:</b> {grass_settings}")
-            return
-
-        grass_gisenv = grass_settings["data"]["gisenv"]
         self.grassWidgetContents.get_checked_items()
         grass_layers = self.grassWidgetContents.checked_layers
-
-        try:
-            projection_code = int(
-                grass_settings["data"]["region"]["projection"].split(" ")[0])
-        except (KeyError, ValueError, IndexError) as exc:
-            log_exception(
-                "get_grass_query_data: could not parse projection code",
-                exc, warn=True)
-            projection_code = 0
-        params = {"lonlat": "true" if projection_code == 1 else "false"}
-
-        json_data = {
-            "location": {
-                "location_name": grass_gisenv["LOCATION_NAME"],
-                "mapset_name": grass_gisenv["MAPSET"],
-                "gisdb": grass_gisenv["GISDBASE"],
-            },
-            "coors": [lon, lat],
-            "grass_layers": grass_layers,
-        }
-
-        try:
-            response = requests.post(
-                f"{self.grass_api_endpoint}/api/r_what",
-                params=params, headers=headers, json=json_data, timeout=60,
-            )
-            payload = response.json()
-        except requests.exceptions.RequestException as exc:
-            log_exception(
-                "get_grass_query_data: r_what request failed", exc, warn=True)
-            error_message(
-                "Cannot reach the GRASS API server.\n"
-                "Check the endpoint URL in Settings.")
-            return
-        except ValueError as exc:
-            log_exception(
-                "get_grass_query_data: r_what non-JSON response", exc)
-            error_message(
-                "GRASS API returned an unexpected (non-JSON) response.")
+        if not grass_layers:
+            report.setHtml("No GRASS layers selected.")
             return
 
-        if payload.get("status") == "SUCCESS":
-            results = "<br>".join(
-                f"{list(i.keys())[0]}: {i[list(i.keys())[0]]['value']}<br>"
-                for i in payload["data"]
-                if i[list(i.keys())[0]]["value"] != "No data"
-            )
-            self.grassWidgetContents.add_query_result(payload["data"])
-        else:
-            results = str(payload)
-        self.grassWidgetContents.grass_mdi.gis_tool_report.setHtml(results)
+        # The query tool emits WGS-84 lon/lat; the API reprojects to native CRS.
+        try:
+            result = grass_api.sample(
+                endpoint, api_key, env_id, layers=grass_layers,
+                point={"x": lon, "y": lat}, crs="EPSG:4326")
+        except GrassApiError as exc:
+            log_exception("get_grass_query_data: sample failed", exc, warn=True)
+            error_message(f"GRASS query error: {exc}")
+            return
+
+        rasters = (result or {}).get("results", {}).get("raster", [])
+        rows = []
+        for entry in rasters:
+            samples = entry.get("samples") or []
+            value = samples[0].get("value") if samples else None
+            if value not in (None, "No data"):
+                rows.append(f"{entry.get('layer')}: {value}")
+        report.setHtml("<br>".join(rows) if rows else "No data at this location.")
+        self.grassWidgetContents.add_query_result(rasters)
 
     # ------------------------------------------------------------------ #
     # MDI view helpers                                                     #

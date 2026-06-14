@@ -215,6 +215,7 @@ class ConfigDialog(QDialog, AppSettings):
         self.gpu_avaibility_value = bool(gpu)
         self.gpu_avaibility.setCurrentText("Enabled" if gpu else "Disabled")
         self.grass_api_endpoint.setText(proc.get("grass_api_endpoint", ""))
+        self.grass_api_key.setText(proc.get("grass_api_key", "") or "")
 
         # Video fields (widgets are now always present via Ui_app_settings_ui)
         self.video_path.setText(video.get("videofile", ""))
@@ -313,6 +314,7 @@ class ConfigDialog(QDialog, AppSettings):
             "Processing": {
                 "gpu_avaibility": self.gpu_avaibility_value,
                 "grass_api_endpoint": _opt(self.grass_api_endpoint.text()),
+                "grass_api_key": _opt(self.grass_api_key.text()),
             },
             "Video": {
                 "videofile": _opt(self.video_path.text()),
@@ -346,6 +348,7 @@ class ConfigDialog(QDialog, AppSettings):
             "kmldir": self.kml_path.text(),
             "gpu_avaibility": self.gpu_avaibility_value,
             "grass_api_endpoint": self.grass_api_endpoint.text(),
+            "grass_api_key": self.grass_api_key.text(),
             "videofile": self.video_path.text(),
             "videometadata": self.video_metadata_path.text(),
             "videoannotation": "",

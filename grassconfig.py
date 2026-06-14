@@ -1,336 +1,334 @@
-from qgis.PyQt.QtGui import QPalette, QColor
-from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox, QButtonGroup, QFrame
-from pygui.grass_settings_gui import GrassSettings
+"""GRASS environment selection / creation dialog (FastGIS API).
 
-import requests
-from requests.exceptions import ConnectionError
-from epsg_list import codelist
+Reworked for the FastGIS GRASS API: instead of the old gisdb + location +
+mapset picker, the user selects an *environment* (``env_id``) from the ones they
+own, or creates a new one (from an EPSG code or a georeferenced dataset) and new
+mapsets within it.  The selected ``env_id`` is what every GRASS operation runs
+against.
+
+Connection parameters (endpoint + API key) come from the plugin Settings
+(``Processing.grass_api_endpoint`` / ``Processing.grass_api_key``); the endpoint
+field here is editable as an override.
+
+The dialog reuses the Designer widgets from ``GrassSettings`` but repurposes
+them:
+
+* ``grass_location_list``  -> "My environments" combo (userData = env_id)
+* ``set_location``         -> "Use Environment" (activate the selected env_id)
+* ``reload``               -> refresh the environment list
+* ``new_location_name`` / ``choice_epsg`` / ``epsg_code`` / ``choice_georef`` /
+  ``georef_file`` / ``create_location`` -> create environment
+* ``new_mapset`` / ``create_mapset``    -> create a mapset in the active env
+
+Obsolete widgets (gisdb path, mapset list, second location list, output-layer
+name) are hidden.
+"""
 import json
 
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QButtonGroup
 from qgis.core import Qgis, QgsMessageLog
 
+from pygui.grass_settings_gui import GrassSettings
+from epsg_list import codelist
 from search_epsg import SearchEpsgDialog
 
-# from configure import get_settings
 from groundtruther.config.config import config
-
 from groundtruther.configure import load_config, log_exception
+from groundtruther.gt import grass_api
+from groundtruther.gt.grass_api import GrassApiError
+
 
 class GrassConfigDialog(QDialog, GrassSettings):
-    """docstring"""
+    """Select or create a FastGIS GRASS environment for the plugin to use."""
 
     def __init__(self, parent=None):
         super().__init__()
         QDialog.__init__(self, parent)
         self.setupUi(self)
         self.parent = parent
-        # access to the settings
+
         self.config = config
-        # Use load_config (no validation) so init never triggers error dialogs.
-        # GrassConfigDialog only needs the endpoint URL, not file-path fields.
-        self.settings = load_config(self.config) or {}
-        endpoint = self.settings.get("Processing", {}).get("grass_api_endpoint", "")
-        self.grass_api_endpoint.setText(endpoint)
-        #
+        self.endpoint = ""
+        self.api_key = ""
+        self.env_id = None          # active environment id
+        self.active_env = None      # active environment payload
+        self.grassenabled = False
+        self._envs = {}             # env_id -> payload
+
+        self._load_conn()
+        self.grass_api_endpoint.setText(self.endpoint)
+
+        # Hide widgets that no longer apply under the env model
+        for name in ("grass_gisdb", "location_mapset_list", "grass_location_list2"):
+            w = getattr(self, name, None)
+            if w is not None:
+                w.hide()
+
+        # Relabel reused controls
+        self.set_location.setText("Use Environment")
+        self.create_location.setText("Create Environment")
+        try:
+            self.groupBox_2.setTitle("GRASS Environments")
+        except AttributeError:
+            pass
+        # layer_name is repurposed as the optional imported-map name (georef only);
+        # its visibility is driven by enable_widget().
+        self.layer_name.setPlaceholderText("imported map name (optional)")
+        if getattr(self, "label_10", None) is not None:
+            self.label_10.setText("Import as")
+
+        # EPSG search helper
         self.searchepsg_dialog = SearchEpsgDialog()
         self.search_epsg.clicked.connect(self.show_searchepsg_dialog)
+
         self.command_output.hide()
         self.grass_new_location_groupbox.hide()
         self.grass_new_mapset_groupbox.hide()
-        self.new_grass_location_dialog.clicked.connect(
-            self.show_hide_new_grass_location)
+        self.new_grass_location_dialog.clicked.connect(self.show_hide_new_grass_location)
+        self.show_output_log.clicked.connect(self.show_hide_output_log)
 
-        self.show_output_log.clicked.connect(
-            self.show_hide_output_log)
-
-        self.set_location.clicked.connect(self.set_grass_location)
+        self.set_location.clicked.connect(self.use_selected_env)
         self.set_georef_file.clicked.connect(self.openFileNameDialog)
-        self.reload.clicked.connect(self.update_location)
-        self.create_location.clicked.connect(self.create_new_grass_location)
+        self.reload.clicked.connect(self.refresh_envs)
+        self.create_location.clicked.connect(self.create_environment)
         self.create_mapset.clicked.connect(self.create_new_grass_mapset)
         self.exit.clicked.connect(self.close)
+
         self.epsg_code.addItems(codelist)
         self.button_group = QButtonGroup(self)
         self.button_group.setExclusive(True)
         self.button_group.addButton(self.choice_epsg)
         self.button_group.addButton(self.choice_georef)
-        # connect item change to update location
-        self.grass_location_list.currentIndexChanged.connect(
-            self.update_mapset)
         self.choice_epsg.toggled.connect(self.enable_widget)
         self.choice_georef.toggled.connect(self.enable_widget)
-        self.grassenabled = False
-        # Populate location lists only when an endpoint is already configured.
-        # If the endpoint is empty the call returns immediately without network I/O.
-        self.update_location()
+        self.choice_epsg.setChecked(True)
+        self.enable_widget()
 
-        # connect update mapset
+        self.refresh_envs()
 
-    def show_searchepsg_dialog(self):
-        """docstring"""
-        self.searchepsg_dialog.exec()
+    # ------------------------------------------------------------------ #
+    # Connection / settings                                               #
+    # ------------------------------------------------------------------ #
+
+    def _load_conn(self):
+        """Read endpoint + API key from the plugin settings (no validation)."""
+        settings = load_config(self.config) or {}
+        proc = settings.get("Processing", {}) or {}
+        self.endpoint = proc.get("grass_api_endpoint") or grass_api.DEFAULT_ENDPOINT
+        self.api_key = proc.get("grass_api_key") or ""
+
+    def _creds(self):
+        """Return ``(endpoint, api_key)``; the endpoint field overrides settings."""
+        endpoint = self.grass_api_endpoint.text().strip() or self.endpoint
+        return endpoint, self.api_key
+
+    def showEvent(self, event):
+        """Refresh connection + environment list each time the dialog opens."""
+        self._load_conn()
+        if not self.grass_api_endpoint.text().strip():
+            self.grass_api_endpoint.setText(self.endpoint)
+        self.refresh_envs()
+        super().showEvent(event)
+
+    # ------------------------------------------------------------------ #
+    # Environment listing / selection                                     #
+    # ------------------------------------------------------------------ #
+
+    @staticmethod
+    def _env_label(env: dict) -> str:
+        loc = env.get("location", "?")
+        mapset = env.get("mapset", "?")
+        return f"{loc} / {mapset}  ({str(env.get('env_id', ''))[:8]})"
+
+    def refresh_envs(self):
+        """Populate the environment combo from ``GET /grass/env``."""
+        endpoint, api_key = self._creds()
+        if not api_key:
+            self._report(
+                "No GRASS API key configured.\nSet it in Settings (Processing).",
+                ok=False)
+            self.grass_location_list.clear()
+            return
+        keep = self.env_id
+        try:
+            envs = grass_api.list_envs(endpoint, api_key)
+        except GrassApiError as exc:
+            self._report(str(exc), ok=False)
+            self.grass_location_list.clear()
+            return
+        self._envs = {e["env_id"]: e for e in envs if e.get("env_id")}
+        self.grass_location_list.clear()
+        for env in envs:
+            self.grass_location_list.addItem(self._env_label(env), env.get("env_id"))
+        # Restore previous selection if still present
+        if keep and keep in self._envs:
+            idx = self.grass_location_list.findData(keep)
+            if idx >= 0:
+                self.grass_location_list.setCurrentIndex(idx)
+        self._report(f"{len(envs)} environment(s) available", ok=True)
+
+    def use_selected_env(self):
+        """Activate the environment currently selected in the combo."""
+        idx = self.grass_location_list.currentIndex()
+        env_id = self.grass_location_list.itemData(idx) if idx >= 0 else None
+        if not env_id:
+            self.grassenabled = False
+            self._report("No environment selected.", ok=False)
+            return
+        self.env_id = env_id
+        self.active_env = self._envs.get(env_id)
+        self.grassenabled = True
+        label = self.grass_location_list.itemText(idx)
+        QgsMessageLog.logMessage(
+            f"Active GRASS environment: {label} ({env_id})",
+            'GroundTruther', Qgis.Info)
+        self._report(f"Active environment:\n{label}\nenv_id: {env_id}", ok=True)
+
+    def get_active_env(self):
+        """Return the active ``env_id`` (or ``None`` if none selected)."""
+        return self.env_id
+
+    def connection(self):
+        """Return ``(endpoint, api_key, env_id)`` for consumers to call the API."""
+        endpoint, api_key = self._creds()
+        return endpoint, api_key, self.env_id
+
+    # ------------------------------------------------------------------ #
+    # Environment / mapset creation                                       #
+    # ------------------------------------------------------------------ #
+
+    # Dataset extensions treated as raster (else imported as vector).
+    _RASTER_EXTS = {"tif", "tiff", "img", "vrt", "jp2", "png", "asc", "grd", "nc"}
+
+    def create_environment(self):
+        """Create a new environment from an EPSG code or a georef dataset.
+
+        When creating from a georef dataset, the file is also *imported* into the
+        new location (the env/dataset endpoint only seeds the location CRS), so
+        the data is immediately available as a GRASS map.
+        """
+        endpoint, api_key = self._creds()
+        location = self.new_location_name.text().strip()
+        if not location:
+            self._report("Please enter a name for the new environment (location).",
+                         ok=False)
+            return
+        try:
+            if self.choice_georef.isChecked():
+                path = self.georef_file.text().strip()
+                if not path:
+                    self._report("Please choose a georeferenced dataset file.",
+                                 ok=False)
+                    return
+                env = grass_api.create_env_dataset(
+                    endpoint, api_key, file_path=path, location=location,
+                    persist=True)
+                self.env_id = env.get("env_id")
+                import_msg = self._import_dataset(endpoint, api_key, self.env_id, path)
+                self._report(json.dumps(env, indent=2, sort_keys=True)
+                             + "\n\n" + import_msg, ok=True)
+                self.refresh_envs()
+                return
+            try:
+                epsg = int(self.epsg_code.currentText().strip())
+            except ValueError:
+                self._report("Invalid EPSG code.", ok=False)
+                return
+            env = grass_api.create_env_epsg(
+                endpoint, api_key, epsg=epsg, location=location, persist=True)
+        except GrassApiError as exc:
+            self._report(str(exc), ok=False)
+            return
+        self._report(json.dumps(env, indent=2, sort_keys=True), ok=True)
+        self.env_id = env.get("env_id")
+        self.refresh_envs()
+
+    def _import_dataset(self, endpoint, api_key, env_id, path):
+        """Import *path* into *env_id* as raster or vector (by extension)."""
+        import os
+        ext = os.path.splitext(path)[1].lstrip(".").lower()
+        out = self.layer_name.text().strip() or None
+        try:
+            if ext in self._RASTER_EXTS:
+                res = grass_api.import_raster(
+                    endpoint, api_key, env_id, file_path=path, output_name=out)
+            else:
+                res = grass_api.import_vector(
+                    endpoint, api_key, env_id, file_path=path, output_name=out)
+            return "dataset imported:\n" + json.dumps(res, indent=2, sort_keys=True)
+        except GrassApiError as exc:
+            return f"(environment created, but dataset import failed: {exc})"
+
+    def create_new_grass_mapset(self):
+        """Create a new mapset within the active environment's location."""
+        endpoint, api_key = self._creds()
+        if not self.env_id:
+            self._report("Select an environment first (Use Environment).", ok=False)
+            return
+        mapset = self.new_mapset.text().strip()
+        if not mapset:
+            self._report("Please enter a name for the new mapset.", ok=False)
+            return
+        try:
+            env = grass_api.create_mapset(
+                endpoint, api_key, self.env_id, mapset=mapset)
+        except GrassApiError as exc:
+            self._report(str(exc), ok=False)
+            return
+        self._report(json.dumps(env, indent=2, sort_keys=True), ok=True)
+        # A new mapset is itself a new env; make it active and refresh
+        self.env_id = env.get("env_id")
+        self.refresh_envs()
+
+    # ------------------------------------------------------------------ #
+    # UI helpers                                                           #
+    # ------------------------------------------------------------------ #
+
+    def _report(self, message: str, ok: bool):
+        """Show *message* in the output box and colour the status frame."""
+        self.command_output.setText(message)
+        self.set_status_color("SUCCESS" if ok else "FAILED")
+        if not ok:
+            QgsMessageLog.logMessage(message, 'GroundTruther', Qgis.Warning)
 
     def set_status_color(self, status):
         if status == "SUCCESS":
-            self.frame.setStyleSheet("""
-                QFrame {
-                    border: 1px solid black;
-                    border-radius: 1px;
-                    background-color: rgb(51, 209, 122);
-                    }
-                """)
+            self.frame.setStyleSheet(
+                "QFrame { border: 1px solid black; border-radius: 1px;"
+                " background-color: rgb(51, 209, 122); }")
         else:
-            self.frame.setStyleSheet("""
-                QFrame {
-                    border: 1px solid black;
-                    border-radius: 1px;
-                    background-color: rgb(237, 51, 59);
-                    }
-                """)
+            self.frame.setStyleSheet(
+                "QFrame { border: 1px solid black; border-radius: 1px;"
+                " background-color: rgb(237, 51, 59); }")
+
+    def show_searchepsg_dialog(self):
+        self.searchepsg_dialog.exec()
 
     def enable_widget(self):
-        if self.choice_epsg.isChecked():
-            self.georef_file.setEnabled(False)
-            self.set_georef_file.setEnabled(False)
-            self.epsg_code.setEnabled(True)
-        if self.choice_georef.isChecked():
-            self.epsg_code.setEnabled(False)
-            self.georef_file.setEnabled(True)
-            self.set_georef_file.setEnabled(True)
-
-    def update_mapset(self, index):
-        QgsMessageLog.logMessage(f"update_mapset: {self.grass_location_list.itemText(index)}", 'GroundTruther', Qgis.Info)
-        locationlist = self.get_location_list()
-        if locationlist['status'] == 'SUCCESS':
-            try:
-                self.location_mapset_list.clear()
-                self.location_mapset_list.addItems(
-                    list(locationlist['data'][self.grass_location_list.itemText(index)]))
-            except KeyError:
-                pass
-            # update mapset based on current index in location as key
-
-    def create_new_grass_mapset(self):
-        endpoint = self.grass_api_endpoint.text().strip()
-        if not endpoint:
-            payload = {'status': 'FAILED', 'data': 'No GRASS API endpoint configured'}
-            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
-            self.set_status_color('FAILED')
-            return payload
-        headers = {'accept': 'application/json'}
-        params = {
-            'location_name': self.grass_location_list2.currentText(),
-            'mapset_name': self.new_mapset.text(),
-            'gisdb': self.grass_gisdb.text(),
-            'overwrite_mapset': 'false',
-        }
-        try:
-            response = requests.get(
-                f'{endpoint}/api/create_mapset', params=params, headers=headers, timeout=30)
-            payload = response.json()
-        except requests.exceptions.RequestException as exc:
-            log_exception("create_new_grass_mapset: network error", exc, warn=True)
-            payload = {'status': 'FAILED', 'data': str(exc)}
-        except ValueError as exc:
-            log_exception("create_new_grass_mapset: invalid JSON response", exc)
-            payload = {'status': 'FAILED', 'data': 'Invalid JSON response'}
-        self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
-        self.set_status_color(payload['status'])
-        return payload
-
-    def get_location_list(self):
-        """Return the list of GRASS locations from the API.
-
-        Returns ``{'status': 'FAILED', ...}`` when the endpoint is not
-        configured or the server is unreachable — never raises.
-        """
-        endpoint = self.grass_api_endpoint.text().strip()
-        if not endpoint:
-            return {'status': 'FAILED', 'data': 'No GRASS API endpoint configured'}
-        grass_gisdb = self.grass_gisdb.text()
-        headers = {'accept': 'application/json'}
-        params = {'gisdb': grass_gisdb}
-        try:
-            response = requests.get(
-                f'{endpoint}/api/get_location_list', params=params, headers=headers, timeout=30)
-            payload = response.json()
-            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
-            self.set_status_color(payload.get('status', 'FAILED'))
-            return payload
-        except requests.exceptions.RequestException as exc:
-            log_exception("get_location_list: network error", exc, warn=True)
-            self.command_output.setText(json.dumps(
-                {'status': 'FAILED', 'data': str(exc)}, sort_keys=True, indent=4))
-            self.set_status_color('FAILED')
-            return {'status': 'FAILED', 'data': str(exc)}
-        except ValueError as exc:
-            log_exception("get_location_list: non-JSON response", exc)
-            self.set_status_color('FAILED')
-            return {'status': 'FAILED', 'data': str(exc)}
-
-    def update_location(self):
-        locationlist = self.get_location_list()
-        if locationlist['status'] == 'SUCCESS':
-            self.grass_location_list.clear()
-            self.grass_location_list.addItems(
-                list(locationlist['data'].keys()))
-            self.grass_location_list2.clear()
-            self.grass_location_list2.addItems(
-                list(locationlist['data'].keys()))
-        else:
-            self.grass_location_list.clear()
-            self.grass_location_list2.clear()
-            QgsMessageLog.logMessage(f"update_location failed: {locationlist['status']}", 'GroundTruther', Qgis.Warning)
-
-    def create_new_grass_location(self):
-        QgsMessageLog.logMessage("create_new_grass_location triggered", 'GroundTruther', Qgis.Info)
-        if self.choice_epsg.isChecked():
-            results = self.create_location_epsg()
-        else:
-            results = self.create_location_georef()
-        if results['status'] == 'SUCCESS':
-            self.update_location()
-        # check if one of the two option is satisfied [epsg code or georef]
-        # and that the name and gisdb are assigned correctly
-        # run the api to create a location
-        # if success, add new entry to the combo box
-
-    def create_location_epsg(self):
-        endpoint = self.grass_api_endpoint.text().strip()
-        if not endpoint:
-            payload = {'status': 'FAILED', 'data': 'No GRASS API endpoint configured'}
-            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
-            self.set_status_color('FAILED')
-            return payload
-        headers = {'accept': 'application/json'}
-        params = {
-            'location_name': self.new_location_name.text(),
-            'mapset_name': 'PERMANENT',
-            'gisdb': self.grass_gisdb.text(),
-            'epsg_code': self.epsg_code.currentText(),
-            'overwrite_location': 'false',
-            'overwrite_mapset': 'false',
-        }
-        try:
-            response = requests.get(
-                f'{endpoint}/api/create_location_epsg', params=params, headers=headers, timeout=60)
-            payload = response.json()
-        except requests.exceptions.RequestException as exc:
-            log_exception("create_location_epsg: network error", exc, warn=True)
-            payload = {'status': 'FAILED', 'data': str(exc)}
-        except ValueError as exc:
-            log_exception("create_location_epsg: invalid JSON response", exc)
-            payload = {'status': 'FAILED', 'data': 'Invalid JSON response'}
-        self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
-        self.set_status_color(payload['status'])
-        return payload
-
-    def create_location_georef(self):
-        endpoint = self.grass_api_endpoint.text().strip()
-        if not endpoint:
-            payload = {'status': 'FAILED', 'data': 'No GRASS API endpoint configured'}
-            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
-            self.set_status_color('FAILED')
-            return payload
-        headers = {
-            'accept': 'application/json',
-            # requests won't add a boundary if this header is set when you pass files=
-            # 'Content-Type': 'multipart/form-data',
-        }
-        params = {
-            'location_name': self.new_location_name.text(),
-            'mapset_name': 'PERMANENT',
-            'gisdb': self.grass_gisdb.text(),
-            'overwrite_location': 'false',
-            'overwrite_mapset': 'false',
-            'output_raster_layer': self.layer_name.text(),
-        }
-        try:
-            with open(self.georef_file.text(), 'rb') as fh:
-                files = {'georef': fh}
-                response = requests.post(
-                    f'{endpoint}/api/create_location_file',
-                    params=params, headers=headers, files=files)
-            payload = response.json()
-            QgsMessageLog.logMessage(f"create_location_georef response: {payload}", 'GroundTruther', Qgis.Info)
-            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
-            self.set_status_color(payload.get('status', 'FAILED'))
-            return payload
-        except FileNotFoundError as exc:
-            log_exception("create_location_georef: georef file not found", exc, warn=True)
-            payload = {'status': 'FAILED', 'data': str(exc)}
-            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
-            self.set_status_color('FAILED')
-            return payload
-        except requests.exceptions.RequestException as exc:
-            log_exception("create_location_georef: network error", exc, warn=True)
-            payload = {'status': 'FAILED', 'data': str(exc)}
-            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
-            self.set_status_color('FAILED')
-            return payload
-        except ValueError as exc:
-            log_exception("create_location_georef: non-JSON response", exc)
-            payload = {'status': 'FAILED', 'data': str(exc)}
-            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
-            self.set_status_color('FAILED')
-            return payload
-
-    def set_grass_location(self):
-        endpoint = self.grass_api_endpoint.text().strip()
-        if not endpoint:
-            self.grassenabled = False
-            return {'status': 'FAILED', 'data': 'No GRASS API endpoint configured'}
-        headers = {'accept': 'application/json'}
-        params = {
-            'location_name': self.grass_location_list.currentText(),
-            'mapset_name': self.location_mapset_list.currentText(),
-            'gisdb': self.grass_gisdb.text(),
-        }
-        try:
-            response = requests.get(
-                f'{endpoint}/api/gisenv', params=params, headers=headers, timeout=30)
-            payload = response.json()
-            QgsMessageLog.logMessage(f"set_grass_location response: {payload}", 'GroundTruther', Qgis.Info)
-            self.command_output.setText(json.dumps(payload, sort_keys=True, indent=4))
-            self.set_status_color(payload.get('status', 'FAILED'))
-            if payload.get('status') == 'SUCCESS':
-                self.grassenabled = True
-            else:
-                self.update_location()
-                self.grassenabled = False
-            return payload
-        except requests.exceptions.RequestException as exc:
-            log_exception("set_grass_location: network error", exc, warn=True)
-            self.grassenabled = False
-            return {'status': 'FAILED', 'data': str(exc)}
-        except ValueError as exc:
-            log_exception("set_grass_location: non-JSON response", exc)
-            self.grassenabled = False
-            return {'status': 'FAILED', 'data': str(exc)}
+        georef = self.choice_georef.isChecked()
+        self.epsg_code.setEnabled(not georef)
+        self.georef_file.setEnabled(georef)
+        self.set_georef_file.setEnabled(georef)
+        # The georef dataset is imported into the new location; expose an
+        # optional output-map name (reusing the old layer_name field/label).
+        self.layer_name.setVisible(georef)
+        label_10 = getattr(self, "label_10", None)
+        if label_10 is not None:
+            label_10.setVisible(georef)
 
     def show_hide_output_log(self):
-        """docstring"""
-        if self.command_output.isVisible():
-            self.command_output.hide()
-        else:
-            self.command_output.show()
+        self.command_output.setVisible(not self.command_output.isVisible())
 
     def show_hide_new_grass_location(self):
-        """docstring"""
-        if self.grass_new_location_groupbox.isVisible():
-            self.grass_new_location_groupbox.hide()
-            self.grass_new_mapset_groupbox.hide()
-        else:
-            self.grass_new_location_groupbox.show()
-            self.grass_new_mapset_groupbox.show()
+        visible = self.grass_new_location_groupbox.isVisible()
+        self.grass_new_location_groupbox.setVisible(not visible)
+        self.grass_new_mapset_groupbox.setVisible(not visible)
 
     def openFileNameDialog(self):
-        options = QFileDialog.Options()
-        options |= QFileDialog.Option.DontUseNativeDialog
-        fileName, _ = QFileDialog.getOpenFileName(
-            self, "QFileDialog.getOpenFileName()", "", "All Files (*);;Tif Files (*.tif)", options=options)
-        if fileName:
-            QgsMessageLog.logMessage(f"georef file selected: {fileName}", 'GroundTruther', Qgis.Info)
-            # should first check if the file is a valid gereof file
-            # try with gdal open?
-            self.georef_file.setText(fileName)
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Select a georeferenced dataset", "",
+            "Raster/Vector (*.tif *.tiff *.gpkg *.shp *.zip);;All Files (*)")
+        if file_name:
+            QgsMessageLog.logMessage(
+                f"georef file selected: {file_name}", 'GroundTruther', Qgis.Info)
+            self.georef_file.setText(file_name)

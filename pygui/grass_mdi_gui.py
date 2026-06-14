@@ -29,11 +29,16 @@ from groundtruther.pygui.Ui_grass_mdi_ui import Ui_grass_mdi
 from groundtruther.run_geomorphon_mdi import GeoMorphonWidget
 from groundtruther.run_paramscale_mdi import ParamScaleWidget
 from groundtruther.run_grm_lsi_mdi import GrmLsiWidget
+from groundtruther.pygui.grass_module_runner import ModuleRunnerWidget
 
-from qgis.PyQt.QtWidgets import QTableWidgetItem, QWidget, QCheckBox, QMenu, QAction
-import requests
-from qgis.core import Qgis, QgsMessageLog
+from qgis.PyQt.QtWidgets import (
+    QTableWidgetItem, QWidget, QCheckBox, QMenu, QAction, QLineEdit, QCompleter,
+    QLabel)
+from qgis.PyQt.QtCore import QStringListModel, QEvent
+from qgis.core import Qgis, QgsMessageLog, QgsProject, QgsRasterLayer
 from groundtruther.configure import log_exception
+from groundtruther.gt import grass_api
+from groundtruther.gt.grass_api import GrassApiError
 class GrassLayerTableWidgetItem(QTableWidgetItem):
     """QTableWidgetItem that also stores whether the GRASS layer is enabled."""
 
@@ -94,29 +99,70 @@ class GrassTools(QMainWindow):
         self.moduleToolBar = self.addToolBar("GrassModules")
         self.moduleToolBar.toggleViewAction().setEnabled(False)
         
-        self.mdi_view = QComboBox()
-        self.moduleToolBar.addWidget(self.mdi_view)
-        self.mdi_view.insertItems(1,["Tiled","Cascade","Minimize", "Close"])
-        self.mdi_view.currentIndexChanged.connect(self.set_mdi_view)
-        self.mdi_view.setToolTip("Change MDI view mode")
-        
+        # On-the-fly module picker: type/autocomplete any GRASS module name and
+        # open a dialog built from its interface schema (mirrors the FastGIS web
+        # grass_runner). Catalog is loaded lazily on first focus.
+        self._module_catalog_loaded = False
+        self._module_windows = {}
+        self.moduleToolBar.addWidget(QLabel(" Module: "))
+        self.module_search = QLineEdit()
+        self.module_search.setPlaceholderText("type a GRASS module… e.g. r.slope.aspect")
+        self.module_search.setMinimumWidth(240)
+        self._module_completer = QCompleter([], self)
+        self._module_completer.setCaseSensitivity(Qt.CaseSensitivity(0))   # CaseInsensitive
+        self._module_completer.setFilterMode(Qt.MatchFlag(1))              # MatchContains
+        self._module_completer.setCompletionMode(QCompleter.CompletionMode(0))  # Popup
+        self.module_search.setCompleter(self._module_completer)
+        self.module_search.installEventFilter(self)
+        self.module_search.returnPressed.connect(self.open_typed_module)
+        self.moduleToolBar.addWidget(self.module_search)
+        self.open_module_btn = QToolButton()
+        self.open_module_btn.setText("Open")
+        self.open_module_btn.setToolTip("Build & open a dialog for this GRASS module")
+        self.open_module_btn.clicked.connect(self.open_typed_module)
+        self.moduleToolBar.addWidget(self.open_module_btn)
+
         self.grass_layers_view = QToolButton()
         grass_layers_view_icon = QIcon(":/icons/qtui/icons/table-list.svg")
         self.grass_layers_view.setToolTip("Show/Hide GRASS Layers")
         self.grass_layers_view.setIcon(grass_layers_view_icon)
         self.moduleToolBar.addWidget(self.grass_layers_view)
-        self.grass_layers_view.clicked.connect(self.toggle_grass_layers_table)     
+        self.grass_layers_view.clicked.connect(self.toggle_grass_layers_table)
 
+        # Import data into the active environment
+        self.import_raster_btn = QToolButton()
+        self.import_raster_btn.setText("Import Raster")
+        self.import_raster_btn.setToolTip("Import a raster file into the active GRASS environment")
+        self.import_raster_btn.clicked.connect(lambda: self.import_to_env("raster"))
+        self.moduleToolBar.addWidget(self.import_raster_btn)
 
+        self.import_vector_btn = QToolButton()
+        self.import_vector_btn.setText("Import Vector")
+        self.import_vector_btn.setToolTip("Import a vector file into the active GRASS environment")
+        self.import_vector_btn.clicked.connect(lambda: self.import_to_env("vector"))
+        self.moduleToolBar.addWidget(self.import_vector_btn)
 
-        self.r_gemorphon = GeoMorphonWidget(self.parent)    
-        self.r_gemorphon_window = QMdiSubWindow()
-        self.r_gemorphon_window.setWindowTitle("r.geomorphon")
-        self.r_gemorphon_window.setWidget(self.r_gemorphon)
-        self.r_gemorphon_window.setToolTip("r.geomorphon")
-        self.grass_mdi.grassTools.addSubWindow(self.r_gemorphon_window)
-        self.r_gemorphon_window.setWindowFlags(Qt.WindowType(3072))
-        self.r_gemorphon_window.hide()
+        # Add the checked GRASS raster(s) from the table into the QGIS project
+        self.add_to_qgis_btn = QToolButton()
+        self.add_to_qgis_btn.setText("Add to QGIS")
+        self.add_to_qgis_btn.setToolTip("Add the checked GRASS raster(s) to the QGIS project")
+        self.add_to_qgis_btn.clicked.connect(self.add_selected_to_qgis)
+        self.moduleToolBar.addWidget(self.add_to_qgis_btn)
+
+        # Show/hide the active env's current computational region on the map
+        self.show_region_btn = QToolButton()
+        self.show_region_btn.setText("Region")
+        self.show_region_btn.setCheckable(True)
+        self.show_region_btn.setToolTip("Show/hide the active GRASS computational region on the map")
+        self.show_region_btn.clicked.connect(self.parent.toggle_grass_region)
+        self.moduleToolBar.addWidget(self.show_region_btn)
+
+        # The MDI area is no longer used (modules open as top-level windows); hide it.
+        self.grass_mdi.grassTools.hide()
+
+        self.r_gemorphon = GeoMorphonWidget(self.parent)
+        self._init_module_window(self.r_gemorphon, "r.geomorphon")
+        self.r_gemorphon_window = self.r_gemorphon
         self.r_gemorphon.exit.clicked.connect(self.view_r_gemorphon)
         gemorphon_icon_path = ':/icons/qtui/icons/element-cell.gif'
         gemorphon_icon = QIcon(gemorphon_icon_path)
@@ -130,14 +176,9 @@ class GrassTools(QMainWindow):
         
         
         
-        self.r_paramscale = ParamScaleWidget(self.parent)    
-        self.r_paramscale_window = QMdiSubWindow()
-        self.r_paramscale_window.setWindowTitle("r.param.scale")
-        self.r_paramscale_window.setWidget(self.r_paramscale)
-        self.r_paramscale_window.setToolTip("r.param.scale")
-        self.grass_mdi.grassTools.addSubWindow(self.r_paramscale_window)
-        self.r_paramscale_window.setWindowFlags(Qt.WindowType(3072))
-        self.r_paramscale_window.hide()
+        self.r_paramscale = ParamScaleWidget(self.parent)
+        self._init_module_window(self.r_paramscale, "r.param.scale")
+        self.r_paramscale_window = self.r_paramscale
         self.r_paramscale.exit.clicked.connect(self.view_r_paramscale)
         paramscale_icon_path = ':/icons/qtui/icons/element-cell.gif'
         paramscale_icon = QIcon(paramscale_icon_path)
@@ -149,15 +190,9 @@ class GrassTools(QMainWindow):
         
         
         
-        self.r_grm_lsi = GrmLsiWidget(self.parent)    
-        self.r_grm_lsi_window = QMdiSubWindow()
-        self.r_grm_lsi_window.setWindowTitle("r.grm.lsi")
-        self.r_grm_lsi_window.setWidget(self.r_grm_lsi)
-        self.r_grm_lsi_window.setToolTip("r.grm.lsi")
-        self.grass_mdi.grassTools.addSubWindow(self.r_grm_lsi_window)
-        #self.r_grm_lsi_window.setWindowTitle("r.grm.lsi")
-        self.r_grm_lsi_window.setWindowFlags(Qt.WindowType(3072))
-        self.r_grm_lsi_window.hide()
+        self.r_grm_lsi = GrmLsiWidget(self.parent)
+        self._init_module_window(self.r_grm_lsi, "grm_lsi")
+        self.r_grm_lsi_window = self.r_grm_lsi
         self.r_grm_lsi.exit.clicked.connect(self.view_r_grm_lsi)
         grm_lsi_icon_path = ':/icons/qtui/icons/element-cell.gif'
         grm_lsi_icon = QIcon(grm_lsi_icon_path)
@@ -210,10 +245,13 @@ class GrassTools(QMainWindow):
         indexes = self.grass_mdi.grass_layers.selectedIndexes()
         if indexes:
             menu = QMenu(self)
+            add_action = QAction("Add to QGIS", self)
+            add_action.triggered.connect(self.add_selected_to_qgis)
+            menu.addAction(add_action)
             delete_action = QAction("Delete Row", self)
             delete_action.triggered.connect(self.delete_row)
             menu.addAction(delete_action)
-            menu.exec_(self.grass_mdi.grass_layers.viewport().mapToGlobal(position))
+            menu.exec(self.grass_mdi.grass_layers.viewport().mapToGlobal(position))
 
     def delete_row(self):
         """Remove the selected row(s) from the layer table.
@@ -263,24 +301,28 @@ class GrassTools(QMainWindow):
             self.grass_mdi.grass_layers.setItem(row, 1, empty_cell)  
             
     def add_query_result(self, result):
-        """Write r.what query results into the matching rows of the layer table.
+        """Write sample results into the matching rows of the layer table.
 
         Parameters
         ----------
         result:
-            List of single-key dicts returned by the GRASS ``/api/r_what``
-            endpoint, e.g. ``[{"layer_name": {"value": "3.14", ...}}, ...]``.
+            The ``results.raster`` list from ``grass_api.sample``, i.e.
+            ``[{"layer": "<name>", "samples": [{"value": ...}, ...]}, ...]``.
         """
         QgsMessageLog.logMessage(f"query result: {result}", 'GroundTruther', Qgis.Info)
         result_dict = {}
-        for dictionary in result:
-            key = next(iter(dictionary))  # Get the key of the first level dictionary
-            value = dictionary[key]  # Get the sub-dictionary as the value
-            result_dict[key] = value  
+        for entry in result:
+            name = entry.get("layer")
+            samples = entry.get("samples") or []
+            value = samples[0].get("value") if samples else None
+            if name is not None:
+                result_dict[name] = value
         for row in range(self.grass_mdi.grass_layers.rowCount()):
             checkbox_item = self.grass_mdi.grass_layers.cellWidget(row, 0)
             if checkbox_item.text() in result_dict:
-                value_cell = GrassLayerTableWidgetItem(result_dict[checkbox_item.text()]['value'], checkbox_item.property("layer_enabled") )
+                value_cell = GrassLayerTableWidgetItem(
+                    str(result_dict[checkbox_item.text()]),
+                    checkbox_item.property("layer_enabled"))
                 self.grass_mdi.grass_layers.setItem(row, 1, value_cell)
             
     def get_checked_items(self):
@@ -306,49 +348,26 @@ class GrassTools(QMainWindow):
 
         
     def get_grass_layers(self):
-        """Return a list of raster layer names from the GRASS API.
+        """Return the raster map names in the active GRASS environment.
 
-        Pulls the GRASS location/mapset from the parent's ``grass_dialog``,
-        then calls ``/api/get_rvg_list``.  Returns an empty list on any
-        connection or parsing error.
+        Uses the parent's ``grass_dialog`` connection (endpoint, API key,
+        active ``env_id``) and ``g.list`` via ``grass_api.list_maps``.  Returns
+        an empty list if no environment is active or on any API error.
         """
         self.grass_dialog = self.parent.grass_dialog
-        self.settings = self.parent.settings
-        self.grass_api_endpoint = self.settings["Processing"]["grass_api_endpoint"]
-        try:
-            grass_settings = self.grass_dialog.set_grass_location()
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
-            log_exception("get_grass_layers: set_grass_location", exc, warn=True)
-            return []
-
-        if grass_settings.get('status') != 'SUCCESS':
+        endpoint, api_key, env_id = self.grass_dialog.connection()
+        if not env_id:
             QgsMessageLog.logMessage(
-                f"get_grass_layers: GRASS location not set ({grass_settings.get('status')})",
+                "get_grass_layers: no active GRASS environment",
                 'GroundTruther', Qgis.Warning)
             return []
-
-        grass_gisenv = grass_settings['data']['gisenv']
-        headers = {'accept': 'application/json', 'Content-Type': 'application/json'}
-        params = {
-            'location_name': grass_gisenv['LOCATION_NAME'],
-            'mapset_name': grass_gisenv['MAPSET'],
-            'gisdb': grass_gisenv['GISDBASE'],
-        }
         try:
-            response = requests.get(
-                f'{self.grass_api_endpoint}/api/get_rvg_list',
-                params=params, headers=headers, timeout=60)
-            grass_layers = response.json()['data']['raster']
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
-            log_exception("get_grass_layers: get_rvg_list request", exc, warn=True)
+            grass_layers = grass_api.list_maps(endpoint, api_key, env_id, type="raster")
+        except GrassApiError as exc:
+            log_exception("get_grass_layers: list_maps failed", exc, warn=True)
             return []
-        except (ValueError, KeyError) as exc:
-            log_exception("get_grass_layers: unexpected API response", exc)
-            return []
-
         QgsMessageLog.logMessage(f"grass layers: {grass_layers}", 'GroundTruther', Qgis.Info)
-        return grass_layers    
-        # print(self.settings, grass_settings)
+        return grass_layers
         
         
     def reload_parent_objects(self):
@@ -368,26 +387,162 @@ class GrassTools(QMainWindow):
     def onClearClicked(self):
         self.grass_mdi.gis_tool_report.clear()
 
-    def view_r_gemorphon(self, module):
-        if self.r_gemorphon_window.isVisible():
-            self.r_gemorphon_window.hide()
+    def import_to_env(self, kind: str):
+        """Upload a raster/vector file into the active GRASS environment."""
+        endpoint, api_key, env_id = self.parent.grass_dialog.connection()
+        report = self.grass_mdi.gis_tool_report
+        if not env_id:
+            report.setHtml("<b>No GRASS environment selected.</b> "
+                           "Open GRASS settings and choose an environment.")
+            return
+        if kind == "raster":
+            filt = "Raster (*.tif *.tiff *.img *.vrt *.jp2 *.png *.asc);;All files (*)"
         else:
-            self.r_gemorphon.get_rvr_list()
-            self.r_gemorphon_window.show()
+            filt = "Vector (*.shp *.gpkg *.geojson *.json *.zip);;All files (*)"
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Import {kind} into active environment", "", filt)
+        if not path:
+            return
+        report.setHtml(f"… importing {kind} …")
+        try:
+            if kind == "raster":
+                res = grass_api.import_raster(endpoint, api_key, env_id, file_path=path)
+            else:
+                res = grass_api.import_vector(endpoint, api_key, env_id, file_path=path)
+        except GrassApiError as exc:
+            log_exception(f"import_to_env({kind})", exc, warn=True)
+            report.setHtml(f"<b>Import failed:</b> {exc}")
+            return
+        report.setHtml(f"<b>Imported {kind}:</b><pre>{res}</pre>")
+        self.load_grass_layers()
 
-    def view_r_paramscale(self, module):
-        if self.r_paramscale_window.isVisible():
-            self.r_paramscale_window.hide()
+    # ------------------------------------------------------------------ #
+    # On-the-fly module picker                                            #
+    # ------------------------------------------------------------------ #
+
+    def eventFilter(self, obj, event):
+        # Lazily load the module catalog the first time the search box is focused.
+        if obj is getattr(self, "module_search", None) and event.type() == QEvent.Type(8):
+            self._ensure_module_catalog()
+        return super().eventFilter(obj, event)
+
+    def _ensure_module_catalog(self):
+        """Populate the module-name autocompleter from GET /grass/modules (once)."""
+        if self._module_catalog_loaded:
+            return
+        endpoint, api_key, _env = self.parent.grass_dialog.connection()
+        if not (endpoint and api_key):
+            return
+        try:
+            mods = grass_api.list_modules(endpoint, api_key)
+        except GrassApiError as exc:
+            log_exception("load module catalog", exc, warn=True)
+            return
+        names = sorted({m.get("name") for m in mods if m.get("name")})
+        self._module_completer.setModel(QStringListModel(names, self._module_completer))
+        self._module_catalog_loaded = True
+
+    def open_typed_module(self):
+        """Open a dialog for the module name currently in the search box."""
+        name = self.module_search.text().strip()
+        if name:
+            self.open_module_window(name)
+
+    def open_module_window(self, name):
+        """Build (once) and show a schema-driven runner window for *name*."""
+        window = self._module_windows.get(name)
+        if window is None:
+            window = ModuleRunnerWidget(self.parent, name)
+            self._init_module_window(window, name)
+            window.exit.clicked.connect(window.hide)   # wire the Close button
+            self._module_windows[name] = window
+        window.get_rvr_list()
+        window.show()
+        window.raise_()
+        window.activateWindow()
+
+    # ------------------------------------------------------------------ #
+    # Add GRASS rasters from the table into QGIS                          #
+    # ------------------------------------------------------------------ #
+
+    def add_selected_to_qgis(self):
+        """Add the checked GRASS raster(s) (or the current row) to the project."""
+        report = self.grass_mdi.gis_tool_report
+        self.get_checked_items()
+        names = list(self.checked_layers)
+        if not names:
+            row = self.grass_mdi.grass_layers.currentRow()
+            if row >= 0:
+                cb = self.grass_mdi.grass_layers.cellWidget(row, 0)
+                if cb is not None:
+                    names = [cb.text()]
+        if not names:
+            report.setHtml("Check one or more GRASS rasters in the table first.")
+            return
+        endpoint, api_key, env_id = self.parent.grass_dialog.connection()
+        if not env_id:
+            report.setHtml("<b>No GRASS environment selected.</b>")
+            return
+        added = self._add_rasters_to_qgis(endpoint, api_key, env_id, names)
+        report.setHtml("Added to QGIS: " + (", ".join(added) if added else "(none)"))
+
+    def _add_rasters_to_qgis(self, endpoint, api_key, env_id, names):
+        """Download each named GRASS raster via WCS and add it to the project."""
+        import os
+        import tempfile
+        out_dir = os.path.join(tempfile.gettempdir(), "groundtruther_grass")
+        os.makedirs(out_dir, exist_ok=True)
+        added = []
+        for name in names:
+            try:
+                data = grass_api.wcs_geotiff(endpoint, api_key, env_id, name)
+            except GrassApiError as exc:
+                log_exception(f"add_to_qgis: fetch '{name}'", exc, warn=True)
+                continue
+            path = os.path.join(out_dir, f"{env_id[:8]}_{name}.tif")
+            with open(path, "wb") as fh:
+                fh.write(data)
+            rlayer = QgsRasterLayer(path, name, "gdal")
+            if rlayer.isValid():
+                QgsProject.instance().addMapLayer(rlayer)
+                added.append(name)
+            else:
+                QgsMessageLog.logMessage(
+                    f"raster '{name}' downloaded but invalid: {path}",
+                    'GroundTruther', Qgis.Warning)
+        return added
+
+    def _init_module_window(self, widget, title):
+        """Present a module runner as an independent, movable, resizable window.
+
+        Replaces the old QMdiSubWindow (frameless + trapped in the MDI area):
+        a top-level Qt.Window has a title bar to drag, can be moved anywhere on
+        screen, and resizes — while the runner's internal QScrollArea handles
+        long module forms instead of overflowing the MDI border.
+        """
+        widget.setWindowFlags(Qt.WindowType(1))   # Qt.Window — top-level, framed
+        widget.setWindowTitle(title)
+        widget.resize(480, 640)
+        widget.hide()
+
+    @staticmethod
+    def _toggle_window(window, refresh):
+        if window.isVisible():
+            window.hide()
         else:
-            self.r_paramscale.get_rvr_list()
-            self.r_paramscale_window.show()
-             
-    def view_r_grm_lsi(self, module):
-        if self.r_grm_lsi_window.isVisible():
-            self.r_grm_lsi_window.hide()
-        else:
-            self.r_grm_lsi.get_rvr_list()
-            self.r_grm_lsi_window.show()
+            refresh()
+            window.show()
+            window.raise_()
+            window.activateWindow()
+
+    def view_r_gemorphon(self, module=None):
+        self._toggle_window(self.r_gemorphon_window, self.r_gemorphon.get_rvr_list)
+
+    def view_r_paramscale(self, module=None):
+        self._toggle_window(self.r_paramscale_window, self.r_paramscale.get_rvr_list)
+
+    def view_r_grm_lsi(self, module=None):
+        self._toggle_window(self.r_grm_lsi_window, self.r_grm_lsi.get_rvr_list)
             
     
         

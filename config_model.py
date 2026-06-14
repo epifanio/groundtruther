@@ -50,11 +50,15 @@ class Processing(BaseModel):
     Attributes:
         gpu_avaibility: Whether a CUDA-capable GPU is available for spatial
             selection acceleration (cudf/cuspatial).
-        grass_api_endpoint: Base URL of the GRASS GIS REST API server, e.g.
-            ``http://localhost:8000``.  Leave empty to disable GRASS features.
+        grass_api_endpoint: Base URL of the FastGIS GRASS API server, e.g.
+            ``https://api.fastgis.eu``.  Leave empty to disable GRASS features.
+        grass_api_key: API key (``fgk_...``) sent as the ``X-API-Key`` header on
+            every GRASS API request.  Required by the FastGIS API; leave empty to
+            disable GRASS features.
     """
     gpu_avaibility: bool = False
     grass_api_endpoint: Optional[AnyUrl] = None
+    grass_api_key: Optional[str] = None
 
 # class Mapviewer(BaseModel):
 #     basemap: Optional[AnyUrl] = None
