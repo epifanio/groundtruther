@@ -31,9 +31,10 @@ from groundtruther.run_paramscale_mdi import ParamScaleWidget
 from groundtruther.run_grm_lsi_mdi import GrmLsiWidget
 
 from qgis.PyQt.QtWidgets import QTableWidgetItem, QWidget, QCheckBox, QMenu, QAction
-import requests
 from qgis.core import Qgis, QgsMessageLog
 from groundtruther.configure import log_exception
+from groundtruther.gt import grass_api
+from groundtruther.gt.grass_api import GrassApiError
 class GrassLayerTableWidgetItem(QTableWidgetItem):
     """QTableWidgetItem that also stores whether the GRASS layer is enabled."""
 
@@ -263,24 +264,28 @@ class GrassTools(QMainWindow):
             self.grass_mdi.grass_layers.setItem(row, 1, empty_cell)  
             
     def add_query_result(self, result):
-        """Write r.what query results into the matching rows of the layer table.
+        """Write sample results into the matching rows of the layer table.
 
         Parameters
         ----------
         result:
-            List of single-key dicts returned by the GRASS ``/api/r_what``
-            endpoint, e.g. ``[{"layer_name": {"value": "3.14", ...}}, ...]``.
+            The ``results.raster`` list from ``grass_api.sample``, i.e.
+            ``[{"layer": "<name>", "samples": [{"value": ...}, ...]}, ...]``.
         """
         QgsMessageLog.logMessage(f"query result: {result}", 'GroundTruther', Qgis.Info)
         result_dict = {}
-        for dictionary in result:
-            key = next(iter(dictionary))  # Get the key of the first level dictionary
-            value = dictionary[key]  # Get the sub-dictionary as the value
-            result_dict[key] = value  
+        for entry in result:
+            name = entry.get("layer")
+            samples = entry.get("samples") or []
+            value = samples[0].get("value") if samples else None
+            if name is not None:
+                result_dict[name] = value
         for row in range(self.grass_mdi.grass_layers.rowCount()):
             checkbox_item = self.grass_mdi.grass_layers.cellWidget(row, 0)
             if checkbox_item.text() in result_dict:
-                value_cell = GrassLayerTableWidgetItem(result_dict[checkbox_item.text()]['value'], checkbox_item.property("layer_enabled") )
+                value_cell = GrassLayerTableWidgetItem(
+                    str(result_dict[checkbox_item.text()]),
+                    checkbox_item.property("layer_enabled"))
                 self.grass_mdi.grass_layers.setItem(row, 1, value_cell)
             
     def get_checked_items(self):
@@ -306,49 +311,26 @@ class GrassTools(QMainWindow):
 
         
     def get_grass_layers(self):
-        """Return a list of raster layer names from the GRASS API.
+        """Return the raster map names in the active GRASS environment.
 
-        Pulls the GRASS location/mapset from the parent's ``grass_dialog``,
-        then calls ``/api/get_rvg_list``.  Returns an empty list on any
-        connection or parsing error.
+        Uses the parent's ``grass_dialog`` connection (endpoint, API key,
+        active ``env_id``) and ``g.list`` via ``grass_api.list_maps``.  Returns
+        an empty list if no environment is active or on any API error.
         """
         self.grass_dialog = self.parent.grass_dialog
-        self.settings = self.parent.settings
-        self.grass_api_endpoint = self.settings["Processing"]["grass_api_endpoint"]
-        try:
-            grass_settings = self.grass_dialog.set_grass_location()
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
-            log_exception("get_grass_layers: set_grass_location", exc, warn=True)
-            return []
-
-        if grass_settings.get('status') != 'SUCCESS':
+        endpoint, api_key, env_id = self.grass_dialog.connection()
+        if not env_id:
             QgsMessageLog.logMessage(
-                f"get_grass_layers: GRASS location not set ({grass_settings.get('status')})",
+                "get_grass_layers: no active GRASS environment",
                 'GroundTruther', Qgis.Warning)
             return []
-
-        grass_gisenv = grass_settings['data']['gisenv']
-        headers = {'accept': 'application/json', 'Content-Type': 'application/json'}
-        params = {
-            'location_name': grass_gisenv['LOCATION_NAME'],
-            'mapset_name': grass_gisenv['MAPSET'],
-            'gisdb': grass_gisenv['GISDBASE'],
-        }
         try:
-            response = requests.get(
-                f'{self.grass_api_endpoint}/api/get_rvg_list',
-                params=params, headers=headers, timeout=60)
-            grass_layers = response.json()['data']['raster']
-        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
-            log_exception("get_grass_layers: get_rvg_list request", exc, warn=True)
+            grass_layers = grass_api.list_maps(endpoint, api_key, env_id, type="raster")
+        except GrassApiError as exc:
+            log_exception("get_grass_layers: list_maps failed", exc, warn=True)
             return []
-        except (ValueError, KeyError) as exc:
-            log_exception("get_grass_layers: unexpected API response", exc)
-            return []
-
         QgsMessageLog.logMessage(f"grass layers: {grass_layers}", 'GroundTruther', Qgis.Info)
-        return grass_layers    
-        # print(self.settings, grass_settings)
+        return grass_layers
         
         
     def reload_parent_objects(self):

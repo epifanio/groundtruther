@@ -202,6 +202,18 @@ def layers(endpoint: str, api_key: str, env_id: str) -> list[dict]:
     return (payload or {}).get("layers", [])
 
 
+def projection(endpoint: str, api_key: str, env_id: str) -> dict:
+    """Return the env's CRS info (``GET /grass/env/{id}/general/projection``).
+
+    The returned dict includes ``epsg``, ``ows_srs`` (e.g. ``"EPSG:32632"``),
+    ``proj``/``zone`` and a full ``wkt`` — enough to build a QGIS CRS for
+    client-side coordinate transforms.
+    """
+    payload = _request("GET", endpoint, f"/grass/env/{env_id}/general/projection",
+                       api_key)
+    return (payload or {}).get("projection", payload or {})
+
+
 # --------------------------------------------------------------------------- #
 # Geo operations                                                               #
 # --------------------------------------------------------------------------- #

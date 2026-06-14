@@ -182,6 +182,11 @@ class GrassConfigDialog(QDialog, GrassSettings):
         """Return the active ``env_id`` (or ``None`` if none selected)."""
         return self.env_id
 
+    def connection(self):
+        """Return ``(endpoint, api_key, env_id)`` for consumers to call the API."""
+        endpoint, api_key = self._creds()
+        return endpoint, api_key, self.env_id
+
     # ------------------------------------------------------------------ #
     # Environment / mapset creation                                       #
     # ------------------------------------------------------------------ #
