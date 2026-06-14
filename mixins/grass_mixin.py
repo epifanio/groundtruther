@@ -165,11 +165,12 @@ class GrassIntegrationMixin:
     def set_grass_region(
         self, minlat: float, maxlat: float, minlon: float, maxlon: float
     ):
-        """Set the GRASS computational region from WGS-84 bounds.
+        """Set the GRASS computational region from a drawn bbox.
 
-        The bounds (lon/lat, EPSG:4326) are reprojected to the active
-        environment's native CRS with QGIS before calling the API (the FastGIS
-        region endpoint expects native-CRS bounds).  Returns the region payload
+        The bounds arrive in the active *project* CRS (the region tool emits map
+        coordinates) and are reprojected to the environment's native CRS with
+        QGIS before calling the API (the FastGIS region endpoint expects
+        native-CRS bounds).  Returns the region payload
         (``{"env_id", "region": {...}}``) on success, or ``None`` on any error.
         """
         endpoint, api_key, env_id = self.grass_dialog.connection()
@@ -208,14 +209,26 @@ class GrassIntegrationMixin:
 
     @staticmethod
     def _bounds_to_native(minlat, maxlat, minlon, maxlon, target_crs):
-        """Transform WGS-84 bbox corners to *target_crs*; return n, s, e, w."""
-        src = QgsCoordinateReferenceSystem("EPSG:4326")
-        xform = QgsCoordinateTransform(src, target_crs, QgsProject.instance())
+        """Reproject bbox corners from the project CRS to *target_crs*.
+
+        The region box tool (``GCRTool``) emits corners in map/canvas (i.e.
+        project) coordinates — eastings/northings, not lon/lat — so the source
+        CRS is the active project CRS, not WGS-84.  ``minlon/maxlon`` are X
+        (east), ``minlat/maxlat`` are Y (north).  Returns ``n, s, e, w`` in the
+        env's native CRS.
+        """
         corners = [(minlon, minlat), (minlon, maxlat),
-                   (maxlon, minlat), (maxlon, maxlat)]
-        pts = [xform.transform(QgsPointXY(lon, lat)) for lon, lat in corners]
-        xs = [p.x() for p in pts]
-        ys = [p.y() for p in pts]
+                   (maxlon, minlat), (maxlon, maxlat)]  # (x, y)
+        src = QgsProject.instance().crs()
+        if not src.isValid():
+            src = QgsCoordinateReferenceSystem("EPSG:4326")
+        if src != target_crs:
+            xform = QgsCoordinateTransform(src, target_crs, QgsProject.instance())
+            corners = [(p.x(), p.y())
+                       for p in (xform.transform(QgsPointXY(x, y))
+                                 for x, y in corners)]
+        xs = [c[0] for c in corners]
+        ys = [c[1] for c in corners]
         return max(ys), min(ys), max(xs), min(xs)
 
     # ------------------------------------------------------------------ #
