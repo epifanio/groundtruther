@@ -169,6 +169,37 @@ def delete_env(endpoint: str, api_key: str, env_id: str) -> dict:
     return _request("DELETE", endpoint, f"/grass/env/{env_id}", api_key)
 
 
+def _import_file(endpoint: str, api_key: str, path: str, file_path: str,
+                 output_name: str | None) -> dict:
+    """Multipart-upload a dataset file to an import endpoint."""
+    try:
+        with open(file_path, "rb") as fh:
+            files = {"file": fh}
+            if output_name:
+                files["output_name"] = (None, output_name)
+            return _request("POST", endpoint, path, api_key,
+                            files=files, timeout=_TIMEOUT_LONG)
+    except FileNotFoundError as exc:
+        raise GrassApiError(f"File not found: {file_path}") from exc
+
+
+def import_raster(endpoint: str, api_key: str, env_id: str, *, file_path: str,
+                  output_name: str | None = None) -> dict:
+    """Import a raster file into the env (``POST /grass/env/{id}/import/raster``).
+
+    Runs ``r.in.gdal`` server-side; returns ``{env_id, module, output, dataset}``.
+    """
+    return _import_file(endpoint, api_key,
+                        f"/grass/env/{env_id}/import/raster", file_path, output_name)
+
+
+def import_vector(endpoint: str, api_key: str, env_id: str, *, file_path: str,
+                  output_name: str | None = None) -> dict:
+    """Import a vector file into the env (``POST /grass/env/{id}/import/vector``)."""
+    return _import_file(endpoint, api_key,
+                        f"/grass/env/{env_id}/import/vector", file_path, output_name)
+
+
 # --------------------------------------------------------------------------- #
 # Context / inventory                                                          #
 # --------------------------------------------------------------------------- #

@@ -59,8 +59,7 @@ class GrassConfigDialog(QDialog, GrassSettings):
         self.grass_api_endpoint.setText(self.endpoint)
 
         # Hide widgets that no longer apply under the env model
-        for name in ("grass_gisdb", "location_mapset_list",
-                     "grass_location_list2", "layer_name", "label_10"):
+        for name in ("grass_gisdb", "location_mapset_list", "grass_location_list2"):
             w = getattr(self, name, None)
             if w is not None:
                 w.hide()
@@ -72,6 +71,11 @@ class GrassConfigDialog(QDialog, GrassSettings):
             self.groupBox_2.setTitle("GRASS Environments")
         except AttributeError:
             pass
+        # layer_name is repurposed as the optional imported-map name (georef only);
+        # its visibility is driven by enable_widget().
+        self.layer_name.setPlaceholderText("imported map name (optional)")
+        if getattr(self, "label_10", None) is not None:
+            self.label_10.setText("Import as")
 
         # EPSG search helper
         self.searchepsg_dialog = SearchEpsgDialog()
@@ -97,6 +101,8 @@ class GrassConfigDialog(QDialog, GrassSettings):
         self.button_group.addButton(self.choice_georef)
         self.choice_epsg.toggled.connect(self.enable_widget)
         self.choice_georef.toggled.connect(self.enable_widget)
+        self.choice_epsg.setChecked(True)
+        self.enable_widget()
 
         self.refresh_envs()
 
@@ -191,8 +197,16 @@ class GrassConfigDialog(QDialog, GrassSettings):
     # Environment / mapset creation                                       #
     # ------------------------------------------------------------------ #
 
+    # Dataset extensions treated as raster (else imported as vector).
+    _RASTER_EXTS = {"tif", "tiff", "img", "vrt", "jp2", "png", "asc", "grd", "nc"}
+
     def create_environment(self):
-        """Create a new environment from an EPSG code or a georef dataset."""
+        """Create a new environment from an EPSG code or a georef dataset.
+
+        When creating from a georef dataset, the file is also *imported* into the
+        new location (the env/dataset endpoint only seeds the location CRS), so
+        the data is immediately available as a GRASS map.
+        """
         endpoint, api_key = self._creds()
         location = self.new_location_name.text().strip()
         if not location:
@@ -209,20 +223,41 @@ class GrassConfigDialog(QDialog, GrassSettings):
                 env = grass_api.create_env_dataset(
                     endpoint, api_key, file_path=path, location=location,
                     persist=True)
-            else:
-                try:
-                    epsg = int(self.epsg_code.currentText().strip())
-                except ValueError:
-                    self._report("Invalid EPSG code.", ok=False)
-                    return
-                env = grass_api.create_env_epsg(
-                    endpoint, api_key, epsg=epsg, location=location, persist=True)
+                self.env_id = env.get("env_id")
+                import_msg = self._import_dataset(endpoint, api_key, self.env_id, path)
+                self._report(json.dumps(env, indent=2, sort_keys=True)
+                             + "\n\n" + import_msg, ok=True)
+                self.refresh_envs()
+                return
+            try:
+                epsg = int(self.epsg_code.currentText().strip())
+            except ValueError:
+                self._report("Invalid EPSG code.", ok=False)
+                return
+            env = grass_api.create_env_epsg(
+                endpoint, api_key, epsg=epsg, location=location, persist=True)
         except GrassApiError as exc:
             self._report(str(exc), ok=False)
             return
         self._report(json.dumps(env, indent=2, sort_keys=True), ok=True)
         self.env_id = env.get("env_id")
         self.refresh_envs()
+
+    def _import_dataset(self, endpoint, api_key, env_id, path):
+        """Import *path* into *env_id* as raster or vector (by extension)."""
+        import os
+        ext = os.path.splitext(path)[1].lstrip(".").lower()
+        out = self.layer_name.text().strip() or None
+        try:
+            if ext in self._RASTER_EXTS:
+                res = grass_api.import_raster(
+                    endpoint, api_key, env_id, file_path=path, output_name=out)
+            else:
+                res = grass_api.import_vector(
+                    endpoint, api_key, env_id, file_path=path, output_name=out)
+            return "dataset imported:\n" + json.dumps(res, indent=2, sort_keys=True)
+        except GrassApiError as exc:
+            return f"(environment created, but dataset import failed: {exc})"
 
     def create_new_grass_mapset(self):
         """Create a new mapset within the active environment's location."""
@@ -270,14 +305,16 @@ class GrassConfigDialog(QDialog, GrassSettings):
         self.searchepsg_dialog.exec()
 
     def enable_widget(self):
-        if self.choice_epsg.isChecked():
-            self.georef_file.setEnabled(False)
-            self.set_georef_file.setEnabled(False)
-            self.epsg_code.setEnabled(True)
-        if self.choice_georef.isChecked():
-            self.epsg_code.setEnabled(False)
-            self.georef_file.setEnabled(True)
-            self.set_georef_file.setEnabled(True)
+        georef = self.choice_georef.isChecked()
+        self.epsg_code.setEnabled(not georef)
+        self.georef_file.setEnabled(georef)
+        self.set_georef_file.setEnabled(georef)
+        # The georef dataset is imported into the new location; expose an
+        # optional output-map name (reusing the old layer_name field/label).
+        self.layer_name.setVisible(georef)
+        label_10 = getattr(self, "label_10", None)
+        if label_10 is not None:
+            label_10.setVisible(georef)
 
     def show_hide_output_log(self):
         self.command_output.setVisible(not self.command_output.isVisible())

@@ -106,9 +106,26 @@ class GrassTools(QMainWindow):
         self.grass_layers_view.setToolTip("Show/Hide GRASS Layers")
         self.grass_layers_view.setIcon(grass_layers_view_icon)
         self.moduleToolBar.addWidget(self.grass_layers_view)
-        self.grass_layers_view.clicked.connect(self.toggle_grass_layers_table)     
+        self.grass_layers_view.clicked.connect(self.toggle_grass_layers_table)
 
+        # Import data into the active environment
+        self.import_raster_btn = QToolButton()
+        self.import_raster_btn.setText("Import Raster")
+        self.import_raster_btn.setToolTip("Import a raster file into the active GRASS environment")
+        self.import_raster_btn.clicked.connect(lambda: self.import_to_env("raster"))
+        self.moduleToolBar.addWidget(self.import_raster_btn)
 
+        self.import_vector_btn = QToolButton()
+        self.import_vector_btn.setText("Import Vector")
+        self.import_vector_btn.setToolTip("Import a vector file into the active GRASS environment")
+        self.import_vector_btn.clicked.connect(lambda: self.import_to_env("vector"))
+        self.moduleToolBar.addWidget(self.import_vector_btn)
+
+        # The MDI area is no longer used (modules open as top-level windows);
+        # hide it and the now-pointless MDI-layout selector, keeping the toolbar,
+        # the query/output browser, and the layer table.
+        self.grass_mdi.grassTools.hide()
+        self.mdi_view.hide()
 
         self.r_gemorphon = GeoMorphonWidget(self.parent)
         self._init_module_window(self.r_gemorphon, "r.geomorphon")
@@ -333,6 +350,35 @@ class GrassTools(QMainWindow):
     
     def onClearClicked(self):
         self.grass_mdi.gis_tool_report.clear()
+
+    def import_to_env(self, kind: str):
+        """Upload a raster/vector file into the active GRASS environment."""
+        endpoint, api_key, env_id = self.parent.grass_dialog.connection()
+        report = self.grass_mdi.gis_tool_report
+        if not env_id:
+            report.setHtml("<b>No GRASS environment selected.</b> "
+                           "Open GRASS settings and choose an environment.")
+            return
+        if kind == "raster":
+            filt = "Raster (*.tif *.tiff *.img *.vrt *.jp2 *.png *.asc);;All files (*)"
+        else:
+            filt = "Vector (*.shp *.gpkg *.geojson *.json *.zip);;All files (*)"
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Import {kind} into active environment", "", filt)
+        if not path:
+            return
+        report.setHtml(f"… importing {kind} …")
+        try:
+            if kind == "raster":
+                res = grass_api.import_raster(endpoint, api_key, env_id, file_path=path)
+            else:
+                res = grass_api.import_vector(endpoint, api_key, env_id, file_path=path)
+        except GrassApiError as exc:
+            log_exception(f"import_to_env({kind})", exc, warn=True)
+            report.setHtml(f"<b>Import failed:</b> {exc}")
+            return
+        report.setHtml(f"<b>Imported {kind}:</b><pre>{res}</pre>")
+        self.load_grass_layers()
 
     def _init_module_window(self, widget, title):
         """Present a module runner as an independent, movable, resizable window.
