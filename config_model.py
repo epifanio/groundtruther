@@ -28,9 +28,16 @@ class Mbes(BaseModel):
 
     Attributes:
         soundings: Optional path to a soundings file used by the query builder.
+        reference_surface: Optional GeoTIFF DEM / bathymetry raster. When set,
+            the query builder's 3-D viewer clips this raster to the selected
+            sampling shape instead of gridding the soundings; if absent or
+            unreadable it falls back to the soundings surface. Kept as a plain
+            string (not a validated ``FilePath``) so an empty / not-yet-present
+            path never invalidates the whole config.
     """
 
     soundings: Optional[FilePath] = None
+    reference_surface: Optional[str] = None
 
 
 class Export(BaseModel):
@@ -99,6 +106,25 @@ class VideoSettings(BaseModel):
     videoannotation: Optional[str] = None
 
 
+class SessionSettings(BaseModel):
+    """Session-state persistence settings.
+
+    Named ``SessionSettings`` (not ``Session``) to avoid the pydantic bug where
+    a field name matching the nested model class name breaks ``Optional[T]``
+    coercion — the same reason ``VideoSettings`` is not called ``Video``.
+
+    Attributes:
+        groundtruther_project: Path to a JSON file storing restorable UI/session
+            state (image index, zoom, query-builder selection, video position,
+            dock layout).  Written when the QGIS project is saved / the plugin
+            closes, and loaded at plugin start.  It may not exist yet (created on
+            first save), so it is a plain string rather than a validated
+            ``FilePath``.
+    """
+
+    groundtruther_project: Optional[str] = None
+
+
 class HabcamSettings(BaseModel):
     """Root configuration model — mirrors ``config/config.yaml``.
 
@@ -114,3 +140,4 @@ class HabcamSettings(BaseModel):
     Processing: Union[Processing]
     Filesystem: Filesystem
     Video: Optional[VideoSettings] = None
+    Session: Optional[SessionSettings] = None

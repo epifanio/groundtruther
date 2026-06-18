@@ -98,6 +98,10 @@ class SettingsMixin:
         dialog = ConfigDialog()
         dialog.settings_saved.connect(self._apply_settings)
         dialog.settings_saved.connect(self._apply_video_settings)
+        # Let the query builder pick up changed data sources (soundings,
+        # reference-surface GeoTIFF, …) without a plugin restart.
+        if getattr(self, "querybuilder", None) is not None:
+            dialog.settings_saved.connect(self.querybuilder.refresh_settings)
         dialog.exec()
 
     def _open_config_dialog(self):

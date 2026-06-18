@@ -53,6 +53,7 @@ from groundtruther.mixins.video_browser_mixin import VideoBrowserMixin
 from groundtruther.mixins.video_annotation_mixin import VideoAnnotationMixin
 from groundtruther.mixins.report_dock_mixin import ReportDockMixin
 from groundtruther.mixins.layout_mixin import LayoutMixin
+from groundtruther.mixins.session_mixin import SessionMixin
 
 from qgis.PyQt.QtWidgets import QLabel, QLineEdit
 
@@ -68,6 +69,7 @@ class GroundTrutherDockWidget(
     VideoAnnotationMixin,
     ReportDockMixin,
     LayoutMixin,
+    SessionMixin,
 ):
     """Main dock widget — thin orchestrator; all logic lives in mixins."""
 
@@ -82,6 +84,9 @@ class GroundTrutherDockWidget(
         self.w = HBCBrowserGui()
         self.setupUi(self)
         self.setWidget(self.w)
+        # Stable objectName so QMainWindow.saveState()/restoreState() can track
+        # this dock when persisting/restoring the docked layout.
+        self.setObjectName("GroundTrutherMainDock")
 
         self.config = os.path.join(
             os.path.dirname(__file__), 'config/config.yaml')
@@ -194,6 +199,7 @@ class GroundTrutherDockWidget(
         self.w.gisTools.setFeatures(
             QtWidgets.QDockWidget.DockWidgetFeature(7))   # Closable|Movable|Floatable
         self.w.gisTools.setAllowedAreas(Qt.DockWidgetArea(15))  # AllDockWidgetAreas
+        self.w.gisTools.setObjectName("GroundTrutherGrassDock")  # for saveState/restoreState
         self.w.gisTools.setWindowTitle("GRASS Tools")
         iface.addDockWidget(Qt.DockWidgetArea(2), self.w.gisTools)  # RightDockWidgetArea
         self.w.gisTools.hide()
@@ -238,6 +244,14 @@ class GroundTrutherDockWidget(
             self.savekml.from_querybuilder_3dplot_signal)
         self.querybuilder.send_selected_points_path.connect(
             self.savekml.from_querybuilder_selected_points_signal)
+        self.querybuilder.send_stats_html.connect(
+            self.savekml.from_querybuilder_stats_signal)
+        self.querybuilder.send_sampling_html.connect(
+            self.savekml.from_querybuilder_sampling_signal)
+        self.querybuilder.send_histograms.connect(
+            self.savekml.from_querybuilder_histograms_signal)
+        self.querybuilder.send_imageselection_path.connect(
+            self.savekml.from_querybuilder_imageselection_signal)
 
         # --- Mixin initialisation (order matters) ---
         self._init_image_browser()       # ImageBrowserMixin — wire signals
@@ -250,6 +264,7 @@ class GroundTrutherDockWidget(
         self._init_video_annotation_editor()  # VideoAnnotationMixin — annotation editor dock
         self._init_report_dock()             # create Report Builder floating dock
         self._init_layout()                  # LayoutMixin — restore saved positions + reset action
+        self._init_session()                 # SessionMixin — load session file + project-save hook
 
         self.w.show()
 
@@ -272,6 +287,13 @@ class GroundTrutherDockWidget(
         # Persist dock positions before any widget is torn down.
         try:
             self._save_layout()
+        except Exception:
+            pass
+
+        # Persist session state (if a session file is configured) and drop the
+        # project-save hook before teardown.
+        try:
+            self._teardown_session()
         except Exception:
             pass
 

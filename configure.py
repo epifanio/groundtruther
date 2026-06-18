@@ -11,7 +11,10 @@ try:
 except ImportError:
     from pydantic import ValidationError  # pydantic v2
 from qgis.PyQt.QtCore import pyqtSignal
-from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox
+from qgis.PyQt.QtWidgets import (
+    QDialog, QFileDialog, QMessageBox,
+    QHBoxLayout, QLabel, QLineEdit, QToolButton,
+)
 
 from groundtruther.pygui.app_settings_gui import AppSettings
 from groundtruther.config_model import HabcamSettings
@@ -168,6 +171,9 @@ class ConfigDialog(QDialog, AppSettings):
         self.select_metadata_path.clicked.connect(self.set_metadata_path)
         self.select_imageannotation_path.clicked.connect(self.set_imageannotation_path)
         self.select_mbes_path.clicked.connect(self.set_mbes_path)
+        # Add a "Reference surface (GeoTIFF)" row to the MBES box — programmatic
+        # so the stale generated .ui is left untouched.
+        self._add_reference_surface_row()
         self.select_kml_path.clicked.connect(self.set_kml_path)
         self.select_video_path.clicked.connect(self.set_video_path)
         self.select_video_metadata_path.clicked.connect(self.set_video_metadata_path)
@@ -175,14 +181,19 @@ class ConfigDialog(QDialog, AppSettings):
         self.setOption.clicked.connect(self.write_config)
         self.quit.clicked.connect(self.close)
 
+        # Repurpose the (otherwise unused) VRT row as the GroundTruther session
+        # file picker — avoids regenerating the stale app-settings .ui.
+        self.vrt_label.setText("GT session file")
+        self.vrt_path.setToolTip(
+            "JSON file storing GroundTruther UI/session state "
+            "(image index, zoom, query selection, dock layout)")
+        self.select_vrt_path.clicked.connect(self.set_session_path)
+
         # Populate fields from disk – silently, no validation dialogs
         self._populate_fields()
 
         # GPU toggle disabled until RAPIDS detection is implemented
         self.gpu_avaibility.setEnabled(False)
-        self.vrt_label.hide()
-        self.vrt_path.hide()
-        self.select_vrt_path.hide()
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -209,6 +220,7 @@ class ConfigDialog(QDialog, AppSettings):
         self.metadata_path.setText(hbc.get("imagemetadata", ""))
         self.imageannotation_path.setText(hbc.get("imageannotation", ""))
         self.mbes_path.setText(mbes.get("soundings", ""))
+        self.reference_surface_path.setText(mbes.get("reference_surface", "") or "")
         self.kml_path.setText(export.get("kmldir", ""))
 
         gpu = proc.get("gpu_avaibility", False)
@@ -220,6 +232,9 @@ class ConfigDialog(QDialog, AppSettings):
         # Video fields (widgets are now always present via Ui_app_settings_ui)
         self.video_path.setText(video.get("videofile", ""))
         self.video_metadata_path.setText(video.get("videometadata", ""))
+
+        session = settings.get("Session", {}) or {}
+        self.vrt_path.setText(session.get("groundtruther_project", "") or "")
 
     def _on_gpu_index_changed(self, index):
         self.gpu_avaibility_value = self.gpu_avaibility.itemText(index) == "Enabled"
@@ -260,6 +275,29 @@ class ConfigDialog(QDialog, AppSettings):
         if file_name:
             self.mbes_path.setText(file_name)
 
+    def _add_reference_surface_row(self):
+        """Append a 'Reference surface (GeoTIFF)' row to the MBES group box."""
+        row = QHBoxLayout()
+        label = QLabel("Reference surface")
+        self.reference_surface_path = QLineEdit()
+        self.reference_surface_path.setToolTip(
+            "Optional GeoTIFF DEM / bathymetry. When set, the 3-D viewer clips "
+            "this raster to the sampling shape instead of gridding the soundings.")
+        button = QToolButton(); button.setText("...")
+        button.clicked.connect(self.set_reference_surface_path)
+        row.addWidget(label)
+        row.addWidget(self.reference_surface_path)
+        row.addWidget(button)
+        self.mbes_config_box.layout().addLayout(row)
+
+    def set_reference_surface_path(self):
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Set reference-surface GeoTIFF", self.reference_surface_path.text(),
+            "GeoTIFF (*.tif *.tiff);;All files (*)",
+        )
+        if file_name:
+            self.reference_surface_path.setText(file_name)
+
     def set_kml_path(self):
         directory = QFileDialog.getExistingDirectory(
             self, "Set KML export directory", self.kml_path.text(),
@@ -292,6 +330,15 @@ class ConfigDialog(QDialog, AppSettings):
         if file_name:
             self.video_metadata_path.setText(file_name)
 
+    def set_session_path(self):
+        # getSaveFileName so the user can name a not-yet-existing session file.
+        file_name, _ = QFileDialog.getSaveFileName(
+            self, "Set GroundTruther session file", self.vrt_path.text(),
+            "GroundTruther session (*.json);;All files (*)",
+        )
+        if file_name:
+            self.vrt_path.setText(file_name)
+
     # ------------------------------------------------------------------
     # Settings read-back
     # ------------------------------------------------------------------
@@ -309,7 +356,10 @@ class ConfigDialog(QDialog, AppSettings):
                 "imagemetadata": self.metadata_path.text().strip(),
                 "imageannotation": _opt(self.imageannotation_path.text()),
             },
-            "Mbes": {"soundings": _opt(self.mbes_path.text())},
+            "Mbes": {
+                "soundings": _opt(self.mbes_path.text()),
+                "reference_surface": _opt(self.reference_surface_path.text()),
+            },
             "Export": {"kmldir": _opt(self.kml_path.text())},
             "Processing": {
                 "gpu_avaibility": self.gpu_avaibility_value,
@@ -320,6 +370,9 @@ class ConfigDialog(QDialog, AppSettings):
                 "videofile": _opt(self.video_path.text()),
                 "videometadata": _opt(self.video_metadata_path.text()),
                 "videoannotation": None,
+            },
+            "Session": {
+                "groundtruther_project": _opt(self.vrt_path.text()),
             },
         }
 
@@ -345,6 +398,7 @@ class ConfigDialog(QDialog, AppSettings):
             "imagemetadata": self.metadata_path.text(),
             "imageannotation": self.imageannotation_path.text(),
             "soundings": self.mbes_path.text(),
+            "reference_surface": self.reference_surface_path.text(),
             "kmldir": self.kml_path.text(),
             "gpu_avaibility": self.gpu_avaibility_value,
             "grass_api_endpoint": self.grass_api_endpoint.text(),
@@ -352,6 +406,7 @@ class ConfigDialog(QDialog, AppSettings):
             "videofile": self.video_path.text(),
             "videometadata": self.video_metadata_path.text(),
             "videoannotation": "",
+            "groundtruther_project": self.vrt_path.text(),
         })
         with open(self.config, "w+", encoding="utf8") as yaml_file:
             yaml_file.write(hbc_config)
