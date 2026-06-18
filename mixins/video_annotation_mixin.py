@@ -120,6 +120,12 @@ class VideoAnnotationMixin:
         self._video_ann_draw_action.setVisible(False)
         toolbar.addAction(self._video_ann_draw_action)
 
+        # Starting playback exits draw mode and un-toggles the draw button, so
+        # the next annotation only needs a single click rather than two
+        # (untoggle + toggle).
+        self._video_player.playback_started.connect(
+            self._exit_video_draw_mode_on_play)
+
         # Save action lives in the editor panel now — keep a None reference
         # so existing code that checks it doesn't crash.
         self._video_ann_save_action = None
@@ -181,6 +187,20 @@ class VideoAnnotationMixin:
             self._video_ann_editor.start_draw_mode()
         else:
             self._video_ann_editor.stop_draw_mode()
+
+    def _exit_video_draw_mode_on_play(self) -> None:
+        """Exit draw mode (un-check 'Add new box') when playback starts.
+
+        Calls the editor's ``stop_draw_mode()`` directly so it works whether the
+        user entered draw mode via the panel's "➕ Add new box" button or the
+        toolbar "Draw box" action: ``stop_draw_mode()`` un-checks the panel
+        button and emits ``draw_mode_exited``, which ``_on_video_draw_mode_exited``
+        uses to un-check the toolbar action too.  It is a no-op when not drawing.
+        """
+        if self._video_ann_editor is not None:
+            self._video_ann_editor.stop_draw_mode()
+        elif self._video_ann_draw_action and self._video_ann_draw_action.isChecked():
+            self._video_ann_draw_action.setChecked(False)
 
     def _on_video_draw_mode_exited(self) -> None:
         if self._video_ann_draw_action:

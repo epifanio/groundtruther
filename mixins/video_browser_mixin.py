@@ -19,11 +19,14 @@ Responsibilities
 """
 from __future__ import annotations
 
+import os
+import json
+
 from qgis.PyQt.QtCore import Qt, QTimer
 from qgis.PyQt.QtWidgets import QDockWidget, QAction, QMainWindow
 from qgis.core import (
     QgsMessageLog, Qgis,
-    QgsPointXY, QgsRectangle, QgsCoordinateReferenceSystem,
+    QgsPointXY, QgsCoordinateReferenceSystem,
     QgsCoordinateTransform, QgsProject,
     QgsVectorLayer, QgsFeature, QgsGeometry, QgsPoint,
     QgsSingleSymbolRenderer, QgsLineSymbol,
@@ -64,7 +67,8 @@ class VideoBrowserMixin:
 
         # Debounce timer: coalesces rapid canvas refresh calls during playback
         # so that the track layer renderer always gets to complete a full cycle.
-        self._pending_extent: QgsRectangle | None = None
+        self._pending_center: QgsPointXY | None = None
+        self._pending_scale: float = 0.0
         self._map_update_timer = QTimer()
         self._map_update_timer.setSingleShot(True)
         self._map_update_timer.setInterval(150)   # ms — ~6 redraws/s max
@@ -111,6 +115,12 @@ class VideoBrowserMixin:
 
         # Re-sync map position whenever the user changes the project CRS
         self.canvas.destinationCrsChanged.connect(self._on_canvas_crs_changed)
+
+        # Regenerate the (derived) track whenever a project is loaded: a saved
+        # project may carry a reference to a GeoJSON track that has since moved
+        # or been deleted (a broken layer), so we rebuild it fresh from the
+        # current video metadata and drop the stale reference.
+        QgsProject.instance().readProject.connect(self._on_project_read)
 
         self._video_dock.visibilityChanged.connect(self._on_video_dock_visibility)
 
@@ -267,15 +277,16 @@ class VideoBrowserMixin:
     # ------------------------------------------------------------------
 
     def _sync_map_to_position(self, pos: dict) -> None:
-        """Zoom the map canvas to the WGS-84 position in *pos*.
+        """Centre the map canvas on the WGS-84 position in *pos* at a fixed scale.
 
         Mirrors ``ImageBrowserMixin.zoom_to()``:
         * Builds a fresh ``QgsCoordinateTransform`` each call (projection
           changes are always respected — no stale cached transform).
-        * Half-extent = ``zoom_level / 10 000`` in destination map units,
-          where ``zoom_level`` comes from the spinbox in the video player.
-        * Places (or moves) a red × ``QgsVertexMarker`` at the position.
-        * Calls ``canvas.setExtent()`` + ``canvas.refresh()``.
+        * Centres on the point and applies the player's **map scale (1:N)** via
+          ``QgsMapCanvas.zoomScale`` — projection-independent, so it behaves the
+          same whether the project CRS is metric or geographic (unlike a buffer
+          in project units, which is microscopic in metres but huge in degrees).
+        * Places (or moves) a × ``QgsVertexMarker`` at the position.
         """
         # Use the CP (control-point) position — already converted from DDM
         # to signed decimal degrees by load_video_metadata_survey().
@@ -303,41 +314,45 @@ class VideoBrowserMixin:
                 self._video_vertex_marker.setPenWidth(3)
             self._video_vertex_marker.setCenter(pt)
 
-            # --- Canvas extent + track layer: debounced ---
+            # --- Canvas centre + scale + track layer: throttled ---
             # During playback canvas.refresh() is called at the full video
             # frame rate (e.g. 25 fps).  QGIS cancels in-progress render jobs
             # when a new refresh is requested, so the track layer renderer
             # never gets to complete a cycle and the line stays invisible.
-            # We store the desired extent and let a single-shot timer apply it
-            # at most every 150 ms, giving the renderer time to finish.
-            zoom = self._video_player.zoom_level if self._video_player else 50
-            distance = float(zoom) / 10000.0
-            self._pending_extent = QgsRectangle(
-                pt.x() - distance, pt.y() - distance,
-                pt.x() + distance, pt.y() + distance,
-            )
-            # start() restarts the timer if already running (debounce)
-            self._map_update_timer.start()
+            # We store the desired centre/scale and let a single-shot timer
+            # apply the *latest* one at most every 150 ms.
+            self._pending_center = pt
+            self._pending_scale = (float(self._video_player.zoom_level)
+                                   if self._video_player else 2500.0)
+            # Throttle, don't debounce: only (re)start when the timer is idle.
+            # Calling start() every frame would *restart* the single-shot timer
+            # faster than its 150 ms interval, so timeout would never fire and
+            # the map would never pan (the marker still moves via setCenter).
+            if not self._map_update_timer.isActive():
+                self._map_update_timer.start()
 
         except Exception as exc:
             QgsMessageLog.logMessage(
                 f"Video geo-link error: {exc}", "GroundTruther", Qgis.Warning)
 
     def _flush_map_update(self) -> None:
-        """Apply the most-recently queued extent and repaint.
+        """Apply the most-recently queued centre + map scale and repaint.
 
         Called by ``_map_update_timer`` (150 ms single-shot) so that rapid
         frame-change events during playback are coalesced into a single canvas
         render cycle.  This gives the QGIS renderer enough time to complete
-        a full draw of the track layer before the next extent change arrives.
+        a full draw of the track layer before the next change arrives.
         """
-        if self._pending_extent is None:
+        if self._pending_center is None:
             return
         if self._track_layer_valid():
             self._video_track_layer.triggerRepaint()
-        self.canvas.setExtent(self._pending_extent)
-        self._pending_extent = None
-        self.canvas.refresh()
+        self.canvas.setCenter(self._pending_center)
+        if self._pending_scale > 0:
+            self.canvas.zoomScale(self._pending_scale)   # CRS-independent 1:N
+        else:
+            self.canvas.refresh()
+        self._pending_center = None
 
     def _sync_map_to_video_frame(self, frame_index: int) -> None:
         """Pan the map to the recorded position of *frame_index*."""
@@ -458,7 +473,7 @@ class VideoBrowserMixin:
             self._map_update_timer.stop()
         except Exception:
             pass
-        self._pending_extent = None
+        self._pending_center = None
 
         # Disconnect CRS change signal to avoid callbacks on a dead object
         try:
@@ -483,13 +498,15 @@ class VideoBrowserMixin:
                 pass
             self._video_dock = None
 
-        # Remove the track layer from the project
+        # Stop regenerating the track on project load
         try:
-            if self._track_layer_valid():
-                QgsProject.instance().removeMapLayer(self._video_track_layer.id())
-        except Exception:
+            QgsProject.instance().readProject.disconnect(self._on_project_read)
+        except (TypeError, RuntimeError):
             pass
-        self._video_track_layer = None
+
+        # Remove the track layer(s) from the project — by name too, so a stale
+        # reference that isn't our cached one is cleared on unload/reload.
+        self._remove_track_layers()
 
         # Remove the vertex marker from the canvas scene
         try:
@@ -508,14 +525,29 @@ class VideoBrowserMixin:
     # Track layer
     # ------------------------------------------------------------------
 
-    def _build_video_track_layer(self) -> None:
-        """Build an in-memory LineString layer from all CP positions and add it
-        to the QGIS project (if the 'Show on map' checkbox is checked).
+    _TRACK_LAYER_NAME = "Video GPS Track"
 
-        The layer uses EPSG:4326 as its native CRS because the CP coordinates
-        in the metadata CSV are already in decimal degrees.  QGIS reprojects
-        on-the-fly when the project uses a different CRS.
+    def _build_video_track_layer(self) -> None:
+        """Build a LineString track layer from all CP positions and add it to
+        the project (if the 'Show on map' checkbox is checked).
+
+        The geometry is written to a GeoJSON file next to the video-metadata
+        file and loaded as an OGR (file) layer rather than an in-memory
+        ``memory`` layer.  That means it persists with the project — no
+        "temporary scratch layer" warning on close, and QGIS restores it on
+        reload — while the plugin still regenerates it from the metadata on
+        each load.  If the file cannot be written we fall back to a memory layer.
+
+        EPSG:4326 is the native CRS (CP coordinates are decimal degrees); QGIS
+        reprojects on-the-fly for other project CRSs.
         """
+        # Always clear any existing track layer first — including a stale or
+        # broken one restored from a saved project (e.g. its GeoJSON was moved
+        # or deleted). The track is derived data, so dropping it is safe; we
+        # rebuild below when metadata is available. Matching by name (not just
+        # our cached reference) catches project-restored layers too.
+        self._remove_track_layers()
+
         df = self._video_metadata_df
         if df is None or len(df) == 0:
             return
@@ -528,31 +560,16 @@ class VideoBrowserMixin:
                 "GroundTruther", Qgis.Warning)
             return
 
-        # Remove any previously built track layer
-        try:
-            if self._track_layer_valid():
-                QgsProject.instance().removeMapLayer(self._video_track_layer.id())
-        except Exception:
-            pass
-        self._video_track_layer = None
-
-        # Create memory layer
-        layer = QgsVectorLayer(
-            "LineString?crs=EPSG:4326",
-            "Video GPS Track",
-            "memory",
-        )
-        provider = layer.dataProvider()
-
-        # Build the polyline from CP positions in row order
-        points = [
-            QgsPoint(float(row["cp_longitude"]), float(row["cp_latitude"]))
+        coords = [
+            [float(row["cp_longitude"]), float(row["cp_latitude"])]
             for _, row in cp_df.iterrows()
         ]
-        feature = QgsFeature()
-        feature.setGeometry(QgsGeometry.fromPolyline(points))
-        provider.addFeatures([feature])
-        layer.updateExtents()
+
+        layer = self._load_or_build_track_layer(coords)
+        if layer is None or not layer.isValid():
+            QgsMessageLog.logMessage(
+                "Video track: failed to build track layer", "GroundTruther", Qgis.Warning)
+            return
 
         # Apply initial style from the player widget
         color = self._video_player.track_color if self._video_player else None
@@ -568,8 +585,83 @@ class VideoBrowserMixin:
             QgsProject.instance().addMapLayer(layer)
 
         QgsMessageLog.logMessage(
-            f"Video track layer built: {len(points)} vertices",
+            f"Video track layer built: {len(coords)} vertices "
+            f"({layer.dataProvider().name()})",
             "GroundTruther", Qgis.Info)
+
+    def _track_geojson_path(self):
+        """Return the GeoJSON path for the track (next to the metadata), or None."""
+        videometadata = (self.settings.get("Video") or {}).get("videometadata", "") or ""
+        if not videometadata:
+            return None
+        return os.path.splitext(videometadata)[0] + "_gt_track.geojson"
+
+    def _load_or_build_track_layer(self, coords):
+        """Write the track to GeoJSON and load it as an OGR layer.
+
+        Falls back to an in-memory layer when no writable path is available.
+        """
+        path = self._track_geojson_path()
+        if path:
+            geojson = {
+                "type": "FeatureCollection",
+                "features": [{
+                    "type": "Feature",
+                    "geometry": {"type": "LineString", "coordinates": coords},
+                    "properties": {"name": self._TRACK_LAYER_NAME},
+                }],
+            }
+            try:
+                with open(path, "w", encoding="utf-8") as fh:
+                    json.dump(geojson, fh)
+                layer = QgsVectorLayer(path, self._TRACK_LAYER_NAME, "ogr")
+                if layer.isValid():
+                    return layer
+                QgsMessageLog.logMessage(
+                    f"Video track: invalid OGR layer from {path}; using memory layer",
+                    "GroundTruther", Qgis.Warning)
+            except OSError as exc:
+                QgsMessageLog.logMessage(
+                    f"Video track: cannot write {path} ({exc}); using memory layer",
+                    "GroundTruther", Qgis.Warning)
+
+        # Fallback: in-memory layer (will warn on project close).
+        layer = QgsVectorLayer("LineString?crs=EPSG:4326", self._TRACK_LAYER_NAME, "memory")
+        feature = QgsFeature()
+        feature.setGeometry(QgsGeometry.fromPolyline(
+            [QgsPoint(lon, lat) for lon, lat in coords]))
+        layer.dataProvider().addFeatures([feature])
+        layer.updateExtents()
+        return layer
+
+    def _on_project_read(self, *args) -> None:
+        """Rebuild the video track when a project is opened (slot for readProject).
+
+        Removes any stale/broken track layer the project carried and regenerates
+        it from the current video metadata. Safe no-op when no metadata is
+        loaded (the stale layer is still cleared).
+        """
+        try:
+            self._build_video_track_layer()
+        except Exception as exc:
+            QgsMessageLog.logMessage(
+                f"Video track: regen on project load failed: {exc}",
+                "GroundTruther", Qgis.Warning)
+
+    def _remove_track_layers(self) -> None:
+        """Remove all track layers from the project (by cached id and by name)."""
+        project = QgsProject.instance()
+        try:
+            if self._track_layer_valid():
+                project.removeMapLayer(self._video_track_layer.id())
+        except Exception:
+            pass
+        for lyr in project.mapLayersByName(self._TRACK_LAYER_NAME):
+            try:
+                project.removeMapLayer(lyr.id())
+            except Exception:
+                pass
+        self._video_track_layer = None
 
     @staticmethod
     def _apply_track_style(

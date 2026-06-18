@@ -22,6 +22,12 @@ scipy
 # GPU/CUDA decode requires a CUDA-enabled build — see notes below.
 opencv-python-headless>=4.8
 
+# PyAV — preferred video decode backend. Unlike OpenCV's FFmpeg path it
+# deinterlaces interlaced sources (yadif), which FFmpeg 7/8 swscale otherwise
+# refuses to convert to BGR ("Cannot convert interlaced to progressive frames").
+# The player falls back to OpenCV when PyAV is unavailable.
+av>=11
+
 # ---- Plotting / visualisation ----
 pyqtgraph
 PyOpenGL

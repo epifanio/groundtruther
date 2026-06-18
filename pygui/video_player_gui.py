@@ -2,12 +2,11 @@
 
 ``VideoPlayerWidget`` is a self-contained ``QWidget`` that:
 
-* Decodes video frames with OpenCV (``cv2.VideoCapture``), driven by a
-  ``QTimer`` for playback.
-* Optionally uses GPU-accelerated decode when OpenCV is built with CUDA
-  support; GPU availability is auto-detected at construction time and
-  shown in a status label.  The user can disable GPU via
-  :meth:`set_gpu_enabled`.
+* Decodes video frames through :func:`gt.video_reader.open_video` — PyAV
+  (which deinterlaces interlaced sources via ``yadif``) when available, else
+  OpenCV — driven by a ``QTimer`` for playback.
+* Shows a GPU-availability status label (auto-detected via OpenCV CUDA at
+  construction time). The user can toggle it via :meth:`set_gpu_enabled`.
 * Draws annotation bounding boxes + labels on top of each frame using
   ``QPainter`` on a ``QImage``.
 * Displays a live metadata panel populated from the survey CSV so that
@@ -19,9 +18,10 @@
 
 Design notes
 ------------
-* OpenCV is the *only* decoder.  ``QMediaPlayer`` is **not** used here to
-  avoid fighting two decode pipelines for seek state.
-* Frame data flows as: ``cv2.VideoCapture`` → ``numpy.ndarray`` (BGR) →
+* A single frame reader is used (PyAV or OpenCV via ``gt.video_reader``).
+  ``QMediaPlayer`` is **not** used here to avoid fighting two decode
+  pipelines for seek state.
+* Frame data flows as: reader ``read(index)`` → ``numpy.ndarray`` (BGR) →
   ``QImage`` (RGB) → ``QLabel`` (scaled to widget size).
 * The metadata panel is a flat ``QGridLayout`` inside a ``QGroupBox``;
   the hosting mixin calls :meth:`set_frame_metadata` with a dict from
@@ -158,6 +158,7 @@ class VideoPlayerWidget(QWidget):
     """
 
     frame_changed            = pyqtSignal(int)
+    playback_started         = pyqtSignal()
     geo_link_toggled         = pyqtSignal(bool)
     zoom_changed             = pyqtSignal(int)
     track_visibility_changed = pyqtSignal(bool)
@@ -170,7 +171,9 @@ class VideoPlayerWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
 
-        self._cap: "cv2.VideoCapture | None" = None
+        # Frame reader (PyAV when available — handles interlaced sources — else
+        # OpenCV). See gt/video_reader.py.
+        self._reader = None
         self._total_frames: int = 0
         self._current_frame: int = 0
         self._fps: float = self._FALLBACK_FPS
@@ -316,14 +319,20 @@ class VideoPlayerWidget(QWidget):
 
         geo_row.addStretch()
 
-        geo_row.addWidget(QLabel("Zoom level:"))
+        geo_row.addWidget(QLabel("Map scale:"))
         self._zoom_spinbox = QSpinBox()
-        self._zoom_spinbox.setMinimum(1)
-        self._zoom_spinbox.setMaximum(10000)
-        self._zoom_spinbox.setValue(50)
+        # Map scale 1:N — CRS-independent (QgsMapCanvas.zoomScale), same meaning
+        # as the image-browser range spinner. Works correctly whether the
+        # project CRS is metric or geographic.
+        self._zoom_spinbox.setMinimum(50)
+        self._zoom_spinbox.setMaximum(10_000_000)
+        self._zoom_spinbox.setSingleStep(500)
+        self._zoom_spinbox.setPrefix("1:")
+        self._zoom_spinbox.setValue(2500)
         self._zoom_spinbox.setToolTip(
-            "Half-extent of the map view in map-unit × 10⁻⁴  (same scale as the image browser range spinner)")
-        self._zoom_spinbox.setFixedWidth(70)
+            "Map scale (1:N) the canvas zooms to when geo-linking — "
+            "projection-independent, like the image-browser range.")
+        self._zoom_spinbox.setFixedWidth(110)
         self._zoom_spinbox.valueChanged.connect(self.zoom_changed)
         geo_row.addWidget(self._zoom_spinbox)
 
@@ -420,27 +429,20 @@ class VideoPlayerWidget(QWidget):
         Returns ``True`` on success, ``False`` if the file cannot be opened.
         """
         self._stop_playback()
-        if self._cap is not None:
-            self._cap.release()
-            self._cap = None
+        if self._reader is not None:
+            self._reader.release()
+            self._reader = None
 
-        if not _CV2_AVAILABLE:
-            self._video_label.setText("cv2 not available — cannot load video")
-            return False
-
-        backend = cv2.CAP_ANY
-        if self._gpu_enabled and self._gpu_available:
-            backend = cv2.CAP_CUDA if hasattr(cv2, "CAP_CUDA") else cv2.CAP_ANY
-
-        cap = cv2.VideoCapture(video_path, backend)
-        if not cap.isOpened():
+        from gt.video_reader import open_video
+        reader = open_video(video_path)
+        if reader is None or not reader.is_opened:
             self._video_label.setText(f"Cannot open: {video_path}")
             return False
 
-        self._cap = cap
-        self._total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        self._fps = fps if fps > 0 else self._FALLBACK_FPS
+        self._reader = reader
+        self._total_frames = int(reader.frame_count)
+        fps = reader.fps
+        self._fps = fps if fps and fps > 0 else self._FALLBACK_FPS
 
         max_frame = max(0, self._total_frames - 1)
         self._slider.setMaximum(max_frame)
@@ -511,12 +513,11 @@ class VideoPlayerWidget(QWidget):
 
     def seek_to_frame(self, frame_index: int) -> None:
         """Seek the VideoCapture to *frame_index* and display it."""
-        if self._cap is None:
+        if self._reader is None:
             return
         frame_index = max(0, min(frame_index, self._total_frames - 1))
-        self._cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
-        ret, bgr = self._cap.read()
-        if not ret:
+        bgr = self._reader.read(frame_index)
+        if bgr is None:
             return
         self._current_frame = frame_index
         self._display_frame(bgr)
@@ -574,23 +575,23 @@ class VideoPlayerWidget(QWidget):
     @property
     def frame_width(self) -> int:
         """Original video frame width in pixels (0 when no video is loaded)."""
-        if self._cap is None:
+        if self._reader is None:
             return 0
-        return int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        return int(self._reader.width)
 
     @property
     def frame_height(self) -> int:
         """Original video frame height in pixels (0 when no video is loaded)."""
-        if self._cap is None:
+        if self._reader is None:
             return 0
-        return int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        return int(self._reader.height)
 
     def cleanup(self) -> None:
-        """Release OpenCV resources.  Call before destroying the widget."""
+        """Release the frame reader.  Call before destroying the widget."""
         self._stop_playback()
-        if self._cap is not None:
-            self._cap.release()
-            self._cap = None
+        if self._reader is not None:
+            self._reader.release()
+            self._reader = None
 
     # ------------------------------------------------------------------ #
     # Internal helpers                                                     #
@@ -638,11 +639,10 @@ class VideoPlayerWidget(QWidget):
 
     def _redraw_current_frame(self) -> None:
         """Re-read and re-display the current frame."""
-        if self._cap is None:
+        if self._reader is None:
             return
-        self._cap.set(cv2.CAP_PROP_POS_FRAMES, self._current_frame)
-        ret, bgr = self._cap.read()
-        if ret:
+        bgr = self._reader.read(self._current_frame)
+        if bgr is not None:
             self._display_frame(bgr)
 
     def _update_controls_silently(self, frame_index: int) -> None:
@@ -676,6 +676,7 @@ class VideoPlayerWidget(QWidget):
             self._playing = True
             self._btn_play.setText("⏸  Pause")
             self._timer.start(self._timer_interval())
+            self.playback_started.emit()
         else:
             self._stop_playback()
 
@@ -685,11 +686,11 @@ class VideoPlayerWidget(QWidget):
             self._timer.start(self._timer_interval())
 
     def _on_timer_tick(self) -> None:
-        if self._cap is None or self._current_frame >= self._total_frames - 1:
+        if self._reader is None or self._current_frame >= self._total_frames - 1:
             self._stop_playback()
             return
-        ret, bgr = self._cap.read()
-        if not ret:
+        bgr = self._reader.read(self._current_frame + 1)
+        if bgr is None:
             self._stop_playback()
             return
         self._current_frame += 1
