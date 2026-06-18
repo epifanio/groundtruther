@@ -904,8 +904,7 @@ class QueryBuilder(QWidget, Ui_Form):
         shown instead.
         """
         def _show_hint(text):
-            self.glw_ref.clear()
-            self.glw_ref.clear_measurement()
+            self.glw_ref.clear_surface()
             self.ref3d_measure.setChecked(False)
             self.ref3d_cursor.setText("")
             self.ref3d_status.setText("")
@@ -1038,8 +1037,13 @@ class QueryBuilder(QWidget, Ui_Form):
         #    exporter = pg.exporters.ImageExporter(self.graphicsView.plotItem)
         #    exporter.export("/home/jovyan/hbc_browser/data/surface_now.png")
 
-        self.glw.grabFramebuffer().save(f"{surface_graph_path}")
-        # self.p.grabFrameBuffer().save("fileName2.png")
+        # 3-D surface for the report: prefer the clipped reference-surface
+        # GeoTIFF (the "Reference 3D" tab) when it is showing one, otherwise
+        # fall back to the soundings WGL surface.
+        if self.glw_ref.has_surface():
+            self.glw_ref.grabFramebuffer().save(f"{surface_graph_path}")
+        else:
+            self.glw.grabFramebuffer().save(f"{surface_graph_path}")
         self.send_2dgraph_path.emit(
             scatter_graph_path)
         self.send_3dgraph_path.emit(

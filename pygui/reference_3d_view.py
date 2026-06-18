@@ -53,6 +53,19 @@ class Reference3DView(gl.GLViewWidget):
         self._measure_items = []     # all GL items for the current measurement
         self._press_pos = None       # for click-vs-drag disambiguation
 
+    def has_surface(self):
+        """True when a reference surface is currently displayed."""
+        return self._surface is not None and self._x is not None
+
+    def clear_surface(self):
+        """Remove the surface and all overlays (used when no reference applies)."""
+        self.clear_measurement()
+        self.clear()
+        self._surface = None
+        self._x = self._y = self._Z = None
+        self._world_pts = None
+        self._off = None
+
     # ------------------------------------------------------------------ #
     # Coordinate helpers                                                  #
     # ------------------------------------------------------------------ #
