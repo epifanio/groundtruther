@@ -16,9 +16,9 @@ Signals forwarded from the QueryBuilder:
 """
 import sys
 
-from qgis.PyQt.QtCore import Qt, pyqtSignal, pyqtSlot
+from qgis.PyQt.QtCore import Qt, QSize, pyqtSignal, pyqtSlot
 from qgis.PyQt.QtGui import QColor, QFont
-from qgis.PyQt.QtWidgets import QWidget, QFileDialog, QColorDialog
+from qgis.PyQt.QtWidgets import QWidget, QFileDialog, QColorDialog, QToolButton
 from qgis.PyQt.QtPrintSupport import QPrinter
 from groundtruther.pygui.Ui_kmlsave_ui import Ui_Form
 import os
@@ -49,6 +49,7 @@ import simplekml
 from pathlib import Path
 import pathlib
 import re
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 iconpath = ""
 extrudetype = ""
@@ -65,6 +66,25 @@ filem = "%s/conf/filem.conf" % (apppath)
 # from redox import MapDisplay
 # from wordprocessor import TextEditor
 from groundtruther.config.config import config
+
+# CSS applied to the companion standalone HTML report (KML balloons ignore
+# <style>, so this only styles the .html file written next to the KMZ).
+REPORT_CSS = """
+<style>
+  body { font-family: Helvetica, Arial, sans-serif; color: #222; margin: 24px;
+         line-height: 1.4; }
+  h1.gt-title { color: #1a5276; border-bottom: 2px solid #1a5276;
+                padding-bottom: 6px; }
+  h3 { color: #2874a6; margin: 12px 0 4px; }
+  table { border-collapse: collapse; margin: 6px 0; }
+  table td, table th { border: 1px solid #aaa; padding: 3px 8px; font-size: 13px; }
+  table th { background: #d6eaf8; }
+  table.dataframe tbody tr th, table.gt-location td:first-child { background: #eaf2f8; }
+  img { max-width: 100%; height: auto; border: 1px solid #ccc; margin: 4px 0; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 18px 0; }
+</style>
+"""
+
 
 class SaveKml(QWidget, Ui_Form):
     """Report-builder widget that saves a KMZ point with a rich-text description."""
@@ -136,6 +156,20 @@ class SaveKml(QWidget, Ui_Form):
         self.get_2dgraph.clicked.connect(self.get_graph2d_path)
         self.get_3dgraph.clicked.connect(self.get_graph3d_path)
         self.get_selected_points.clicked.connect(self.get_selected_points_path)
+
+        # Extra query-builder products (added programmatically so we don't have
+        # to regenerate the stale .ui). Each button inserts the product into the
+        # description under a descriptive header and, for image products, queues
+        # its file(s) for embedding in the KMZ.
+        self.get_sampling = self._add_product_button(
+            "SU", "Add sampling unit table from query builder", self.get_sampling_path)
+        self.get_stats = self._add_product_button(
+            "Σ", "Add statistics table from query builder", self.get_stats_path)
+        self.get_histogram = self._add_product_button(
+            "H", "Add histogram from query builder", self.get_histogram_path)
+        self.get_imageselection = self._add_product_button(
+            "IMG", "Add sampling-shape image selection from query builder",
+            self.get_imageselection_path)
         # icon = self.SelectIcon.itemText(index)
         self.iconpath = imagepath + \
             str(self.SelectIcon.itemText(1)) + str(".png")
@@ -149,8 +183,38 @@ class SaveKml(QWidget, Ui_Form):
         self.graph2d_string = "None"
         self.graph3d_string = "None"
         self.selected_points_string = "None"
-        
+        self.histograms = []            # list of (path, label) — all variants
+        self.imageselection_paths = []
+        self.stats_html = ""
+        self.sampling_html = ""
+        self.imageselection_string = "None"
+
+        # Structured products for the modern templated HTML report (kept in sync
+        # with the rich-text `description`, which still drives the KMZ balloon
+        # and the PDF export). Each entry is a dict: image / table / gallery.
+        self.report_items = []
+        self._report_env = None
+
         self.editor_save.clicked.connect(self.SavetoPDF)
+
+    def _add_report_item(self, item):
+        """Record a product for the templated HTML report (skips empty ones)."""
+        if item.get("type") == "image" and not item.get("path"):
+            return
+        if item.get("type") == "gallery" and not item.get("paths"):
+            return
+        self.report_items.append(item)
+
+    def _add_product_button(self, text, tooltip, slot):
+        """Create a small toolbutton in the report toolbar wired to ``slot``."""
+        button = QToolButton(self.groupBox_2)
+        button.setText(text)
+        button.setToolTip(tooltip)
+        button.setMinimumSize(QSize(26, 26))
+        button.setMaximumSize(QSize(40, 26))
+        button.clicked.connect(slot)
+        self.horizontalLayout.addWidget(button)
+        return button
 
     def SavetoPDF(self):
         filename = QFileDialog.getSaveFileName(self, 'Save to PDF')
@@ -164,18 +228,18 @@ class SaveKml(QWidget, Ui_Form):
             self.description.document().print_(printer)
 
     def get_graph2d_path(self):
-        self.image_files_path.append(self.graph2d_path)
-        self.description.append(self.graph2d_string)
-        self.description.verticalScrollBar().setValue(
-            self.description.verticalScrollBar().maximum()
-        )
+        if self.graph2d_path:
+            self.image_files_path.append(self.graph2d_path)
+        self._add_report_item({"type": "image", "header": "ARA Scatterplot",
+                               "path": self.graph2d_path})
+        self._append_with_header("ARA Scatterplot", self.graph2d_string)
 
     def get_graph3d_path(self):
-        self.image_files_path.append(self.graph3d_path)
-        self.description.append(self.graph3d_string)
-        self.description.verticalScrollBar().setValue(
-            self.description.verticalScrollBar().maximum()
-        )
+        if self.graph3d_path:
+            self.image_files_path.append(self.graph3d_path)
+        self._add_report_item({"type": "image", "header": "3D Surface Sample",
+                               "path": self.graph3d_path})
+        self._append_with_header("3D Surface Sample", self.graph3d_string)
 
     def get_selected_points_path(self):
         # self.image_files_path.append(self.selected_points_path)
@@ -184,6 +248,45 @@ class SaveKml(QWidget, Ui_Form):
         #    self.description.verticalScrollBar().maximum()
         #)
         QgsMessageLog.logMessage(f"selected_points_path={self.selected_points_path}, string={self.selected_points_string}", 'GroundTruther', Qgis.Info)
+
+    def _append_with_header(self, header, content):
+        """Append a product to the description under an ``<h3>`` header.
+
+        The ``<br>`` before the header separates successive outputs, and the one
+        after the header puts a blank line between the header and its content.
+        """
+        self.description.append(f"<br><h3>{header}</h3><br>{content}<br>")
+        self.description.verticalScrollBar().setValue(
+            self.description.verticalScrollBar().maximum()
+        )
+
+    def get_sampling_path(self):
+        self._add_report_item({"type": "table", "header": "Sampling Unit",
+                               "html": self.sampling_html})
+        self._append_with_header("Sampling Unit", self.sampling_html)
+
+    def get_stats_path(self):
+        self._add_report_item({"type": "table", "header": "Statistics",
+                               "html": self.stats_html})
+        self._append_with_header("Statistics", self.stats_html)
+
+    def get_histogram_path(self):
+        # Insert *all* histogram variants (Density / Group norm / Group scaled),
+        # each under its own header — like the image selection.
+        for path, label in self.histograms:
+            if not path:
+                continue
+            self.image_files_path.append(path)
+            self._add_report_item({"type": "image", "header": label, "path": path})
+            self._append_with_header(
+                label, f'<img src="{path}" alt="histogram" height="300"><br>')
+
+    def get_imageselection_path(self):
+        self.image_files_path.extend(self.imageselection_paths)
+        header = f"Image Selection ({len(self.imageselection_paths)} images)"
+        self._add_report_item({"type": "gallery", "header": header,
+                               "paths": list(self.imageselection_paths)})
+        self._append_with_header(header, self.imageselection_string)
 
     def font_size(self):
         self.description.setFontPointSize(float(self.fontsize.value()))
@@ -258,6 +361,27 @@ class SaveKml(QWidget, Ui_Form):
             f'<img src="{selected_points_path}" alt="Smiley face" height="300"><br>'
         )
         self.selected_points_path = selected_points_path
+
+    @pyqtSlot(str)
+    def from_querybuilder_stats_signal(self, stats_html):
+        self.stats_html = stats_html
+
+    @pyqtSlot(str)
+    def from_querybuilder_sampling_signal(self, sampling_html):
+        self.sampling_html = sampling_html
+
+    @pyqtSlot(object)
+    def from_querybuilder_histograms_signal(self, histograms):
+        # histograms: list of (path, label) for every histogram variant
+        self.histograms = [(p, l) for p, l in (histograms or []) if p]
+
+    @pyqtSlot(str)
+    def from_querybuilder_imageselection_signal(self, paths_joined):
+        self.imageselection_paths = [p for p in paths_joined.split("\n") if p]
+        self.imageselection_string = "".join(
+            f'<img src="{p}" alt="selected image" height="300"><br>'
+            for p in self.imageselection_paths
+        )
 
     def filemanager(self):
         # Refresh settings in case the user has just saved a new config
@@ -408,7 +532,11 @@ class SaveKml(QWidget, Ui_Form):
         # link = self.textlink()
         # self.description.setHtml(unicode(link))
         # self.description.append(str(link))
-        self.image_files_path.append(self.image_path)
+        image_path = getattr(self, "image_path", "")
+        if image_path:
+            self.image_files_path.append(image_path)
+            self._add_report_item({"type": "image", "header": "Image",
+                                   "path": image_path})
         self.description.append(self.currentimagestring)
         self.description.verticalScrollBar().setValue(
             self.description.verticalScrollBar().maximum()
@@ -419,6 +547,10 @@ class SaveKml(QWidget, Ui_Form):
         # self.description.setHtml(unicode(link))
         # self.description.append(str(link))
         # self.image_files_path.append(self.image_path)
+        metadata_html = getattr(self, "imagemetadata_string", "")
+        if metadata_html:
+            self._add_report_item({"type": "table", "header": "Image metadata",
+                                   "html": metadata_html})
         self.description.append(self.currentimagemetadatastring)
         self.description.verticalScrollBar().setValue(
             self.description.verticalScrollBar().maximum()
@@ -427,6 +559,73 @@ class SaveKml(QWidget, Ui_Form):
     def cleantext(self):
         self.description.setHtml("")
         self.image_files_path = []
+        self.report_items = []
+
+    def _location_rows(self):
+        """Location summary as a list of (label, value) tuples."""
+        return [
+            ("Longitude", self.longitude.text()),
+            ("Latitude", self.latitude.text()),
+            ("Offset", self.Offset.value()),
+            ("Altitude mode", self.altitude_mode),
+        ]
+
+    def _report_header_html(self, name):
+        """Title (from the point name) + a location summary table (KML balloon)."""
+        summary = "".join(
+            f"<tr><td><b>{label}</b></td><td>{value}</td></tr>"
+            for label, value in self._location_rows()
+        )
+        return (
+            f'<h1 class="gt-title">{name or "GroundTruther report"}</h1>'
+            "<h3>Location summary</h3>"
+            '<table class="gt-location" border="1" cellpadding="3" cellspacing="0">'
+            f"{summary}</table><hr>"
+        )
+
+    @staticmethod
+    def _extract_body(full_html):
+        """Return the inner ``<body>`` HTML of a QTextEdit ``toHtml()`` document."""
+        match = re.search(r"<body[^>]*>(.*)</body>", full_html, re.DOTALL | re.IGNORECASE)
+        return match.group(1) if match else full_html
+
+    def _report_template(self):
+        """Lazily build the Jinja environment and return the report template."""
+        if self._report_env is None:
+            templates_dir = Path(__file__).resolve().parents[1] / "config" / "templates"
+            self._report_env = Environment(
+                loader=FileSystemLoader(str(templates_dir)),
+                autoescape=select_autoescape(["html", "j2", "html.j2"]),
+            )
+        return self._report_env.get_template("report.html.j2")
+
+    def _render_html_report(self, name, header_html, body_html):
+        """Render the modern templated report; fall back to wrapping the editor.
+
+        Image paths in ``report_items`` are absolute so the standalone file
+        renders on its own (next to its data).
+        """
+        if self.report_items:
+            return self._report_template().render(
+                title=name or "GroundTruther report",
+                location_rows=self._location_rows(),
+                items=self.report_items,
+            )
+        # No structured products recorded — keep the editor body as a fallback.
+        return (
+            "<!DOCTYPE html>\n<html><head><meta charset='utf-8'>"
+            f"<title>{name or 'GroundTruther report'}</title>{REPORT_CSS}</head>"
+            f"<body>{header_html}{body_html}</body></html>"
+        )
+
+    def _write_html_report(self, kmldirectory, name, header_html, body_html):
+        """Write the standalone HTML report next to the KMZ."""
+        document = self._render_html_report(name, header_html, body_html)
+        html_path = os.path.join(str(kmldirectory), (name or "report") + ".html")
+        with open(html_path, "w", encoding="utf-8") as fh:
+            fh.write(document)
+        QgsMessageLog.logMessage(f"saved HTML report: {html_path}", 'GroundTruther', Qgis.Info)
+        return html_path
 
     def savekml(self):
         # vedi di aggiungere zoom,range e view type ... magari link a immagini ???
@@ -495,7 +694,20 @@ class SaveKml(QWidget, Ui_Form):
         style.linestyle.color = colorline
         style.linestyle.width = self.LineWidth.value()
         pnt.style = style
-        html_description = self.description.toHtml()
+        name = self.kmlname.text()
+        report_header = self._report_header_html(name)
+        body_inner = self._extract_body(self.description.toHtml())
+
+        # Companion standalone HTML report (CSS-styled, absolute image paths so
+        # it renders on its own), saved next to the KMZ.
+        try:
+            self._write_html_report(kmldirectory, name, report_header, body_inner)
+        except Exception as exc:
+            log_exception("savekml: write HTML report", exc, warn=True)
+
+        # KML balloon description: title + location summary, then the body with
+        # local image dirs rewritten to the KMZ's "files/" folder.
+        html_description = report_header + body_inner
         img_src_pattern = re.compile(rb'<img [^>]*src="([^"]+)')
         img_found = img_src_pattern.findall(html_description.encode())
         for i in img_found:
@@ -505,8 +717,20 @@ class SaveKml(QWidget, Ui_Form):
         pnt.description = html_description
         pnt.extrude = extrude
         pnt.altitudemode = self.altitude_mode
+        # Only embed files that actually exist — empty strings (e.g. a product
+        # button clicked before its file was generated) or missing files would
+        # make simplekml.savekmz raise FileNotFoundError. Dedupe so the same
+        # image isn't written into the KMZ twice.
+        seen = set()
         for i in self.image_files_path:
+            if not i or i in seen:
+                continue
+            if not os.path.exists(i):
+                QgsMessageLog.logMessage(
+                    f"skipping missing report file: {i!r}", 'GroundTruther', Qgis.Warning)
+                continue
             kml.addfile(i)
+            seen.add(i)
         # altitudemode = simplekml.AltitudeMode.relativetoground
         kmldir = str(kmldirectory) + "/"
         # kmltosave = kmldir + self.kmlname.text() + ".kml"

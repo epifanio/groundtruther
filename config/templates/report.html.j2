@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #ffffff; --ink: #1f2d3d; --muted: #6b7a8d;
+    --accent: #1a5276; --accent2: #2874a6; --line: #e2e8ee; --shadow: 0 1px 4px rgba(20,40,70,.12);
+    --img-bg: #0f1620;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 24px 20px 64px; }
+  header.report-header {
+    background: linear-gradient(120deg, var(--accent), var(--accent2));
+    color: #fff; border-radius: 14px; padding: 24px 28px; box-shadow: var(--shadow);
+  }
+  header.report-header h1 { margin: 0 0 6px; font-size: 28px; letter-spacing: .3px; }
+  header.report-header .sub { opacity: .85; font-size: 13px; }
+  table.location { margin-top: 14px; border-collapse: collapse; background: rgba(255,255,255,.12); border-radius: 8px; overflow: hidden; }
+  table.location th, table.location td { padding: 5px 12px; font-size: 13px; text-align: left; }
+  table.location th { color: #eaf2f8; font-weight: 600; width: 150px; }
+  table.location td { color: #fff; }
+
+  section.card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 18px 20px; margin-top: 22px;
+  }
+  section.card > h2 {
+    margin: 0 0 12px; font-size: 18px; color: var(--accent);
+    border-bottom: 2px solid var(--line); padding-bottom: 8px;
+  }
+  .table-wrap { overflow-x: auto; }
+  .table-wrap table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  .table-wrap td, .table-wrap th { border: 1px solid var(--line); padding: 4px 8px; }
+  .table-wrap th, .table-wrap tbody tr th { background: #eaf2f8; }
+
+  img.zoomable, .gallery-current {
+    width: 100%; height: 380px; object-fit: contain; background: var(--img-bg);
+    border-radius: 10px; cursor: zoom-in; display: block;
+  }
+
+  /* Gallery */
+  .gallery-main { position: relative; }
+  .gallery-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    background: rgba(15,22,32,.55); color: #fff; border: none; cursor: pointer;
+    width: 42px; height: 56px; font-size: 24px; border-radius: 8px; user-select: none;
+  }
+  .gallery-nav:hover { background: rgba(15,22,32,.8); }
+  .gallery-nav.prev { left: 8px; }
+  .gallery-nav.next { right: 8px; }
+  .gallery-caption { text-align: center; color: var(--muted); font-size: 13px; margin: 8px 0 4px; }
+  .gallery-strip {
+    display: flex; gap: 8px; overflow-x: auto; padding: 6px 2px 2px;
+    scrollbar-width: thin;
+  }
+  .gallery-thumb {
+    height: 64px; width: 90px; object-fit: cover; border-radius: 6px;
+    cursor: pointer; flex: 0 0 auto; border: 2px solid transparent; opacity: .7;
+    transition: opacity .15s, border-color .15s;
+  }
+  .gallery-thumb:hover { opacity: 1; }
+  .gallery-thumb.active { border-color: var(--accent2); opacity: 1; }
+
+  /* Lightbox */
+  .lightbox {
+    position: fixed; inset: 0; background: rgba(8,12,18,.92);
+    display: flex; align-items: center; justify-content: center; z-index: 999; cursor: zoom-out;
+  }
+  .lightbox[hidden] { display: none; }
+  .lightbox img { max-width: 95vw; max-height: 92vh; object-fit: contain; border-radius: 6px; box-shadow: 0 8px 40px rgba(0,0,0,.6); }
+  .lightbox .close { position: fixed; top: 16px; right: 24px; color: #fff; font-size: 34px; cursor: pointer; line-height: 1; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 32px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="report-header">
+    <h1>{{ title }}</h1>
+    <div class="sub">GroundTruther report</div>
+    {% if location_rows %}
+    <table class="location">
+      {% for label, value in location_rows %}
+      <tr><th>{{ label }}</th><td>{{ value }}</td></tr>
+      {% endfor %}
+    </table>
+    {% endif %}
+  </header>
+
+  {% for item in items %}
+  <section class="card">
+    <h2>{{ item.header }}</h2>
+    {% if item.type == 'image' %}
+      <img class="zoomable" src="{{ item.path }}" data-full="{{ item.path }}" alt="{{ item.header }}" loading="lazy">
+    {% elif item.type == 'table' %}
+      <div class="table-wrap">{{ item.html | safe }}</div>
+    {% elif item.type == 'gallery' %}
+      <div class="gallery" data-gallery>
+        <div class="gallery-main">
+          <button type="button" class="gallery-nav prev" data-prev>&#10094;</button>
+          <img class="gallery-current" src="{{ item.paths[0] }}" data-full="{{ item.paths[0] }}" alt="seafloor image" loading="lazy">
+          <button type="button" class="gallery-nav next" data-next>&#10095;</button>
+        </div>
+        <div class="gallery-caption"><span data-count>1</span> / {{ item.paths | length }}</div>
+        <div class="gallery-strip">
+          {% for p in item.paths %}
+          <img class="gallery-thumb{% if loop.first %} active{% endif %}" src="{{ p }}" data-full="{{ p }}" data-index="{{ loop.index0 }}" loading="lazy" alt="thumbnail {{ loop.index }}">
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
+  </section>
+  {% endfor %}
+
+  <footer>Generated by GroundTruther &middot; {{ items | length }} item(s)</footer>
+</div>
+
+<div class="lightbox" id="lightbox" hidden>
+  <span class="close" id="lightbox-close">&times;</span>
+  <img id="lightbox-img" src="" alt="full size">
+</div>
+
+<script>
+(function () {
+  var lb = document.getElementById('lightbox');
+  var lbImg = document.getElementById('lightbox-img');
+  function openLB(src) { lbImg.src = src; lb.hidden = false; }
+  function closeLB() { lb.hidden = true; lbImg.src = ''; }
+  lb.addEventListener('click', closeLB);
+  document.getElementById('lightbox-close').addEventListener('click', closeLB);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeLB(); });
+
+  // Plain images open the lightbox directly.
+  document.querySelectorAll('img.zoomable').forEach(function (img) {
+    img.addEventListener('click', function () { openLB(img.dataset.full || img.src); });
+  });
+
+  // Browsable galleries: prev/next + thumbnail strip; main image -> lightbox.
+  document.querySelectorAll('[data-gallery]').forEach(function (g) {
+    var main = g.querySelector('.gallery-current');
+    var thumbs = Array.prototype.slice.call(g.querySelectorAll('.gallery-thumb'));
+    var counter = g.querySelector('[data-count]');
+    var idx = 0;
+    function show(i) {
+      if (!thumbs.length) return;
+      idx = (i + thumbs.length) % thumbs.length;
+      var t = thumbs[idx];
+      main.src = t.src;
+      main.dataset.full = t.dataset.full || t.src;
+      thumbs.forEach(function (x) { x.classList.remove('active'); });
+      t.classList.add('active');
+      if (counter) counter.textContent = idx + 1;
+    }
+    var prev = g.querySelector('[data-prev]');
+    var next = g.querySelector('[data-next]');
+    if (prev) prev.addEventListener('click', function () { show(idx - 1); });
+    if (next) next.addEventListener('click', function () { show(idx + 1); });
+    thumbs.forEach(function (t, i) { t.addEventListener('click', function () { show(i); }); });
+    main.style.cursor = 'zoom-in';
+    main.addEventListener('click', function () { openLB(main.dataset.full || main.src); });
+  });
+})();
+</script>
+</body>
+</html>
