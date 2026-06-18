@@ -89,6 +89,70 @@ class LayoutMixin:
             # Restore visibility last — fires visibilityChanged which syncs toolbar actions.
             dock.setVisible(visible)
 
+    def _capture_layout(self) -> dict:
+        """Return a JSON-serialisable snapshot of the whole dock arrangement.
+
+        Uses ``QMainWindow.saveState()`` (base64-encoded) which — unlike per-dock
+        ``saveGeometry`` — faithfully records docked / tabbed / split positions
+        and sizes, so they restore as docked rather than floating. Per-dock
+        visibility is kept as a human-readable fallback for older files.
+        """
+        from qgis.utils import iface as _iface
+        mw = _iface.mainWindow()
+        out = {"mainwindow_state": bytes(mw.saveState().toBase64()).decode("ascii")}
+        for attr in _DEFAULTS:
+            dock = getattr(self, attr, None)
+            if dock is None:
+                continue
+            try:
+                out[attr] = {
+                    "geometry": bytes(dock.saveGeometry().toBase64()).decode("ascii"),
+                    "floating": bool(dock.isFloating()),
+                    "visible": bool(dock.isVisible()),
+                }
+            except Exception:
+                continue
+        return out
+
+    def _apply_layout(self, layout: dict) -> None:
+        """Restore a dock arrangement produced by ``_capture_layout``.
+
+        When a ``mainwindow_state`` blob is present we restore it via
+        ``QMainWindow.restoreState`` — but deferred to the next event-loop pass,
+        because restoreState only restores docks already present in the window
+        and the main GroundTruther dock is added in ``run()`` *after* this dock
+        widget is constructed. Falls back to per-dock placement for older files.
+        """
+        from qgis.utils import iface as _iface
+        from qgis.PyQt.QtCore import QByteArray, QTimer
+        mw = _iface.mainWindow()
+
+        blob = (layout or {}).get("mainwindow_state")
+        if blob:
+            state = QByteArray.fromBase64(blob.encode("ascii"))
+            QTimer.singleShot(0, lambda: mw.restoreState(state))
+            return
+
+        # --- legacy per-dock fallback (session files saved before saveState) ---
+        for attr, default_area in _DEFAULTS.items():
+            dock = getattr(self, attr, None)
+            if dock is None or not layout or attr not in layout:
+                continue
+            entry = layout[attr] or {}
+            geom_b64 = entry.get("geometry")
+            geom = (QByteArray.fromBase64(geom_b64.encode("ascii"))
+                    if geom_b64 else None)
+            if entry.get("floating"):
+                dock.setFloating(True)
+                if geom is not None:
+                    dock.restoreGeometry(geom)
+            else:
+                area_int = entry.get("area")
+                dock_area = Qt.DockWidgetArea(int(area_int)) if area_int else default_area
+                mw.addDockWidget(dock_area, dock)
+                dock.setFloating(False)
+            dock.setVisible(bool(entry.get("visible")))
+
     def _reset_default_layout(self) -> None:
         """Move all managed docks back to their default positions."""
         from qgis.utils import iface as _iface
