@@ -171,12 +171,21 @@ class SaveKml(QWidget, Ui_Form):
         self.imageselection_string = "None"
         self._report_env = None
 
-        # The report editor (`self.description`) is the single source of truth:
-        # both the KMZ balloon and the standalone HTML are rendered from its
-        # current content, so what you see — including deletions — is what is
-        # saved. The "get_*" buttons only append to it.
+        # Structured products for the styled HTML report (cards, gallery, scrollable
+        # tables). The rich-text editor stays the source of truth for *presence*:
+        # at save time these items are pruned to what is still in the editor, so
+        # deletions propagate while the report keeps its nice rendering.
+        self.report_items = []
 
         self.editor_save.clicked.connect(self.SavetoPDF)
+
+    def _add_report_item(self, item):
+        """Record a product for the styled HTML report (skips empty ones)."""
+        if item.get("type") == "image" and not item.get("path"):
+            return
+        if item.get("type") == "gallery" and not item.get("paths"):
+            return
+        self.report_items.append(item)
 
     def _add_product_button(self, text, tooltip, slot):
         """Create a small toolbutton in the report toolbar wired to ``slot``."""
@@ -201,9 +210,13 @@ class SaveKml(QWidget, Ui_Form):
             self.description.document().print_(printer)
 
     def get_graph2d_path(self):
+        self._add_report_item({"type": "image", "header": "ARA Scatterplot",
+                               "path": self.graph2d_path})
         self._append_with_header("ARA Scatterplot", self.graph2d_string)
 
     def get_graph3d_path(self):
+        self._add_report_item({"type": "image", "header": "3D Surface Sample",
+                               "path": self.graph3d_path})
         self._append_with_header("3D Surface Sample", self.graph3d_string)
 
     def get_selected_points_path(self):
@@ -226,9 +239,13 @@ class SaveKml(QWidget, Ui_Form):
         )
 
     def get_sampling_path(self):
+        self._add_report_item({"type": "table", "header": "Sampling Unit",
+                               "html": self.sampling_html})
         self._append_with_header("Sampling Unit", self.sampling_html)
 
     def get_stats_path(self):
+        self._add_report_item({"type": "table", "header": "Statistics",
+                               "html": self.stats_html})
         self._append_with_header("Statistics", self.stats_html)
 
     def get_histogram_path(self):
@@ -237,11 +254,14 @@ class SaveKml(QWidget, Ui_Form):
         for path, label in self.histograms:
             if not path:
                 continue
+            self._add_report_item({"type": "image", "header": label, "path": path})
             self._append_with_header(
                 label, f'<img src="{path}" alt="histogram" height="300"><br>')
 
     def get_imageselection_path(self):
         header = f"Image Selection ({len(self.imageselection_paths)} images)"
+        self._add_report_item({"type": "gallery", "header": header,
+                               "paths": list(self.imageselection_paths)})
         self._append_with_header(header, self.imageselection_string)
 
     def font_size(self):
@@ -485,25 +505,26 @@ class SaveKml(QWidget, Ui_Form):
     #     return link
 
     def addlinkf(self):
-        # link = self.textlink()
-        # self.description.setHtml(unicode(link))
-        # self.description.append(str(link))
+        image_path = getattr(self, "image_path", "")
+        if image_path:
+            self._add_report_item({"type": "image", "header": "Image",
+                                   "path": image_path})
         self.description.append(self.currentimagestring)
         self.description.verticalScrollBar().setValue(
             self.description.verticalScrollBar().maximum()
         )
 
     def addImageMetadata(self):
-        # link = self.textlink()
-        # self.description.setHtml(unicode(link))
-        # self.description.append(str(link))
-        self.description.append(self.currentimagemetadatastring)
-        self.description.verticalScrollBar().setValue(
-            self.description.verticalScrollBar().maximum()
-        )
+        metadata_html = getattr(self, "imagemetadata_string", "")
+        if metadata_html:
+            self._add_report_item({"type": "table", "header": "Image metadata",
+                                   "html": metadata_html})
+        # Header so it can be pruned from the report when removed from the editor.
+        self._append_with_header("Image metadata", metadata_html)
 
     def cleantext(self):
         self.description.setHtml("")
+        self.report_items = []
 
     def _location_rows(self):
         """Location summary as a list of (label, value) tuples."""
@@ -543,17 +564,45 @@ class SaveKml(QWidget, Ui_Form):
             )
         return self._report_env.get_template("report.html.j2")
 
-    def _render_html_report(self, name, body_html):
-        """Render the standalone HTML from the editor body — 1:1 with the editor.
+    def _prune_report_items(self, body_html):
+        """Keep only the products still present in *body_html* (the editor).
 
-        The report editor is the single source of truth: the HTML (and the KMZ
-        balloon) reflect exactly what is currently in it, including edits and
-        deletions. Image ``src`` are absolute so the file renders on its own.
+        Images / galleries are matched by their file name in the editor's
+        <img src>; tables by their header text. This keeps the styled report
+        (cards, gallery, scrollable tables) while honouring deletions made in
+        the editor.
+        """
+        kept = []
+        for item in self.report_items:
+            kind = item.get("type")
+            if kind == "image":
+                path = item.get("path") or ""
+                if path and os.path.basename(path) in body_html:
+                    kept.append(item)
+            elif kind == "gallery":
+                paths = [p for p in item.get("paths", [])
+                         if os.path.basename(p) in body_html]
+                if paths:
+                    kept.append({**item, "paths": paths})
+            elif kind == "table":
+                if item.get("header") and item["header"] in body_html:
+                    kept.append(item)
+            else:
+                kept.append(item)
+        return kept
+
+    def _render_html_report(self, name, body_html):
+        """Render the styled HTML report from the structured products.
+
+        Products are pruned to what is still in the editor (*body_html*) so the
+        saved HTML matches the editor — including deletions — while keeping the
+        cards / browsable gallery / scrollable tables. Image ``src`` are
+        absolute so the file renders on its own.
         """
         return self._report_template().render(
             title=name or "GroundTruther report",
             location_rows=self._location_rows(),
-            body_html=body_html,
+            items=self._prune_report_items(body_html),
         )
 
     def _write_html_report(self, kmldirectory, name, body_html):
