@@ -1,0 +1,6 @@
+# Developer/test tooling (not needed at runtime).
+#   .venv/bin/python -m pip install -r dependencies/requirements-dev.txt
+pytest>=8
+
+# GUI tests additionally need QGIS importable (PYTHONPATH=/usr/share/qgis/python)
+# and the Qt 'offscreen' platform; integration tests need a FastGIS API key.
