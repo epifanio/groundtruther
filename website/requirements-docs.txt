@@ -1,0 +1,5 @@
+# Toolchain to build/publish the GroundTruther documentation site (MkDocs Material).
+# Install:  pip install -r website/requirements-docs.txt
+mkdocs-material>=9.5
+mkdocs-material-extensions
+pymdown-extensions

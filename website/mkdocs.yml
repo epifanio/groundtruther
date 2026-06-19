@@ -1,0 +1,78 @@
+site_name: GroundTruther
+site_description: A QGIS plugin for seafloor characterization — joint analysis of MBES bathymetry, backscatter, seafloor imagery and video.
+site_author: Massimo Di Stefano
+site_url: https://epifanio.github.io/groundtruther/
+repo_url: https://github.com/epifanio/groundtruther
+repo_name: epifanio/groundtruther
+copyright: Copyright &copy; Massimo Di Stefano — content CC-BY-4.0
+
+theme:
+  name: material
+  icon:
+    logo: material/waves
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: cyan
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+plugins:
+  - search
+
+not_in_nav: |
+  /assets/img/README.md
+
+nav:
+  - Home: index.md
+  - Installation:
+      - installation/index.md
+      - Linux: installation/linux.md
+      - macOS: installation/macos.md
+      - Windows: installation/windows.md
+  - Tools:
+      - Image Browser: tools/image-browser.md
+      - Video Player: tools/video-player.md
+      - Image & Video Annotation: tools/annotation.md
+      - Acoustic Query Builder: tools/query-builder.md
+      - Report Builder: tools/report-builder.md
+      - GRASS / FastGIS toolbox: tools/grass-fastgis.md
+  - Architecture: architecture.md
