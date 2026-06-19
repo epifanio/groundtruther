@@ -119,6 +119,10 @@ venv.bak/
 
 # mkdocs documentation
 /site
+website/site/
+
+# QGIS runtime symbology database (generated, not a repo asset)
+symbology-style.db
 
 # mypy
 .mypy_cache/
