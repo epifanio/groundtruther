@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" role="img" aria-label="Screenshot placeholder">
+  <rect width="960" height="540" fill="#e0f2f1"/>
+  <rect x="8" y="8" width="944" height="524" fill="none" stroke="#26a69a" stroke-width="2" stroke-dasharray="10 8"/>
+  <g fill="#00897b" font-family="sans-serif" text-anchor="middle">
+    <text x="480" y="260" font-size="34" font-weight="700">📷 Screenshot placeholder</text>
+    <text x="480" y="305" font-size="20">Replace with a capture of this tool — see assets/img/README.md</text>
+  </g>
+</svg>
