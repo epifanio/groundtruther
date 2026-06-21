@@ -1,0 +1,25 @@
+---
+# Template for GroundTruther configuration.
+# Copy this to `config/config.yaml` and fill in your paths + API key.
+# `config/config.yaml` is gitignored, so your key is never committed.
+Filesystem:
+    filemanager: /usr/bin/nautilus
+HabCam:
+    imagepath: /path/to/imgs_jpg
+    imagemetadata: /path/to/projectdata.pq
+    imageannotation: /path/to/detector_output.csv
+Mbes:
+    soundings: /path/to/mbes_multilevel.parquet
+    reference_surface: /path/to/bathy.tif
+Export:
+    kmldir: /path/to/kml_output
+Processing:
+    gpu_avaibility: False
+    grass_api_endpoint: https://api.fastgis.eu
+    grass_api_key: ""            # your FastGIS API key — keep out of git
+Video:
+    videofile: /path/to/video.mp4
+    videometadata: /path/to/video_annotations.log
+    videoannotation:
+Session:
+    groundtruther_project: /path/to/gt_session
