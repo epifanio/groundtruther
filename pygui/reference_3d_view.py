@@ -41,6 +41,7 @@ class Reference3DView(gl.GLViewWidget):
         self.setCameraPosition(distance=150)
         self.setMouseTracking(True)
         self._x = self._y = self._Z = None
+        self._colors = None          # optional per-vertex RGBA (cols, rows, 4)
         self._labels_text = ("Easting (m)", "Northing (m)", "Elevation (m)")
         self._off = None             # (x0, y0, z0): real <-> centred world
         self._ve = 1.0               # vertical exaggeration
@@ -63,6 +64,7 @@ class Reference3DView(gl.GLViewWidget):
         self.clear()
         self._surface = None
         self._x = self._y = self._Z = None
+        self._colors = None
         self._world_pts = None
         self._off = None
 
@@ -79,11 +81,18 @@ class Reference3DView(gl.GLViewWidget):
     # ------------------------------------------------------------------ #
     def set_surface(self, x, y, Z,
                     x_label="Easting (m)", y_label="Northing (m)",
-                    z_label="Elevation (m)"):
-        """Render *x, y, Z* (real-world metres) with axes, grid and labels."""
+                    z_label="Elevation (m)", colors=None):
+        """Render *x, y, Z* (real-world metres) with axes, grid and labels.
+
+        When *colors* is given (a ``(len(x), len(y), 4)`` RGBA array, 0–1) the
+        surface is drawn photo-textured with those per-vertex colours instead of
+        the default normal-shaded colouring — used to drape the orthophoto on
+        the micro-DEM mesh (texel = vertex, no UV mapping).
+        """
         self._x = np.asarray(x, float)
         self._y = np.asarray(y, float)
         self._Z = np.asarray(Z, float)
+        self._colors = np.asarray(colors, float) if colors is not None else None
         self._labels_text = (x_label, y_label, z_label)
         x0, y0 = float(self._x.mean()), float(self._y.mean())
         z0 = float(np.nanmean(Z)) - 10.0          # matches the surface lift
@@ -109,9 +118,16 @@ class Reference3DView(gl.GLViewWidget):
         xspan = float(x.max() - x.min())
         yspan = float(y.max() - y.min())
 
-        # surface — x/y centred, z centred and exaggerated
-        self._surface = gl.GLSurfacePlotItem(
-            x=x, y=y, z=(Z - z0) * ve, shader="normalColor", smooth=True)
+        # surface — x/y centred, z centred and exaggerated.  With per-vertex
+        # colours (the orthophoto texture) drop the normal-colour shader so the
+        # photo shows faithfully; otherwise keep the normal-shaded colouring.
+        if self._colors is not None:
+            self._surface = gl.GLSurfacePlotItem(
+                x=x, y=y, z=(Z - z0) * ve, colors=self._colors,
+                shader=None, smooth=True)
+        else:
+            self._surface = gl.GLSurfacePlotItem(
+                x=x, y=y, z=(Z - z0) * ve, shader="normalColor", smooth=True)
         self._surface.translate(-x0, -y0, 0)
         self.addItem(self._surface)
 
@@ -152,14 +168,29 @@ class Reference3DView(gl.GLViewWidget):
                              text=text, color=QColor(*color))
         self.addItem(item)
 
+    def _unit(self) -> str:
+        """Linear unit for the read-outs, parsed from the axis labels.
+
+        The reference surface uses metres ("Easting (m)"); the micro-DEM uses
+        millimetres ("E (mm)").  Parse the parenthetical so the status / cursor /
+        measurement text reports the right unit instead of a hardcoded "m".
+        """
+        import re
+        for lbl in self._labels_text:
+            m = re.search(r"\(([^)]+)\)", str(lbl))
+            if m:
+                return m.group(1).strip()
+        return "m"
+
     def _extent_summary(self):
         if self._x is None:
             return ""
+        u = self._unit()
         xspan = float(self._x.max() - self._x.min())
         yspan = float(self._y.max() - self._y.min())
         zmin, zmax = float(np.nanmin(self._Z)), float(np.nanmax(self._Z))
-        return (f"Extent {xspan:,.0f} × {yspan:,.0f} m   |   "
-                f"Z {zmin:,.1f} … {zmax:,.1f} m (Δ {zmax - zmin:,.1f})   |   "
+        return (f"Extent {xspan:,.0f} × {yspan:,.0f} {u}   |   "
+                f"Z {zmin:,.1f} … {zmax:,.1f} {u} (Δ {zmax - zmin:,.1f})   |   "
                 f"{self._ve:g}× vertical")
 
     # ------------------------------------------------------------------ #
@@ -254,11 +285,12 @@ class Reference3DView(gl.GLViewWidget):
         if self._profile_pts is not None and len(self._profile_pts):
             zcol = self._profile_pts[:, 2]
             zrange = float(np.nanmax(zcol) - np.nanmin(zcol))
+        u = self._unit()
         self.status_text.emit(
-            f"Profile (3-D) {self._surface_len:,.1f} m   |   "
-            f"Plan (2-D) {self._plan_len:,.1f} m   |   "
-            f"straight {chord:,.1f} m   |   "
-            f"ΔZ A→B {dz:,.1f} m   |   Z-range {zrange:,.1f} m")
+            f"Profile (3-D) {self._surface_len:,.1f} {u}   |   "
+            f"Plan (2-D) {self._plan_len:,.1f} {u}   |   "
+            f"straight {chord:,.1f} {u}   |   "
+            f"ΔZ A→B {dz:,.1f} {u}   |   Z-range {zrange:,.1f} {u}")
 
     # ------------------------------------------------------------------ #
     # Picking (depth-buffer unprojection + grid snap)                     #
@@ -296,8 +328,9 @@ class Reference3DView(gl.GLViewWidget):
     def mouseMoveEvent(self, ev):
         if ev.buttons() == Qt.MouseButton.NoButton:     # hover -> read-out
             real = self._pick_world(self._event_pos(ev))
+            u = self._unit()
             self.cursor_text.emit(
-                f"E {real[0]:,.1f}   N {real[1]:,.1f}   Z {real[2]:,.1f} m"
+                f"E {real[0]:,.1f}   N {real[1]:,.1f}   Z {real[2]:,.1f} {u}"
                 if real is not None else "")
             return
         super().mouseMoveEvent(ev)     # button held -> navigate (rotate/pan)

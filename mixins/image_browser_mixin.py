@@ -46,6 +46,58 @@ def _cached_imread(path: str) -> np.ndarray:
 
 
 # ---------------------------------------------------------------------------
+# Stereo helpers — HabCam side-by-side pairs are L|R (e.g. 2720x1024)
+# ---------------------------------------------------------------------------
+
+def _is_stereo_pair(arr) -> bool:
+    """True when *arr* looks like a side-by-side L|R stereo image.
+
+    HabCam stereo frames are a single image with the two views concatenated
+    horizontally (the canonical size is 2720x1024).  We detect "much wider than
+    tall, with an even width" rather than hard-coding one size, so the split
+    also works for other stereo resolutions; ordinary single frames (≈4:3) are
+    left untouched.
+    """
+    if arr is None or getattr(arr, "ndim", 0) < 2:
+        return False
+    h, w = arr.shape[0], arr.shape[1]
+    return w % 2 == 0 and h > 0 and (w / h) >= 2.0
+
+
+def _split_stereo(arr, mode: str):
+    """Return the ``full`` / ``left`` / ``right`` portion of a stereo *arr*."""
+    if mode == "full" or not _is_stereo_pair(arr):
+        return arr
+    half = arr.shape[1] // 2
+    if mode == "right":
+        return arr[:, half:2 * half]
+    return arr[:, :half]   # left is the disparity reference frame
+
+
+def _decode_png_b64(b64: str):
+    """Decode a base64 PNG into an RGBA uint8 ndarray, or ``None`` on failure."""
+    import base64
+    try:
+        data = base64.b64decode(b64)
+    except Exception as exc:  # noqa: BLE001
+        log_exception("micro-DEM: base64 decode failed", exc, warn=True)
+        return None
+    try:
+        from qgis.PyQt.QtGui import QImage
+        qimg = QImage.fromData(data, "PNG")
+        if qimg.isNull():
+            return None
+        qimg = qimg.convertToFormat(QImage.Format.Format_RGBA8888)
+        w, h = qimg.width(), qimg.height()
+        ptr = qimg.constBits()
+        ptr.setsize(h * w * 4)
+        return np.frombuffer(ptr, np.uint8).reshape(h, w, 4).copy()
+    except Exception as exc:  # noqa: BLE001 — best-effort preview only
+        log_exception("micro-DEM: PNG decode failed", exc, warn=True)
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Helper widget classes (kept here so the main dockwidget stays clean)
 # ---------------------------------------------------------------------------
 
@@ -98,6 +150,13 @@ class ImageBrowserMixin:
         Must be called after ``self.w`` and ``self.imv`` exist.
         """
         self.imageviewer_is_hidden = False
+
+        # Stereo display mode: "full" | "left" | "right". Default "left" so
+        # side-by-side pairs show the disparity-reference half (which the
+        # returned micro-DEM registers to); single frames ignore this.
+        self._stereo_display_mode = "left"
+        self._micro_dem_item = None
+        self._displayed_shape = None
 
         self.w.fwd.clicked.connect(self.increaseimageindex)
         self.w.rwd.clicked.connect(self.decreaseimageindex)
@@ -415,7 +474,11 @@ class ImageBrowserMixin:
         if self.w.actionImageBrowser.isChecked():
             self.imv.show()
 
-        self.imv.setImage(_cached_imread(img_path))
+        # A new frame invalidates any micro-DEM overlay from the previous one.
+        self._clear_micro_dem_overlay()
+        disp = _split_stereo(_cached_imread(img_path), self._stereo_display_mode)
+        self._displayed_shape = getattr(disp, "shape", None)
+        self.imv.setImage(disp)
 
         # Annotation editor dock takes priority if open
         ann_editor_open = (
@@ -445,6 +508,9 @@ class ImageBrowserMixin:
             if self.w.zoomto.isChecked():
                 self.zoom_to()
             self.on_send()
+            # Refresh the roughness panel for the new frame (no-op when hidden).
+            if hasattr(self, "_on_frame_changed_roughness"):
+                self._on_frame_changed_roughness()
         else:
             QgsMessageLog.logMessage(
                 f"record length {len(record)} for image index {self.imageindex}",
@@ -476,6 +542,68 @@ class ImageBrowserMixin:
         if not self.querybuilder.lock_location.isChecked():
             self.querybuilder.qb_longitude.setText(self.w.longitude.text())
             self.querybuilder.qb_latitude.setText(self.w.latitude.text())
+
+    # ------------------------------------------------------------------ #
+    # Micro-DEM overlay (roughness preview)                                #
+    # ------------------------------------------------------------------ #
+
+    def _show_micro_dem_overlay(self, png_b64: str, extent_mm=None) -> None:
+        """Overlay the micro-DEM preview on the displayed (left) reference image.
+
+        The micro-DEM is computed from the left image of the stereo pair, so it
+        registers to the left half currently shown — we map it onto that image's
+        pixel rect and draw it semi-transparent on top.  Best-effort: any decode
+        failure quietly skips the overlay.
+        """
+        arr = _decode_png_b64(png_b64)
+        if arr is None:
+            return
+        self._clear_micro_dem_overlay()
+        try:
+            from qgis.PyQt.QtCore import QRectF
+            item = pg.ImageItem(axisOrder="row-major")
+            item.setImage(arr)
+            item.setOpacity(0.5)
+            item.setZValue(20)
+            if self._displayed_shape is not None and len(self._displayed_shape) >= 2:
+                h, w = self._displayed_shape[0], self._displayed_shape[1]
+                item.setRect(QRectF(0, 0, w, h))
+            self.imv.view.addItem(item)
+            self._micro_dem_item = item
+        except Exception as exc:  # noqa: BLE001 — preview only
+            log_exception("micro-DEM overlay failed", exc, warn=True)
+
+    def _show_image_overlay_rgba(self, rgba) -> None:
+        """Overlay a ready RGBA array on the displayed image at identity.
+
+        Used by the roughness 2-D height overlay (``height_left``), which is
+        aligned 1:1 to the rectified-left pixel grid — i.e. the displayed JPG
+        when it *is* the rectified left.  Mapped onto the displayed image's
+        pixel rect.
+        """
+        self._clear_micro_dem_overlay()
+        try:
+            from qgis.PyQt.QtCore import QRectF
+            item = pg.ImageItem(axisOrder="row-major")
+            item.setImage(rgba)
+            item.setZValue(20)
+            if self._displayed_shape is not None and len(self._displayed_shape) >= 2:
+                h, w = self._displayed_shape[0], self._displayed_shape[1]
+                item.setRect(QRectF(0, 0, w, h))
+            self.imv.view.addItem(item)
+            self._micro_dem_item = item
+        except Exception as exc:  # noqa: BLE001 — preview only
+            log_exception("height overlay failed", exc, warn=True)
+
+    def _clear_micro_dem_overlay(self) -> None:
+        item = getattr(self, "_micro_dem_item", None)
+        if item is None:
+            return
+        self._micro_dem_item = None
+        try:
+            self.imv.view.removeItem(item)
+        except Exception:  # noqa: BLE001 — view may be gone on teardown
+            pass
 
     # ------------------------------------------------------------------ #
     # UI toggles                                                           #
@@ -620,8 +748,34 @@ class ImageBrowserMixin:
         self._image_toolbar.addSeparator()
         self._image_toolbar.addAction(self._meta_panel_action)
 
+        # Stereo display toggle: Full | Left | Right (exclusive). Hidden until a
+        # stereo pair is shown would be ideal, but a static group is simpler and
+        # harmless for single frames (split is a no-op there).
+        from qgis.PyQt.QtWidgets import QActionGroup
+        self._image_toolbar.addSeparator()
+        self._stereo_group = QActionGroup(self._image_inner_window)
+        self._stereo_group.setExclusive(True)
+        self._stereo_actions = {}
+        for mode, label in (("full", "Full"), ("left", "Left"), ("right", "Right")):
+            act = QAction(label, self._image_inner_window)
+            act.setCheckable(True)
+            act.setChecked(mode == self._stereo_display_mode)
+            act.setToolTip(f"Show the {label.lower()} portion of stereo pairs")
+            act.triggered.connect(lambda _checked, m=mode: self._set_stereo_mode(m))
+            self._stereo_group.addAction(act)
+            self._image_toolbar.addAction(act)
+            self._stereo_actions[mode] = act
+
         QgsMessageLog.logMessage(
             "Image browser dock created", "GroundTruther", Qgis.Info)
+
+    def _set_stereo_mode(self, mode: str) -> None:
+        """Switch Full/Left/Right and redraw the current frame."""
+        if mode == getattr(self, "_stereo_display_mode", "left"):
+            return
+        self._stereo_display_mode = mode
+        if self.imageMetadata is not None:
+            self.add_image()
 
     def _on_image_conf_changed(self, value: float) -> None:
         """Update the threshold and immediately redraw the annotation overlay."""

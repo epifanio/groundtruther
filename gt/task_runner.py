@@ -21,6 +21,7 @@ from qgis.core import QgsApplication, QgsTask
 from qgis.PyQt.QtCore import pyqtSignal
 
 from groundtruther.gt import grass_api
+from groundtruther.gt import roughness_client
 
 # Terminal Celery / FastGIS task states (see app/tasks/grass_tasks.py)
 _OK_STATES = {"SUCCESS"}
@@ -110,6 +111,161 @@ class GrassModuleTask(QgsTask):
             self.succeeded.emit(self._result)
         else:
             self.errored.emit(self._error or "unknown error")
+
+
+class RoughnessTask(QgsTask):
+    """Compute per-frame roughness off the UI thread.
+
+    Wraps :func:`roughness_client.roughness_for_frame` so the (potentially ~14 s
+    cold) HTTP round-trip never blocks the GUI.  The ``frame_key`` is carried on
+    the task so the success handler can key its cache without a closure race.
+    """
+
+    succeeded = pyqtSignal(str, dict)   # (frame_key, roughness payload)
+    errored = pyqtSignal(str, str)      # (frame_key, error detail)
+
+    def __init__(self, frame_key, *, endpoint=None, api_key=None,
+                 route=roughness_client.DEFAULT_ROUTE, direct_url=None,
+                 res_mm=None, n_water=None, return_dem=False, geo=None,
+                 description=None, **outputs):
+        super().__init__(description or f"Roughness {frame_key}",
+                         QgsTask.Flag.CanCancel)
+        self.frame_key = str(frame_key)
+        self.endpoint = endpoint
+        self.api_key = api_key
+        self.route = route
+        self.direct_url = direct_url
+        self.res_mm = res_mm
+        self.n_water = n_water
+        self.return_dem = return_dem
+        self.geo = geo
+        # dem_format / dem_max_side / include_orthophoto / include_left_height /
+        # include_left_preview — forwarded straight to the client.
+        self.outputs = outputs
+        self._result = None
+        self._error = None
+
+    def run(self) -> bool:
+        try:
+            self._result = roughness_client.roughness_for_frame(
+                self.frame_key, endpoint=self.endpoint, api_key=self.api_key,
+                route=self.route, direct_url=self.direct_url,
+                res_mm=self.res_mm, n_water=self.n_water,
+                return_dem=self.return_dem, geo=self.geo, **self.outputs)
+            return True
+        except roughness_client.RoughnessError as exc:
+            self._error = str(exc)
+            return False
+
+    def finished(self, ok: bool) -> None:
+        if ok and self._result is not None:
+            self.succeeded.emit(self.frame_key, self._result)
+        else:
+            self.errored.emit(self.frame_key, self._error or "unknown error")
+
+
+def run_roughness_task(frame_key, *, endpoint=None, api_key=None,
+                       route=roughness_client.DEFAULT_ROUTE, direct_url=None,
+                       res_mm=None, n_water=None, return_dem=False, geo=None,
+                       on_success=None, on_error=None,
+                       description=None, **outputs) -> RoughnessTask:
+    """Create, wire, and dispatch a :class:`RoughnessTask`.
+
+    Returns the task (already added to the QGIS task manager).  The optional
+    ``on_success(frame_key, payload)`` / ``on_error(frame_key, detail)``
+    callbacks run on the UI thread.  Extra ``outputs`` (dem_format,
+    dem_max_side, include_orthophoto/left_height/left_preview) pass through.
+    """
+    task = RoughnessTask(
+        frame_key, endpoint=endpoint, api_key=api_key, route=route,
+        direct_url=direct_url, res_mm=res_mm, n_water=n_water,
+        return_dem=return_dem, geo=geo, description=description, **outputs)
+    if on_success:
+        task.succeeded.connect(on_success)
+    if on_error:
+        task.errored.connect(on_error)
+    QgsApplication.taskManager().addTask(task)
+    return task
+
+
+class MosaicTask(QgsTask):
+    """Composite a window of contiguous frames into a UTM mosaic off the UI thread.
+
+    Wraps :func:`roughness_client.mosaic_by_reference` (mode A).  The
+    ``reference_key`` is carried on the task so the success handler can label the
+    output without a closure race.
+    """
+
+    succeeded = pyqtSignal(str, dict)   # (reference_key, mosaic payload)
+    errored = pyqtSignal(str, str)      # (reference_key, error detail)
+
+    def __init__(self, reference_key, *, window=5, mode="flat", out_gsd_m=None,
+                 epsg=None, max_side=None, interp=None, supersample=None,
+                 alpha=False, nodata=None, endpoint=None, api_key=None,
+                 route=roughness_client.MOSAIC_ROUTE, direct_url=None,
+                 description=None):
+        super().__init__(description or f"Mosaic {reference_key}",
+                         QgsTask.Flag.CanCancel)
+        self.reference_key = str(reference_key)
+        self.window = window
+        self.mode = mode
+        self.out_gsd_m = out_gsd_m
+        self.epsg = epsg
+        self.max_side = max_side
+        self.interp = interp
+        self.supersample = supersample
+        self.alpha = alpha
+        self.nodata = nodata
+        self.endpoint = endpoint
+        self.api_key = api_key
+        self.route = route
+        self.direct_url = direct_url
+        self._result = None
+        self._error = None
+
+    def run(self) -> bool:
+        try:
+            self._result = roughness_client.mosaic_by_reference(
+                self.reference_key, window=self.window, mode=self.mode,
+                out_gsd_m=self.out_gsd_m, epsg=self.epsg, max_side=self.max_side,
+                interp=self.interp, supersample=self.supersample,
+                alpha=self.alpha, nodata=self.nodata,
+                endpoint=self.endpoint, api_key=self.api_key,
+                route=self.route, direct_url=self.direct_url)
+            return True
+        except roughness_client.RoughnessError as exc:
+            self._error = str(exc)
+            return False
+
+    def finished(self, ok: bool) -> None:
+        if ok and self._result is not None:
+            self.succeeded.emit(self.reference_key, self._result)
+        else:
+            self.errored.emit(self.reference_key, self._error or "unknown error")
+
+
+def run_mosaic_task(reference_key, *, window=5, mode="flat", out_gsd_m=None,
+                    epsg=None, max_side=None, interp=None, supersample=None,
+                    alpha=False, nodata=None, endpoint=None, api_key=None,
+                    route=roughness_client.MOSAIC_ROUTE, direct_url=None,
+                    on_success=None, on_error=None,
+                    description=None) -> MosaicTask:
+    """Create, wire, and dispatch a :class:`MosaicTask` (added to the task manager).
+
+    Optional ``on_success(reference_key, payload)`` / ``on_error(reference_key,
+    detail)`` callbacks run on the UI thread.
+    """
+    task = MosaicTask(
+        reference_key, window=window, mode=mode, out_gsd_m=out_gsd_m, epsg=epsg,
+        max_side=max_side, interp=interp, supersample=supersample, alpha=alpha,
+        nodata=nodata, endpoint=endpoint, api_key=api_key, route=route,
+        direct_url=direct_url, description=description)
+    if on_success:
+        task.succeeded.connect(on_success)
+    if on_error:
+        task.errored.connect(on_error)
+    QgsApplication.taskManager().addTask(task)
+    return task
 
 
 def run_module_task(endpoint, api_key, env_id, module, *,

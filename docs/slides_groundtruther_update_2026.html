@@ -1,0 +1,430 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GroundTruther — 2026 Update</title>
+
+  <!-- reveal.js core + theme (CDN) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/theme/white.css" id="theme">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/highlight/monokai.css">
+
+  <style>
+    :root {
+      --gt-ink: #14303d;
+      --gt-accent: #1a5276;
+      --gt-accent2: #2e86c1;
+      --gt-sea: #0e6e6e;
+    }
+    .reveal { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; color: var(--gt-ink); }
+    .reveal h1, .reveal h2, .reveal h3 { color: var(--gt-accent); text-transform: none; letter-spacing: .2px; }
+    .reveal h1 { font-size: 2.0em; }
+    .reveal h2 { font-size: 1.5em; }
+    .reveal section { text-align: left; }
+    .reveal .center { text-align: center; }
+    .reveal ul { width: 100%; }
+    .reveal li { margin: .18em 0; }
+    .reveal .lead-sub { color: var(--gt-sea); font-weight: 600; }
+    .reveal .muted { color: #5b6b76; font-size: .82em; }
+    .reveal .tag { display:inline-block; background: #d6eaf8; color: var(--gt-accent);
+                   border-radius: 999px; padding: 1px 12px; font-size: .5em; vertical-align: middle; }
+
+    /* A content slide with a text+screenshot split becomes a flex column:
+       the title sits on top and the .cols region fills the *remaining* height,
+       so the screenshot is bounded and can never grow over the title or text. */
+    .reveal .slides section:has(.cols) { display: flex; flex-direction: column; height: 100%; }
+    .reveal .slides section:has(.cols) > h2 { flex: 0 0 auto; margin: 0 0 .35em; }
+
+    /* two-column: text + screenshot space */
+    .cols { display: grid; grid-template-columns: 1.05fr 1fr; gap: 28px;
+            flex: 1 1 auto; min-height: 0; align-items: stretch; }
+    .cols.wide-shot { grid-template-columns: 1fr 1.25fr; }
+    .col-text, .col-shot { min-width: 0; min-height: 0; }   /* allow shrink, no overflow */
+    .col-text ul { font-size: .8em; }
+    .col-shot { display: flex; }                            /* let the shot fill it */
+
+    /* screenshot placeholder — drop an <img> in here to replace.
+       Bounded to its column's height (max-height:100%) so it stays beside the
+       text instead of overlapping it. */
+    .shot {
+      flex: 1 1 auto; min-height: 0; max-height: 100%; overflow: hidden;
+      border: 2px dashed var(--gt-accent2);
+      border-radius: 12px;
+      background: repeating-linear-gradient(45deg,#f4f9fd,#f4f9fd 12px,#eaf2f8 12px,#eaf2f8 24px);
+      color: var(--gt-accent);
+      display: flex; align-items: center; justify-content: center; text-align: center;
+      padding: 14px; font-size: .62em; font-weight: 600;
+    }
+    .shot img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+    .shot .cap { opacity: .85; }
+
+    /* title / closing slides stay vertically centred even with center:false */
+    .reveal .slides section.center {
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      height: 100%; text-align: center;
+    }
+
+    .reveal .badges span { display:inline-block; background:#eef6fb; border:1px solid #d6eaf8;
+      border-radius:8px; padding:3px 10px; margin:3px; font-size:.55em; color:var(--gt-accent); }
+    .reveal code { color: var(--gt-sea); }
+    .reveal .footnote { position:absolute; bottom:10px; left:40px; right:40px; }
+  </style>
+</head>
+<body>
+<div class="reveal"><div class="slides">
+
+  <!-- 1 · Title -->
+  <section class="center">
+    <h1>GroundTruther</h1>
+    <h3 style="color:var(--gt-sea)">What changed since the paper</h3>
+    <p class="muted">A QGIS plugin for <b>seafloor characterization</b> — multibeam acoustics,
+       seafloor imagery & survey video, together on one map.</p>
+    <p class="muted">Development update · 2026 · <b>v0.4</b> · QGIS 4 / Qt 6</p>
+  </section>
+
+  <!-- 2 · Recap -->
+  <section>
+    <h2>Recap — what it is</h2>
+    <div class="cols">
+      <div class="col-text">
+        <ul>
+          <li>Runs <b>inside QGIS</b> as a dock-based toolset</li>
+          <li>Joins three data worlds on one map:
+            <ul>
+              <li><b>MBES</b> bathymetry + backscatter (ARA)</li>
+              <li><b>Seafloor imagery</b> (HabCam-style stills)</li>
+              <li><b>Survey video</b> with per-frame GPS</li>
+            </ul>
+          </li>
+          <li>Ground-truth annotation → statistics → <b>KMZ / HTML</b> reports</li>
+          <li>Remote <b>GRASS GIS</b> service for geoprocessing</li>
+        </ul>
+      </div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — GroundTruther docked in QGIS (overview)</div></div>
+    </div>
+  </section>
+
+  <!-- 3 · Timeline -->
+  <section>
+    <h2>Timeline</h2>
+    <ul>
+      <li><b>Paper release</b> → first public, working tool</li>
+      <li><b>This winter (≈ March 2026)</b> → major modernization cycle begins</li>
+      <li>Goals: <span class="lead-sub">QGIS 4 / Qt 6</span>, a maintainable codebase,
+          <span class="lead-sub">video support</span>, and a modern
+          <span class="lead-sub">authenticated GRASS API</span></li>
+    </ul>
+    <p class="muted">This deck = the highlights: new platform · new UI/UX · streamlined install ·
+       refactor · new API · new science features · bug fixes.</p>
+  </section>
+
+  <!-- 4 · QGIS 4 / Qt 6 (GUI + shot) -->
+  <section>
+    <h2>QGIS 4 / Qt 6 support <span class="tag">platform</span></h2>
+    <div class="cols">
+      <div class="col-text">
+        <ul>
+          <li>Full port to <b>QGIS 4.0+ / Qt 6</b> (system Python 3.14)</li>
+          <li>Qt 6 API rework: scoped enums, <code>exec_</code> → <code>exec</code></li>
+          <li>Fixed Qt 6 <b>dock-walk crashes</b> (register docks with main window)</li>
+          <li>OpenGL 3-D viewer made Qt 6-safe (PyOpenGL context)</li>
+          <li>Wayland: launch <code>QT_QPA_PLATFORM=xcb</code> for floating docks</li>
+        </ul>
+        <p class="muted"><code>qgisMinimumVersion = 4.0</code></p>
+      </div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — plugin running in QGIS 4 (toolbar + docks)</div></div>
+    </div>
+  </section>
+
+  <!-- 5 · New UI layout & project management (GUI + shot) -->
+  <section>
+    <h2>New UI layout &amp; project management <span class="tag">GUI</span></h2>
+    <div class="cols wide-shot">
+      <div class="col-text">
+        <ul>
+          <li>Each tool an independent <b>dockable / floatable</b> panel</li>
+          <li>"Restore default layout" + reliable <b>save/restore of docked layout</b></li>
+          <li><b>Session persistence (new):</b> a <code>groundtruther_project</code> file</li>
+          <li>Restores <b>image index, zoom, query selection, dock layout, map-sync</b></li>
+          <li>Written on QGIS project save · loaded at start → <i>resume where you left off</i></li>
+        </ul>
+      </div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — custom dock layout + Settings (session file field)</div></div>
+    </div>
+  </section>
+
+  <!-- 6 · UI settings & configuration (GUI + shot) -->
+  <section>
+    <h2>UI settings &amp; configuration <span class="tag">GUI</span></h2>
+    <div class="cols">
+      <div class="col-text">
+        <ul>
+          <li>Single <b>YAML config</b>, validated by a <b>pydantic v2</b> model</li>
+          <li>Clear errors instead of obscure runtime failures</li>
+          <li>Dialog for image / MBES / video / export / GRASS paths &amp; keys</li>
+          <li>CRS-aware: zoom-to uses <b>map scale (1:N)</b> — same in metric
+              <i>and</i> geographic CRSs</li>
+        </ul>
+      </div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — Settings dialog</div></div>
+    </div>
+  </section>
+
+  <!-- 7 · Streamlined installation -->
+  <section>
+    <h2>Streamlined installation <span class="tag">setup</span></h2>
+    <ul>
+      <li>QGIS 4 runs on <b>system Python</b> (PEP-668, no pip) — handled cleanly:
+        <ul>
+          <li>Plugin deps live in a <b><code>.venv</code></b> beside the source</li>
+          <li><code>_bootstrap_venv()</code> appends it to <code>sys.path</code> at load</li>
+        </ul>
+      </li>
+      <li>Install = <b>symlink the repo</b> into the QGIS profile + enable</li>
+      <li>Fixed missing runtime deps &amp; venv bootstrap → one-step setup</li>
+      <li>Video decode via <b>PyAV</b> (bundled FFmpeg) — no system-codec hunt</li>
+    </ul>
+  </section>
+
+  <!-- 8 · Code refactoring -->
+  <section>
+    <h2>Code refactoring — modular &amp; maintainable <span class="tag">internals</span></h2>
+    <ul>
+      <li><b>Thin orchestrator + focused mixins</b> — dockwidget ≈ 240 lines:
+        <div class="badges"><span>image browser</span><span>video browser</span>
+          <span>video annotation</span><span>GRASS</span><span>report</span>
+          <span>settings</span><span>layout</span><span>session</span></div>
+      </li>
+      <li><b>Stateless, testable core (<code>gt/</code>)</b> — no Qt, unit-tested:
+        <div class="badges"><span>grass_api</span><span>image_manager</span>
+          <span>video_manager</span><span>task_runner</span>
+          <span>mbes_fields ✨</span><span>video_reader ✨</span><span>session_state ✨</span></div>
+      </li>
+      <li>A growing <b>pytest</b> suite (unit / GUI-offscreen / integration)</li>
+    </ul>
+  </section>
+
+  <!-- 9 · New FastGIS API (GUI + shot) -->
+  <section>
+    <h2>New FastGIS API (GRASS backend) <span class="tag">backend</span></h2>
+    <div class="cols">
+      <div class="col-text">
+        <ul>
+          <li>Legacy flat, <b>unauthenticated</b> endpoint → <b><code>api.fastgis.eu</code></b></li>
+          <li><b>Authenticated</b> (<code>X-API-Key</code>), built on an <b>environment</b> model (<code>env_id</code>)</li>
+          <li><b>Schema-driven module dialogs</b> — any GRASS module from its interface; async via <code>QgsTask</code></li>
+          <li>GRASS Tools is now an <b>undockable QGIS panel</b>: module picker, push rasters back to QGIS, show/hide computational region</li>
+        </ul>
+      </div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — GRASS Tools panel + a schema-driven module dialog</div></div>
+    </div>
+  </section>
+
+  <!-- 10 · Feature: MBES query builder (GUI + shot) -->
+  <section>
+    <h2>Feature — MBES query builder <span class="tag">new</span></h2>
+    <div class="cols wide-shot">
+      <div class="col-text">
+        <ul>
+          <li>Draw a <b>sampling unit</b> (ellipse / rectangle) on the soundings</li>
+          <li>ARA scatterplot · 3-D surface · histograms · stats · in-shape images</li>
+          <li><b>Multi-level backscatter (new):</b> auto-detects every BSWG-2015 level
+              (<code>raw→RL→TL→area→AVG</code>), <b>back-compatible</b> with the legacy format</li>
+          <li>Beam-side filtering (Raw / Port / Starboard / Fold) fixed</li>
+        </ul>
+      </div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — query builder: sampling ellipse + ARA scatterplot / 3-D</div></div>
+    </div>
+  </section>
+
+  <!-- 11 · Feature: Video player (GUI + shot) -->
+  <section>
+    <h2>Feature — video player <span class="tag">new</span></h2>
+    <div class="cols wide-shot">
+      <div class="col-text">
+        <ul>
+          <li>Frame-accurate player docked in QGIS, driven from the metadata track</li>
+          <li><b>Interlaced support (new):</b> PyAV + <code>yadif</code> — fixes the FFmpeg-8
+              black-frame failure</li>
+          <li><b>Geo-link to map:</b> canvas follows the frame at a fixed, CRS-independent <b>scale</b></li>
+          <li><b>GPS track</b> as a persistent GeoJSON layer — no scratch warning, auto-regenerated</li>
+        </ul>
+      </div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — video player docked + geo-linked map (track + marker)</div></div>
+    </div>
+  </section>
+
+  <!-- 12 · NEW: Video & Image annotation (GUI + shot) -->
+  <section>
+    <h2>Video &amp; image annotation <span class="tag">new</span></h2>
+    <div class="cols wide-shot">
+      <div class="col-text">
+        <ul>
+          <li><b>Image annotation:</b> bounding boxes + species labels on stills;
+              confidence-threshold filter; detector output overlay</li>
+          <li><b>Video annotation:</b> per-frame boxes with single-click draw → label →
+              save; "Add new box" pauses on draw and <b>releases on resume</b></li>
+          <li>Shared label pool; edits persisted to <b>CSV</b> (frame_index ↔ bboxes / species / confidences)</li>
+          <li>Annotations stay <b>geolinked</b> — every box ties back to a position on the map</li>
+        </ul>
+      </div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — annotation editor: a frame/image with labelled boxes</div></div>
+    </div>
+  </section>
+
+  <!-- 13 · Feature: Reporting (GUI + shot) -->
+  <section>
+    <h2>Feature — reporting <span class="tag">new</span></h2>
+    <div class="cols wide-shot">
+      <div class="col-text">
+        <ul>
+          <li>One click sends query products to the <b>report builder</b>:
+              ARA · 3-D · histogram · stats · sampling unit · image gallery</li>
+          <li>Output to <b>KMZ</b> (geo-balloon) <i>and</i> a modern <b>templated HTML</b> report (Jinja2):
+            <ul>
+              <li>Card layout, uniform thumbnails, <b>click-to-zoom lightbox</b></li>
+              <li><b>Browsable gallery</b> of the in-sample seafloor images</li>
+            </ul>
+          </li>
+          <li>Stats as a real HTML table · title + location summary · <b>PDF export</b></li>
+        </ul>
+      </div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — generated HTML report (gallery + lightbox + stats table)</div></div>
+    </div>
+  </section>
+
+  <!-- 14 · Bug-fix roundup -->
+  <section>
+    <h2>Bug-fix roundup <span class="muted">(selected)</span></h2>
+    <ul style="font-size:.84em">
+      <li>3-D WGL viewer blank on Qt 6 → fixed (PyOpenGL context)</li>
+      <li>ARA beam radios (L / R / Fold) had no effect → fixed</li>
+      <li>KMZ save crashed on un-generated products → guarded + de-duplicated</li>
+      <li>Docks / video player came back <b>undocked</b> → <code>restoreState</code></li>
+      <li>Geo-link marker moved but <b>map didn't follow</b> → throttle fix</li>
+      <li>Zoom was projection-dependent → <b>map scale (1:N)</b>, CRS-independent</li>
+      <li>Interlaced video → black frames → <b>PyAV / yadif</b></li>
+      <li>Stale / broken track reference on reload → <b>auto-regenerate</b></li>
+    </ul>
+  </section>
+
+  <!-- 15 · Use case: HabCam (GUI + shot) -->
+  <section>
+    <h2>Use case — HabCam <span class="tag">imagery</span></h2>
+    <div class="cols">
+      <div class="col-text">
+        <ul>
+          <li>Optical + acoustic ground-truthing of benthic habitat</li>
+          <li>Browse tens of thousands of stills with metadata, linked to the MBES surface</li>
+          <li>Sampling unit → backscatter angular response <b>and</b> the images inside it → annotate → report</li>
+          <li>Reference dataset: <b>HabCam test data on Zenodo</b> (CC-BY-4.0)</li>
+        </ul>
+      </div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — HabCam still + metadata panel + map context</div></div>
+    </div>
+  </section>
+
+  <!-- 16 · Use case: MAREANO (GUI + shot) -->
+  <section>
+    <h2>Use case — MAREANO <span class="tag">video</span></h2>
+    <div class="cols">
+      <div class="col-text">
+        <ul>
+          <li>Norwegian seabed-mapping programme — towed-camera <b>video</b> transects</li>
+          <li>Loads the MAREANO survey <b><code>.log</code></b> format directly (DDM → decimal degrees)</li>
+          <li>Video geo-linked to the map; GPS track drawn as a persistent layer</li>
+          <li>Per-frame species / substrate annotation alongside the acoustics</li>
+        </ul>
+      </div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — MAREANO video transect + track on the canvas</div></div>
+    </div>
+  </section>
+
+  <!-- 17 · Unique? -->
+  <section>
+    <h2>Is this a unique tool?</h2>
+    <p><b>Yes — the <span class="lead-sub">integration</span> is the differentiator.</b></p>
+    <ul>
+      <li>Most workflows are <b>siloed</b>: acoustics, image annotation, video review, GIS — all separate</li>
+      <li>GroundTruther puts <b>MBES + imagery + video + annotation + GRASS + reporting</b> on <b>one QGIS map</b>, free &amp; open source</li>
+      <li>Cloud GRASS backend keeps heavy geoprocessing <b>server-side</b></li>
+      <li>Open formats throughout (Parquet · GeoJSON · KMZ · CSV / <code>.log</code>)</li>
+    </ul>
+    <p class="muted">Not a replacement for specialist acoustic suites — a connective, ground-truthing layer that ties them together.</p>
+  </section>
+
+  <!-- 18 · What's next -->
+  <section>
+    <h2>What's next?</h2>
+    <ul>
+      <li><b>ML-assisted annotation</b> — pre-populate boxes; review instead of draw</li>
+      <li>More backscatter analytics &amp; calibration; multi-file mosaics</li>
+      <li>Scale to very large soundings (10⁷+ rows) — Arrow-native, optional GPU</li>
+      <li>Richer GRASS recipe presets; "analysis as a saved session"</li>
+      <li>Multi-user / shared cloud sessions; signed report bundles</li>
+      <li>More survey-log adapters out of the box; turnkey installer + CI</li>
+    </ul>
+  </section>
+
+  <!-- 19 · Would you use it -->
+  <section>
+    <h2>Would you use it?</h2>
+    <div class="cols">
+      <div class="col-text">
+        <p class="lead-sub">Who it's for</p>
+        <ul>
+          <li>Benthic ecologists &amp; seabed-mapping teams doing <b>ground-truthing</b></li>
+          <li>Anyone who wants acoustics, imagery &amp; video <b>on the same map</b></li>
+        </ul>
+      </div>
+      <div class="col-text">
+        <p class="lead-sub">Honest take</p>
+        <ul>
+          <li><i>Purely</i> acoustic processing → keep your specialist suite</li>
+          <li><b>Interpretation + ground-truth + reporting</b> across data types, in GIS, open &amp; scriptable → <b>strong fit</b></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- 20 · Need help -->
+  <section>
+    <h2>Need help setting it up?</h2>
+    <ul>
+      <li><b>Requirements:</b> QGIS 4.0+ (Qt 6), the bundled <code>.venv</code>, a FastGIS API key for GRASS</li>
+      <li><b>Install:</b> symlink the repo into your QGIS profile, enable, point Settings at your data</li>
+      <li><b>Try it:</b> the Zenodo HabCam dataset (and a MAREANO <code>.log</code> + video)</li>
+      <li>Repo &amp; issues: <b>github.com/epifanio/groundtruther</b></li>
+      <li>Docs: GRASS / FastGIS integration guide in <code>docs/</code></li>
+    </ul>
+    <p class="lead-sub">Happy to walk you through install, config, or your own dataset.</p>
+  </section>
+
+  <!-- 21 · Thanks -->
+  <section class="center">
+    <h1>Thank you</h1>
+    <p><b>GroundTruther</b> · v0.4 · QGIS 4 / Qt 6</p>
+    <p class="muted">MBES · imagery · video · GRASS · ground-truth · report</p>
+    <p class="muted">github.com/epifanio/groundtruther</p>
+  </section>
+
+</div></div>
+
+<!-- reveal.js core + plugins (CDN) -->
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/notes/notes.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/reveal.js@5/plugin/highlight/highlight.js"></script>
+<script>
+  Reveal.initialize({
+    hash: true,
+    slideNumber: 'c/t',
+    width: 1280, height: 760,
+    margin: 0.04,
+    center: false,            // top-align content so tall slides don't overlap
+    transition: 'slide',
+    plugins: [ RevealHighlight, RevealNotes ],
+  });
+</script>
+</body>
+</html>

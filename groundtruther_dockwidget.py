@@ -52,6 +52,7 @@ from groundtruther.mixins.settings_mixin import SettingsMixin
 from groundtruther.mixins.video_browser_mixin import VideoBrowserMixin
 from groundtruther.mixins.video_annotation_mixin import VideoAnnotationMixin
 from groundtruther.mixins.report_dock_mixin import ReportDockMixin
+from groundtruther.mixins.roughness_mixin import RoughnessMixin
 from groundtruther.mixins.layout_mixin import LayoutMixin
 from groundtruther.mixins.session_mixin import SessionMixin
 
@@ -68,6 +69,7 @@ class GroundTrutherDockWidget(
     VideoBrowserMixin,
     VideoAnnotationMixin,
     ReportDockMixin,
+    RoughnessMixin,
     LayoutMixin,
     SessionMixin,
 ):
@@ -263,6 +265,7 @@ class GroundTrutherDockWidget(
         self._apply_video_settings()          # VideoBrowserMixin — load video/metadata/annotations
         self._init_video_annotation_editor()  # VideoAnnotationMixin — annotation editor dock
         self._init_report_dock()             # create Report Builder floating dock
+        self._init_roughness()               # RoughnessMixin — roughness panel dock
         self._init_layout()                  # LayoutMixin — restore saved positions + reset action
         self._init_session()                 # SessionMixin — load session file + project-save hook
 
@@ -339,6 +342,12 @@ class GroundTrutherDockWidget(
         # Tear down report builder dock.
         try:
             self._cleanup_report_dock()
+        except Exception:
+            pass
+
+        # Tear down roughness panel dock.
+        try:
+            self._cleanup_roughness()
         except Exception:
             pass
 

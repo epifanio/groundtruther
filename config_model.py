@@ -71,6 +71,56 @@ class Processing(BaseModel):
 #     basemap: Optional[AnyUrl] = None
 
 
+class RoughnessSettings(BaseModel):
+    """Per-frame seafloor-roughness service settings (all optional).
+
+    Roughness is computed server-side from HabCam stereo pairs.  GroundTruther
+    reaches it through the FastGIS roughness route (reusing the GRASS
+    ``grass_api_endpoint`` + ``grass_api_key`` credentials), or — when running
+    *on* the GPU host — directly via ``direct_url`` to skip the tunnel.
+
+    Named ``RoughnessSettings`` (not ``Roughness``) to avoid the pydantic
+    field-name-equals-class-name pitfall noted on ``VideoSettings`` /
+    ``SessionSettings``.
+
+    Attributes:
+        base_url: FastGIS base URL for the roughness route.  Leave empty to
+            fall back to ``Processing.grass_api_endpoint``.
+        route: Roughness route path appended to the base URL
+            (default ``/roughness`` when empty).
+        direct_url: Optional on-host GPU service URL
+            (e.g. ``http://127.0.0.1:7871/roughness``).  Default OFF (empty) —
+            when set, GT POSTs here directly with no auth, skipping FastGIS.
+        res_mm: Optional default DEM resolution (mm) passed to the service.
+        n_water: Optional default refractive index of water.
+    """
+
+    base_url: Optional[str] = None
+    route: Optional[str] = None
+    direct_url: Optional[str] = None
+    res_mm: Optional[float] = None
+    n_water: Optional[float] = None
+
+    # --- UTM georeferencing (optional) ---
+    # When ``georeference`` is on, GT attaches a ``geo`` object (built from the
+    # frame's nav: Xutm_adj→easting, Yutm_adj→northing [layback-corrected HabCam
+    # seafloor position = habcam_lon/lat, NOT raw ship sXutm/sYutm],
+    # Heading/bearing→heading_deg) to
+    # the request; the service returns a geotransform so the micro-DEM and
+    # orthophoto can be written as GeoTIFFs and added to QGIS.
+    #
+    # The mount is known (image bottom→top = heading, image-right = starboard), so
+    # position AND rotation are correct out of the box — no calibration loop.
+    # ``heading_offset_deg`` is a residual fine-tune (default 0); ``mirror`` is the
+    # only escape hatch — set true once if a mosaic comes out port/starboard
+    # flipped.  ``dem_max_side`` caps the returned grid resolution.
+    georeference: bool = False
+    epsg: int = 32619
+    heading_offset_deg: float = 0.0
+    mirror: bool = False
+    dem_max_side: int = 512
+
+
 class Filesystem(BaseModel):
     """Filesystem / OS integration settings.
 
@@ -141,3 +191,4 @@ class HabcamSettings(BaseModel):
     Filesystem: Filesystem
     Video: Optional[VideoSettings] = None
     Session: Optional[SessionSettings] = None
+    Roughness: Optional[RoughnessSettings] = None
