@@ -139,8 +139,13 @@ def test_output_flags_off_by_default(capture):
     rc.roughness_for_frame(FRAME, endpoint=EP, api_key=KEY)
     body = capture["calls"][-1]["json"]
     for k in ("dem_format", "dem_max_side", "include_orthophoto",
-              "include_left_height", "include_left_preview"):
+              "include_left_height", "include_left_preview", "include_spectrum"):
         assert k not in body
+
+
+def test_include_spectrum_forwarded(capture):
+    rc.roughness_for_frame(FRAME, endpoint=EP, api_key=KEY, include_spectrum=True)
+    assert capture["calls"][-1]["json"]["include_spectrum"] is True
 
 
 # --- direct fast-path -------------------------------------------------------

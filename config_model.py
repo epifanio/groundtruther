@@ -120,6 +120,17 @@ class RoughnessSettings(BaseModel):
     mirror: bool = False
     dem_max_side: int = 512
 
+    # --- 3-D mesh edge-spike mitigation ---
+    # The stereo DEM is unreliable at the grid border and around no-data holes,
+    # producing height spikes draped with stretched texture. These tune how the
+    # Micro-DEM 3D mesh masks them: drop ``dem_trim_border`` outer rings, reject
+    # cells more than ``dem_clip_sigma`` robust sigmas from the median, and erode
+    # ``dem_erode`` rings off every no-data/outlier boundary. Masked cells are
+    # flattened (median) and made transparent in the texture.
+    dem_trim_border: int = 2
+    dem_clip_sigma: float = 5.0
+    dem_erode: int = 1
+
 
 class Filesystem(BaseModel):
     """Filesystem / OS integration settings.

@@ -4,18 +4,18 @@ When georeferencing is enabled, GroundTruther attaches a ``geo`` object to the
 roughness request, built from the frame's navigation:
 
     geo = {
-        "easting": <Xutm_adj>, "northing": <Yutm_adj>,   # layback-corrected
+        "easting": <Xutm + dx>, "northing": <Yutm + dy>,   # calibrated USBL fix
         "heading_deg": <Heading|bearing>, "epsg": 32619,
-        # mount calibration (server applies these):
-        "heading_offset_deg": 0.0, "flip_e": false, "flip_n": true,
+        # mount fine-tune (server applies these):
+        "heading_offset_deg": 0.0, "mirror": false,
     }
 
-The easting/northing are the **layback-corrected HabCam seafloor position**
-(``Xutm_adj``/``Yutm_adj`` = the metadata's ``x+dx`` / ``y+dy``, i.e. the exact
-UTM of ``habcam_lon``/``habcam_lat`` — the same point the GT sampling-point red
-cross uses — in EPSG:32619), NOT the raw ship GPS (``sXutm``/``sYutm``). The
-layback is already baked into the position, so the service needs no
-``layback_m`` / ``cross_track_m`` (both stay 0).
+The easting/northing are the **calibrated USBL seafloor fix** —
+``Xutm + dx`` / ``Yutm + dy`` (a direct measurement, canonical for HRS1508 and
+matching pdal-mbio) — NOT the layback *model* ``Xutm_adj``/``Yutm_adj`` (which is
+just ``proj(habcam_lon/lat)``, ~2.3–3.4 m off) and NOT the raw ship GPS
+(``sXutm``/``sYutm``). Because the position is already corrected, ``layback_m``
+stays 0.
 
 The service then returns a GDAL geotransform for the micro-DEM / orthophoto grid
 (they share one grid, so a single geotransform serves both)::
@@ -35,14 +35,16 @@ import math
 
 import numpy as np
 
-# Per-frame nav columns. easting/northing use the LAYBACK-CORRECTED HabCam
-# seafloor position (``Xutm_adj``/``Yutm_adj`` = ``x+dx`` / ``y+dy`` = the UTM of
-# ``habcam_lon``/``habcam_lat``, the GT sampling-point red cross), NOT the raw
-# ship GPS (``sXutm``/``sYutm``) — so the rendered raster coincides with the
-# sampling point.  This dataset has no "Heading" column — it carries "bearing";
-# try Heading first, then fall back to bearing.
-DEFAULT_EASTING_COL = "Xutm_adj"
-DEFAULT_NORTHING_COL = "Yutm_adj"
+# Per-frame nav columns. easting/northing are the calibrated USBL seafloor fix
+# ``Xutm + dx`` / ``Yutm + dy`` (base position + USBL offset) — the independent,
+# measured truth (matches pdal-mbio), NOT the layback model ``Xutm_adj`` nor the
+# ship GPS ``sXutm`` — so the rendered raster coincides with the substrate map
+# and the sampling point.  This dataset has no "Heading" column — it carries
+# "bearing"; try Heading first, then fall back to bearing.
+DEFAULT_EASTING_COL = "Xutm"
+DEFAULT_EASTING_OFFSET_COL = "dx"
+DEFAULT_NORTHING_COL = "Yutm"
+DEFAULT_NORTHING_OFFSET_COL = "dy"
 DEFAULT_HEADING_COLS = ("Heading", "bearing")
 DEFAULT_EPSG = 32619
 
@@ -53,6 +55,56 @@ def _finite(v) -> float | None:
     except (TypeError, ValueError):
         return None
     return None if math.isnan(f) or math.isinf(f) else f
+
+
+def usbl_easting_northing(record, *, easting_col: str = DEFAULT_EASTING_COL,
+                          easting_offset_col: str = DEFAULT_EASTING_OFFSET_COL,
+                          northing_col: str = DEFAULT_NORTHING_COL,
+                          northing_offset_col: str = DEFAULT_NORTHING_OFFSET_COL):
+    """Return the USBL seafloor fix ``(easting, northing)`` for a metadata row.
+
+    ``easting = Xutm + dx``, ``northing = Yutm + dy`` (the calibrated USBL
+    measurement).  Returns ``(None, None)`` when the base position is missing; a
+    missing/NaN offset is treated as 0 (falls back to the base position).
+    Shared by the request ``geo`` and the GT sampling-point marker so both sit on
+    the same point.
+    """
+    def get(col):
+        try:
+            return record[col]
+        except (KeyError, IndexError, TypeError):
+            return None
+
+    e_base, n_base = _finite(get(easting_col)), _finite(get(northing_col))
+    if e_base is None or n_base is None:
+        return None, None
+    e_off = _finite(get(easting_offset_col)) or 0.0
+    n_off = _finite(get(northing_offset_col)) or 0.0
+    return e_base + e_off, n_base + n_off
+
+
+def usbl_xy(df, *, easting_col: str = DEFAULT_EASTING_COL,
+            easting_offset_col: str = DEFAULT_EASTING_OFFSET_COL,
+            northing_col: str = DEFAULT_NORTHING_COL,
+            northing_offset_col: str = DEFAULT_NORTHING_OFFSET_COL):
+    """Vectorized USBL ``(easting, northing)`` arrays for a metadata DataFrame.
+
+    ``easting = Xutm + dx``, ``northing = Yutm + dy``.  Returns
+    ``(easting_array, northing_array)`` (numpy float arrays), or ``(None, None)``
+    when the base position columns are absent.  NaN offsets are treated as 0.
+    Used to put the image lookup / marker on the same USBL fix as the geo
+    request.
+    """
+    cols = getattr(df, "columns", [])
+    if easting_col not in cols or northing_col not in cols:
+        return None, None
+    e = np.asarray(df[easting_col], dtype=float)
+    n = np.asarray(df[northing_col], dtype=float)
+    if easting_offset_col in cols:
+        e = e + np.nan_to_num(np.asarray(df[easting_offset_col], dtype=float))
+    if northing_offset_col in cols:
+        n = n + np.nan_to_num(np.asarray(df[northing_offset_col], dtype=float))
+    return e, n
 
 
 def build_geo(easting, northing, heading_deg, *, epsg: int = DEFAULT_EPSG,
@@ -78,14 +130,14 @@ def build_geo(easting, northing, heading_deg, *, epsg: int = DEFAULT_EPSG,
 
 def geo_from_record(record, *, epsg: int = DEFAULT_EPSG,
                     heading_offset_deg: float = 0.0, mirror: bool = False,
-                    easting_col: str = DEFAULT_EASTING_COL,
-                    northing_col: str = DEFAULT_NORTHING_COL,
                     heading_cols=DEFAULT_HEADING_COLS) -> dict | None:
     """Build ``geo`` from a metadata row (pandas Series or plain mapping).
 
-    ``heading_deg`` is looked up from the nav by the frame (per-row heading);
-    tries each name in *heading_cols* in order (so "Heading" wins when present,
-    else "bearing").  Returns ``None`` when easting/northing/heading are missing.
+    easting/northing are the USBL fix (``Xutm + dx`` / ``Yutm + dy`` via
+    :func:`usbl_easting_northing`).  ``heading_deg`` is looked up from the nav by
+    the frame (per-row heading); tries each name in *heading_cols* in order (so
+    "Heading" wins when present, else "bearing").  Returns ``None`` when
+    position or heading are missing.
     """
     def get(col):
         try:
@@ -99,7 +151,8 @@ def geo_from_record(record, *, epsg: int = DEFAULT_EPSG,
         if v is not None:
             heading = v
             break
-    return build_geo(get(easting_col), get(northing_col), heading,
+    easting, northing = usbl_easting_northing(record)
+    return build_geo(easting, northing, heading,
                      epsg=epsg, heading_offset_deg=heading_offset_deg,
                      mirror=mirror)
 

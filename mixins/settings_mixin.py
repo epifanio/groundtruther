@@ -76,7 +76,17 @@ class SettingsMixin:
             else:
                 self.w.actionAnnotation.setEnabled(False)
 
-            self.kdt = img_mgr.build_kdtree(self.imageMetadata)
+            # Put the image lookup on the calibrated USBL fix (Xutm+dx/Yutm+dy)
+            # so map-click → nearest image agrees with the red marker, the
+            # sampling-shape centre, and the roughness raster. Falls back to the
+            # habcam_lon/lat model if the USBL nav columns are unavailable.
+            self._attach_usbl_lonlat()
+            lon_col, lat_col = (
+                ("usbl_lon", "usbl_lat")
+                if "usbl_lon" in self.imageMetadata.columns
+                else ("habcam_lon", "habcam_lat"))
+            self.kdt = img_mgr.build_kdtree(
+                self.imageMetadata, lon_col=lon_col, lat_col=lat_col)
             self._build_metadata_panel()
 
         except OSError as exc:
@@ -87,6 +97,45 @@ class SettingsMixin:
                 f"_apply_settings: failed to load {self.metadatafile}", exc)
             error_message(f"Error reading {self.metadatafile}:\n{exc}")
             self.imageMetadata = None
+
+    def _attach_usbl_lonlat(self) -> None:
+        """Add ``usbl_lon``/``usbl_lat`` columns = WGS-84 of the USBL fix.
+
+        The calibrated USBL seafloor position is ``Xutm + dx`` / ``Yutm + dy`` in
+        the survey CRS (``Roughness.epsg``, default 32619); projected to WGS-84
+        here so the KDTree image lookup and the red marker share one position
+        with the geo request.  Best-effort: any failure leaves the columns absent
+        and the caller falls back to ``habcam_lon``/``habcam_lat``.
+        """
+        try:
+            import numpy as np
+            from osgeo import osr
+            from groundtruther.gt import roughness_geo
+            east, north = roughness_geo.usbl_xy(self.imageMetadata)
+            if east is None:
+                return
+            try:
+                epsg = int(((self.settings.get("Roughness") or {}).get("epsg"))
+                           or 32619)
+            except Exception:  # noqa: BLE001
+                epsg = 32619
+            # Batched transform (one C++ call) — avoids a per-row Python loop.
+            src = osr.SpatialReference()
+            src.ImportFromEPSG(epsg)
+            dst = osr.SpatialReference()
+            dst.ImportFromEPSG(4326)
+            try:                       # GDAL ≥3 defaults to authority axis order
+                src.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+                dst.SetAxisMappingStrategy(osr.OAMS_TRADITIONAL_GIS_ORDER)
+            except Exception:  # noqa: BLE001 — older GDAL
+                pass
+            ct = osr.CoordinateTransformation(src, dst)
+            pts = np.asarray(ct.TransformPoints(
+                np.column_stack([east, north]).tolist()))   # (N, 3): lon, lat, z
+            self.imageMetadata["usbl_lon"] = pts[:, 0]
+            self.imageMetadata["usbl_lat"] = pts[:, 1]
+        except Exception as exc:  # noqa: BLE001 — degrade to the model position
+            log_exception("_attach_usbl_lonlat", exc, warn=True)
 
     def show_dialog(self):
         """Open the config dialog and apply settings when the user saves.

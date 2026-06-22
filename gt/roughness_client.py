@@ -103,7 +103,8 @@ def _extract_detail(response) -> str:
 
 def _build_body(frame_key, res_mm, n_water, return_dem, geo=None, *,
                 dem_format=None, dem_max_side=None, include_orthophoto=False,
-                include_left_height=False, include_left_preview=False) -> dict:
+                include_left_height=False, include_left_preview=False,
+                include_spectrum=False) -> dict:
     """Assemble the request JSON; GT sends the key plus only the knobs in use.
 
     Optional outputs are off by default — request only what will be rendered:
@@ -135,6 +136,8 @@ def _build_body(frame_key, res_mm, n_water, return_dem, geo=None, *,
         body["include_left_height"] = True
     if include_left_preview:
         body["include_left_preview"] = True
+    if include_spectrum:
+        body["include_spectrum"] = True
     if geo:
         body["geo"] = geo
     return body
@@ -150,6 +153,7 @@ def roughness_for_frame(frame_key, *, endpoint: str | None = None,
                         include_orthophoto: bool = False,
                         include_left_height: bool = False,
                         include_left_preview: bool = False,
+                        include_spectrum: bool = False,
                         timeout: int = _TIMEOUT) -> dict:
     """Compute roughness for one HabCam frame and return the parsed JSON dict.
 
@@ -189,7 +193,8 @@ def roughness_for_frame(frame_key, *, endpoint: str | None = None,
         dem_format=dem_format, dem_max_side=dem_max_side,
         include_orthophoto=include_orthophoto,
         include_left_height=include_left_height,
-        include_left_preview=include_left_preview)
+        include_left_preview=include_left_preview,
+        include_spectrum=include_spectrum)
 
     if direct_url and direct_url.strip():
         url = direct_url.strip()

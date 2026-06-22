@@ -42,6 +42,7 @@ class Reference3DView(gl.GLViewWidget):
         self.setMouseTracking(True)
         self._x = self._y = self._Z = None
         self._colors = None          # optional per-vertex RGBA (cols, rows, 4)
+        self._mask = None            # optional (cols, rows) validity → culls holes
         self._labels_text = ("Easting (m)", "Northing (m)", "Elevation (m)")
         self._off = None             # (x0, y0, z0): real <-> centred world
         self._ve = 1.0               # vertical exaggeration
@@ -54,6 +55,24 @@ class Reference3DView(gl.GLViewWidget):
         self._measure_items = []     # all GL items for the current measurement
         self._press_pos = None       # for click-vs-drag disambiguation
 
+    def paintGL(self, *args, **kwargs):
+        """Render — but skip while the GL context is invalid.
+
+        Dragging the containing dock to float / re-dock reparents this
+        ``QOpenGLWidget`` into a new top-level window, during which its GL context
+        is briefly invalid.  Painting then is unsafe, and the process-wide
+        PyOpenGL context-lookup fallback (installed for QGIS/Qt6) masks the
+        missing context and issues GL calls anyway — which can **hang the UI**.
+        Bail until the context is valid again; a transient GL error during the
+        reparent must never wedge the dock.
+        """
+        if not self.isValid():
+            return
+        try:
+            super().paintGL(*args, **kwargs)
+        except Exception:        # noqa: BLE001 — a paint error must not freeze Qt
+            pass
+
     def has_surface(self):
         """True when a reference surface is currently displayed."""
         return self._surface is not None and self._x is not None
@@ -65,6 +84,7 @@ class Reference3DView(gl.GLViewWidget):
         self._surface = None
         self._x = self._y = self._Z = None
         self._colors = None
+        self._mask = None
         self._world_pts = None
         self._off = None
 
@@ -81,18 +101,24 @@ class Reference3DView(gl.GLViewWidget):
     # ------------------------------------------------------------------ #
     def set_surface(self, x, y, Z,
                     x_label="Easting (m)", y_label="Northing (m)",
-                    z_label="Elevation (m)", colors=None):
+                    z_label="Elevation (m)", colors=None, mask=None):
         """Render *x, y, Z* (real-world metres) with axes, grid and labels.
 
         When *colors* is given (a ``(len(x), len(y), 4)`` RGBA array, 0–1) the
         surface is drawn photo-textured with those per-vertex colours instead of
         the default normal-shaded colouring — used to drape the orthophoto on
         the micro-DEM mesh (texel = vertex, no UV mapping).
+
+        When *mask* (a ``(len(x), len(y))`` boolean array) is also given, the
+        surface is built as an opaque ``GLMeshItem`` with the masked / no-data
+        quads culled — real holes instead of transparent cells, so the camera
+        doesn't leave ghost trails and idle frames don't flicker.
         """
         self._x = np.asarray(x, float)
         self._y = np.asarray(y, float)
         self._Z = np.asarray(Z, float)
         self._colors = np.asarray(colors, float) if colors is not None else None
+        self._mask = np.asarray(mask, bool) if mask is not None else None
         self._labels_text = (x_label, y_label, z_label)
         x0, y0 = float(self._x.mean()), float(self._y.mean())
         z0 = float(np.nanmean(Z)) - 10.0          # matches the surface lift
@@ -118,18 +144,38 @@ class Reference3DView(gl.GLViewWidget):
         xspan = float(x.max() - x.min())
         yspan = float(y.max() - y.min())
 
-        # surface — x/y centred, z centred and exaggerated.  With per-vertex
-        # colours (the orthophoto texture) drop the normal-colour shader so the
-        # photo shows faithfully; otherwise keep the normal-shaded colouring.
-        if self._colors is not None:
+        # Centred + exaggerated grid vertices (shared by the mesh and picking).
+        nx, ny = len(x), len(y)
+        wx = np.repeat(x - x0, ny)
+        wy = np.tile(y - y0, nx)
+        wz = ((Z - z0) * ve).reshape(-1)
+
+        # surface — x/y centred, z centred and exaggerated.
+        if self._colors is not None and self._mask is not None:
+            # Opaque mesh with no-data / masked quads culled → genuine holes
+            # (not transparent cells). Avoids the depth/blend ghosting + flicker
+            # of alpha-masked surface faces.
+            from groundtruther.gt.roughness_dem import valid_faces
+            vcolors = self._colors.reshape(-1, 4).copy()
+            vcolors[:, 3] = 1.0          # opaque; holes handled by face culling
+            self._surface = gl.GLMeshItem(
+                vertexes=np.column_stack([wx, wy, wz]),
+                faces=valid_faces(self._mask), vertexColors=vcolors,
+                smooth=False, drawEdges=False, shader=None, glOptions="opaque")
+            self.addItem(self._surface)
+        elif self._colors is not None:
+            # Photo-textured but no mask: drop the normal-colour shader so the
+            # photo shows faithfully.
             self._surface = gl.GLSurfacePlotItem(
                 x=x, y=y, z=(Z - z0) * ve, colors=self._colors,
                 shader=None, smooth=True)
+            self._surface.translate(-x0, -y0, 0)
+            self.addItem(self._surface)
         else:
             self._surface = gl.GLSurfacePlotItem(
                 x=x, y=y, z=(Z - z0) * ve, shader="normalColor", smooth=True)
-        self._surface.translate(-x0, -y0, 0)
-        self.addItem(self._surface)
+            self._surface.translate(-x0, -y0, 0)
+            self.addItem(self._surface)
 
         # floor grid under the surface
         grid = gl.GLGridItem()
@@ -154,10 +200,6 @@ class Reference3DView(gl.GLViewWidget):
         self._add_label((xmin, ymin, zmin), f"Z {zmin:,.1f}", (170, 255, 190, 255))
 
         # Cache grid vertices (centred + exaggerated world coords) for picking.
-        nx, ny = len(x), len(y)
-        wx = np.repeat(x - x0, ny)
-        wy = np.tile(y - y0, nx)
-        wz = ((Z - z0) * ve).reshape(-1)
         self._world_pts = np.stack([wx, wy, wz], axis=1)
 
         if self._measure_pts:        # redraw the measurement at the new exaggeration

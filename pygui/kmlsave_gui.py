@@ -24,6 +24,8 @@ from groundtruther.pygui.Ui_kmlsave_ui import Ui_Form
 import os
 import zipfile
 import subprocess
+import tempfile
+import uuid
 
 import sys
 
@@ -152,6 +154,25 @@ class SaveKml(QWidget, Ui_Form):
         self.get_imageselection = self._add_product_button(
             "IMG", "Add sampling-shape image selection from query builder",
             self.get_imageselection_path)
+        # Seafloor-roughness products (pulled from the roughness panel on the
+        # parent dock for the current frame / last mosaic).
+        self.get_roughness = self._add_product_button(
+            "Rgh", "Add roughness metrics (current frame)",
+            self.get_roughness_details)
+        self.get_microdem = self._add_product_button(
+            "DEM", "Add a Micro-DEM 3D snapshot", self.get_microdem_image)
+        self.get_spectrum = self._add_product_button(
+            "Spec", "Add the spectral-roughness plot", self.get_spectrum_image)
+        self.get_mosaic = self._add_product_button(
+            "Mos", "Add the last UTM mosaic", self.get_mosaic_image)
+        # Classification / ARA + roughness-fusion formula cheat sheet (the report
+        # is where substrate / ARA features are surfaced).
+        try:
+            from groundtruther.pygui.cheatsheet import CheatSheetButton
+            self.horizontalLayout.addWidget(CheatSheetButton(
+                "03_classification.png", "Seabed classification — formulae"))
+        except Exception as exc:  # noqa: BLE001 — info button must never block init
+            log_exception("report builder cheat-sheet button", exc, warn=True)
         # icon = self.SelectIcon.itemText(index)
         self.iconpath = imagepath + \
             str(self.SelectIcon.itemText(1)) + str(".png")
@@ -263,6 +284,55 @@ class SaveKml(QWidget, Ui_Form):
         self._add_report_item({"type": "gallery", "header": header,
                                "paths": list(self.imageselection_paths)})
         self._append_with_header(header, self.imageselection_string)
+
+    # ------------------------------------------------------------------ #
+    # Seafloor-roughness products (from the roughness panel on the dock)  #
+    # ------------------------------------------------------------------ #
+
+    def _roughness_export_dir(self):
+        """Directory for roughness product images (KML export dir, else temp)."""
+        kmldir = (self.settings or {}).get("Export", {}).get("kmldir", "")
+        return str(kmldir) if kmldir else tempfile.gettempdir()
+
+    def get_roughness_details(self):
+        """Insert the current frame's roughness metrics as a table."""
+        html = None
+        fn = getattr(self.parent, "report_roughness_html", None)
+        if callable(fn):
+            html = fn()
+        if not html:
+            error_message("No roughness computed for the current frame.\n"
+                          "Open the Seafloor Roughness panel and click Compute.")
+            return
+        self._add_report_item({"type": "table", "header": "Roughness", "html": html})
+        self._append_with_header("Roughness", html)
+
+    def _add_roughness_image(self, export_attr, header, basename):
+        """Export a roughness product image via the dock and add it to the report."""
+        fn = getattr(self.parent, export_attr, None)
+        if not callable(fn):
+            error_message("Roughness panel is not available.")
+            return
+        path = os.path.join(self._roughness_export_dir(),
+                            f"{basename}_{uuid.uuid1().hex}.png")
+        if not fn(path):
+            error_message(
+                f"No {header} available yet.\n"
+                "Generate it in the Seafloor Roughness panel first.")
+            return
+        self._add_report_item({"type": "image", "header": header, "path": path})
+        self._append_with_header(
+            header, f'<img src="{path}" alt="{header}" height="300"><br>')
+
+    def get_microdem_image(self):
+        self._add_roughness_image("export_micro_dem_png", "Micro-DEM 3D", "microdem")
+
+    def get_spectrum_image(self):
+        self._add_roughness_image(
+            "export_spectrum_png", "Spectral Roughness", "spectrum")
+
+    def get_mosaic_image(self):
+        self._add_roughness_image("export_mosaic_png", "UTM Mosaic", "mosaic")
 
     def font_size(self):
         self.description.setFontPointSize(float(self.fontsize.value()))

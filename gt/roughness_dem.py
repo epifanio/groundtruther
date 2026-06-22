@@ -132,20 +132,47 @@ def decode_float_grid(obj: dict):
             float(obj.get("x0_mm", 0.0)), float(obj.get("y0_mm", 0.0)))
 
 
-def mesh_from_micro_dem(obj: dict, *, fill_nan: bool = True, trim_border: int = 0):
+def _erode_mask(valid: np.ndarray, iters: int) -> np.ndarray:
+    """Erode a boolean mask by *iters* steps (4-connectivity).
+
+    A cell survives only if it and its up/down/left/right neighbours are all
+    valid, so each pass peels one ring off every no-data / outlier boundary.
+    """
+    m = valid
+    for _ in range(int(iters)):
+        e = m.copy()
+        e[:-1, :] &= m[1:, :]
+        e[1:, :] &= m[:-1, :]
+        e[:, :-1] &= m[:, 1:]
+        e[:, 1:] &= m[:, :-1]
+        m = e
+    return m
+
+
+def mesh_from_micro_dem(obj: dict, *, fill_nan: bool = True, trim_border: int = 0,
+                        clip_sigma: float | None = None, erode: int = 0):
     """Build a real-height mesh from the float micro-DEM for the 3-D viewer.
 
     ``X = x0_mm + col*dx_mm``, ``Y = y0_mm + row*dx_mm``, ``Z = height_mm``
     (Z up).  Returns ``(x, y, Z, valid)`` shaped for
     ``Reference3DView.set_surface``: ``x`` len ``cols``, ``y`` len ``rows``,
-    ``Z`` and ``valid`` of shape ``(cols, rows)``.  When *fill_nan*, no-data
-    cells are filled with the mean so the GL surface stays continuous; the
-    ``valid`` mask lets the caller hide them (e.g. via texture alpha).
+    ``Z`` and ``valid`` of shape ``(cols, rows)``.  Masked cells (no-data,
+    outliers, eroded border) are filled with the median so the GL surface stays
+    continuous and spike-free; the ``valid`` mask lets the caller hide them
+    (e.g. via texture alpha in :func:`colors_from_rgb`).
 
-    *trim_border* drops that many outer rows/columns before meshing: the stereo
-    DEM is unreliable at the very edge (disparity has no neighbours there), which
-    shows up as downward "stalactite" spikes draped with stretched texture.  Pass
-    the same value to :func:`colors_from_rgb` so the photo stays aligned.
+    Edge-spike mitigation (the stereo DEM is unreliable at the very edge and
+    around no-data holes — bad disparity there shows as "stalactite" spikes
+    draped with stretched texture):
+
+    * *trim_border* — drop that many outer rows/columns up front.
+    * *clip_sigma* — robust outlier rejection: mask cells whose height is more
+      than ``clip_sigma`` MAD-based robust sigmas from the median (kills spikes).
+    * *erode* — peel that many rings off every no-data / outlier boundary, where
+      disparity is noisiest.
+
+    Pass the same *trim_border* to :func:`colors_from_rgb`, and the returned
+    ``valid`` mask, so the texture hides exactly the masked cells.
     """
     heights, dx, x0, y0 = decode_float_grid(obj)
     t = int(trim_border)
@@ -158,10 +185,56 @@ def mesh_from_micro_dem(obj: dict, *, fill_nan: bool = True, trim_border: int = 
     y = y0 + np.arange(rows, dtype=float) * dx
     Z = heights.T.astype(float)                       # (cols, rows)
     valid = ~np.isnan(Z)
+
+    # Robust outlier rejection — MAD-based, so a few wild edge cells don't drag
+    # the threshold. sigma ≈ 1.4826·MAD (consistent with std for a normal).
+    if clip_sigma and valid.any():
+        v = Z[valid]
+        med = float(np.median(v))
+        sigma = 1.4826 * float(np.median(np.abs(v - med)))
+        if sigma <= 0:                     # near-constant data → MAD degenerates
+            sigma = float(np.std(v))
+        if sigma > 0:
+            valid &= np.abs(Z - med) <= float(clip_sigma) * sigma
+
+    # Erode the boundary ring (touching no-data / outliers) where edge disparity
+    # is unreliable.
+    if erode and not valid.all():
+        valid = _erode_mask(valid, erode)
+
     if fill_nan and not valid.all():
-        fill = float(np.nanmean(Z)) if valid.any() else 0.0
+        fill = float(np.median(Z[valid])) if valid.any() else 0.0
         Z = np.where(valid, Z, fill)
     return x, y, Z, valid
+
+
+def valid_faces(valid) -> np.ndarray:
+    """Triangle faces for a grid surface, skipping quads that touch a hole.
+
+    *valid* is the ``(nx, ny)`` boolean mask with vertex index ``i*ny + j``
+    (matching ``Reference3DView``'s grid flattening).  Returns an ``(M, 3)``
+    int32 array of vertex indices — two triangles per fully-valid quad — for a
+    ``GLMeshItem``.  No-data / masked cells become genuine holes (no faces drawn)
+    rather than transparent ones, which avoids the depth/blend "ghosting" and
+    flicker you get when rendering alpha-masked surface cells.
+    """
+    v = np.asarray(valid, dtype=bool)
+    if v.ndim != 2:
+        raise ValueError("valid mask must be 2-D")
+    nx, ny = v.shape
+    if nx < 2 or ny < 2:
+        return np.empty((0, 3), dtype=np.int32)
+    # A quad is drawable only when all four corners are valid.
+    quad = v[:-1, :-1] & v[1:, :-1] & v[:-1, 1:] & v[1:, 1:]
+    ii, jj = np.nonzero(quad)
+    v00 = ii * ny + jj
+    v10 = (ii + 1) * ny + jj
+    v01 = ii * ny + (jj + 1)
+    v11 = (ii + 1) * ny + (jj + 1)
+    faces = np.empty((2 * ii.size, 3), dtype=np.int32)
+    faces[0::2] = np.stack([v00, v10, v11], axis=1)
+    faces[1::2] = np.stack([v00, v11, v01], axis=1)
+    return faces
 
 
 def colors_from_rgb(rgb, valid=None, *, trim_border: int = 0):

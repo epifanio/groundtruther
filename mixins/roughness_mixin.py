@@ -50,6 +50,9 @@ class RoughnessMixin:
         self._roughness_task = None
         self._rough_widgets: dict = {}
         self._micro_dem_view = None
+        self._micro_dem_last_result = None   # cached for live mitigation re-mesh
+        self._last_mosaic_png_b64 = None     # last mosaic image, for the report
+        self._last_mosaic_ref = None
 
         # Georeferencing state: per-(frame,kind) raster layer ids + a temp dir
         # for the GeoTIFFs, and the per-dataset mount calibration.
@@ -65,6 +68,7 @@ class RoughnessMixin:
         # reference-surface tab uses), and the georeferencing / calibration tab.
         tabs = QTabWidget()
         tabs.addTab(self._build_roughness_panel(), "Metrics")
+        tabs.addTab(self._build_spectrum_tab(), "Spectrum")
         tabs.addTab(self._build_micro_dem_tab(), "Micro-DEM 3D")
         tabs.addTab(self._build_georef_tab(), "Georef")
 
@@ -88,6 +92,12 @@ class RoughnessMixin:
         self._roughness_action.toggled.connect(self._toggle_roughness_dock)
         self._roughness_dock.visibilityChanged.connect(
             self._on_roughness_dock_visibility)
+        # Floating / re-docking reparents the Micro-DEM 3D QOpenGLWidget into a
+        # new top-level window with a fresh GL context; re-render the surface
+        # afterwards so its GL items rebind to that context (the paintGL guard
+        # already keeps the reparent itself from hanging).
+        self._roughness_dock.topLevelChanged.connect(
+            self._on_roughness_top_level_changed)
         self.w.toolBar.addAction(self._roughness_action)
 
         QgsMessageLog.logMessage(
@@ -100,24 +110,54 @@ class RoughnessMixin:
         vbox.setContentsMargins(8, 8, 8, 8)
         vbox.setSpacing(6)
 
+        from groundtruther.pygui.cheatsheet import CheatSheetButton
+        header = QHBoxLayout()
         self._rough_frame_label = QLabel("—")
         self._rough_frame_label.setWordWrap(True)
         self._rough_frame_label.setStyleSheet("font-weight: bold;")
-        vbox.addWidget(self._rough_frame_label)
+        header.addWidget(self._rough_frame_label, 1)
+        header.addWidget(CheatSheetButton(
+            "01_seafloor_roughness.png", "Seafloor roughness — formulae"))
+        vbox.addLayout(header)
 
+        # HERO — gamma2 is the load-bearing acoustic metric (robust across
+        # matchers; separates substrate A/E; #1 feature in the fused classifier).
+        self._rough_gamma2 = QLabel("γ₂ = —")
+        self._rough_gamma2.setStyleSheet("font-size: 20pt; font-weight: bold;")
+        self._rough_gamma2.setTextInteractionFlags(
+            Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._rough_gamma2.setToolTip(
+            "Spectral exponent — the trustworthy acoustic input and the metric "
+            "this tool adds on top of backscatter.")
+        vbox.addWidget(self._rough_gamma2)
+
+        # Indicative substrate read off gamma2 + rugosity (NOT a classification).
+        self._rough_substrate = QLabel("")
+        self._rough_substrate.setWordWrap(True)
+        self._rough_substrate.setStyleSheet("color: #888;")
+        vbox.addWidget(self._rough_substrate)
+
+        # Texture: ripples-vs-bioturbation for this frame.
+        self._rough_texture = QLabel("")
+        self._rough_texture.setWordWrap(True)
+        vbox.addWidget(self._rough_texture)
+
+        # Provisional metrics, gated per-frame by w2_trustworthy (not a blanket
+        # "[provisional]" — w2 absolute is matcher-limited, trust is per-frame).
+        self._rough_w2 = QLabel("w2 = —")
+        self._rough_w2.setWordWrap(True)
+        self._rough_w2.setStyleSheet("color: #888;")
+        vbox.addWidget(self._rough_w2)
+        self._rough_rms = QLabel("rms height = —")
+        self._rough_rms.setWordWrap(True)
+        self._rough_rms.setStyleSheet("color: #888;")
+        vbox.addWidget(self._rough_rms)
+
+        # Secondary metrics (rugosity / altitude / quality / matcher).
         form = QFormLayout()
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
-        # (key, label) — labels mark which metrics are provisional.
-        rows = [
-            ("quality", "quality"),
-            ("gamma2", "gamma2 (spectral exp.)"),
-            ("w2", "w2  [provisional]"),
-            ("rms_height_mm", "rms height mm  [provisional]"),
-            ("rugosity", "rugosity"),
-            ("altitude_mm", "altitude mm"),
-            ("matcher", "matcher"),
-        ]
-        for key, label in rows:
+        for key, label in [("rugosity", "rugosity"), ("altitude_mm", "altitude"),
+                           ("quality", "quality"), ("matcher", "matcher")]:
             w = QLabel("—")
             w.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             self._rough_widgets[key] = w
@@ -206,6 +246,41 @@ class RoughnessMixin:
             ctl.addWidget(self._micro_dem_cursor, 1)
             v.addLayout(ctl)
 
+            # Edge-spike mitigation — tune live against the GL view. Re-meshes the
+            # cached DEM (no server call), so dragging is instant.
+            cfg = (getattr(self, "settings", None) or {}).get("Roughness") or {}
+            mit = QHBoxLayout()
+            mit.addWidget(QLabel("Trim"))
+            self._micro_dem_trim = QSpinBox()
+            self._micro_dem_trim.setRange(0, 10)
+            self._micro_dem_trim.setValue(int(cfg.get("dem_trim_border", 2)))
+            self._micro_dem_trim.setToolTip("Drop N outer rings of the DEM grid.")
+            self._micro_dem_trim.valueChanged.connect(self._rerender_micro_dem)
+            mit.addWidget(self._micro_dem_trim)
+            mit.addWidget(QLabel("Clip σ"))
+            self._micro_dem_clip = QDoubleSpinBox()
+            self._micro_dem_clip.setRange(0.0, 20.0)
+            self._micro_dem_clip.setSingleStep(0.5)
+            self._micro_dem_clip.setDecimals(1)
+            self._micro_dem_clip.setSpecialValueText("off")     # 0.0 → masking off
+            self._micro_dem_clip.setValue(float(cfg.get("dem_clip_sigma", 5.0)))
+            self._micro_dem_clip.setToolTip(
+                "Mask height outliers beyond N robust σ from the median (0 = off). "
+                "Lower = more aggressive spike removal.")
+            self._micro_dem_clip.valueChanged.connect(self._rerender_micro_dem)
+            mit.addWidget(self._micro_dem_clip)
+            mit.addWidget(QLabel("Erode"))
+            self._micro_dem_erode = QSpinBox()
+            self._micro_dem_erode.setRange(0, 5)
+            self._micro_dem_erode.setValue(int(cfg.get("dem_erode", 1)))
+            self._micro_dem_erode.setToolTip(
+                "Peel N rings off every no-data / outlier boundary "
+                "(higher = fewer edge spikes, less coverage).")
+            self._micro_dem_erode.valueChanged.connect(self._rerender_micro_dem)
+            mit.addWidget(self._micro_dem_erode)
+            mit.addStretch()
+            v.addLayout(mit)
+
             self._micro_dem_status = QLabel("")
             self._micro_dem_status.setWordWrap(True)
             self._micro_dem_status.setStyleSheet("color: #888;")
@@ -230,6 +305,10 @@ class RoughnessMixin:
         if view is None:
             return
         result = result or {}
+        # Remember the rendered result so the mitigation sliders can re-mesh it
+        # without another server round-trip.
+        self._micro_dem_last_result = result if (
+            result.get("micro_dem") or result.get("micro_dem_png_b64")) else None
         from groundtruther.gt import roughness_dem
 
         md = result.get("micro_dem")
@@ -263,13 +342,40 @@ class RoughnessMixin:
             view.clear_surface()
             self._micro_dem_hint.show()
 
+    def _mesh_mitigation_params(self):
+        """``(trim, clip_sigma, erode)`` from the live sliders, else config."""
+        cfg = (getattr(self, "settings", None) or {}).get("Roughness") or {}
+        trim = (self._micro_dem_trim.value()
+                if getattr(self, "_micro_dem_trim", None) is not None
+                else int(cfg.get("dem_trim_border", 2)))
+        clip = (self._micro_dem_clip.value()
+                if getattr(self, "_micro_dem_clip", None) is not None
+                else float(cfg.get("dem_clip_sigma", 5.0)))
+        erode = (self._micro_dem_erode.value()
+                 if getattr(self, "_micro_dem_erode", None) is not None
+                 else int(cfg.get("dem_erode", 1)))
+        return int(trim), float(clip), int(erode)
+
+    def _rerender_micro_dem(self, *_args) -> None:
+        """Re-mesh the cached DEM with the current mitigation settings (no call)."""
+        result = getattr(self, "_micro_dem_last_result", None)
+        if result:
+            self._update_micro_dem_3d(result)
+
     def _render_textured_mesh(self, view, result, md, roughness_dem) -> None:
-        """Real-height mesh + (optional) orthophoto texture → the GL viewer."""
+        """Real-height mesh + (optional) orthophoto texture → the GL viewer.
+
+        Edge-spike mitigation (live-tunable via the tab's Trim/Clip σ/Erode
+        controls, defaulting to config): the stereo DEM is unreliable at the
+        border and around no-data holes and renders as spikes with stretched
+        texture. Trim the outer rings, reject MAD-based height outliers, and
+        erode the noisy boundary ring; masked cells are then culled from the
+        mesh (real opaque holes, no transparent faces).
+        """
         from groundtruther.mixins.image_browser_mixin import _decode_png_b64
-        # Drop the outermost ring of cells: the stereo DEM is unreliable at the
-        # very edge and renders as downward spikes with stretched texture.
-        trim = 2
-        x, y, Z, valid = roughness_dem.mesh_from_micro_dem(md, trim_border=trim)
+        trim, clip_sigma, erode = self._mesh_mitigation_params()
+        x, y, Z, valid = roughness_dem.mesh_from_micro_dem(
+            md, trim_border=trim, clip_sigma=clip_sigma, erode=erode)
         colors = None
         ortho = result.get("orthophoto")
         ortho_png = (ortho.get("png_b64") if isinstance(ortho, dict)
@@ -280,8 +386,116 @@ class RoughnessMixin:
             # Only texture when the photo is on the same grid as the DEM.
             if rgb is not None and rgb.shape[0] == rows and rgb.shape[1] == cols:
                 colors = roughness_dem.colors_from_rgb(rgb, valid, trim_border=trim)
+        # Pass the validity mask so masked / no-data quads are culled (opaque
+        # holes) — no transparent faces, hence no camera ghosting or flicker.
         view.set_surface(x, y, Z, x_label="E (mm)", y_label="N (mm)",
-                         z_label="height (mm)", colors=colors)
+                         z_label="height (mm)", colors=colors, mask=valid)
+
+    # ------------------------------------------------------------------ #
+    # Spectral roughness plot (log-log W vs K + power-law fit)             #
+    # ------------------------------------------------------------------ #
+
+    def _build_spectrum_tab(self) -> QWidget:
+        """Build the log-log radial power-spectrum plot tab."""
+        from groundtruther.pygui.cheatsheet import CheatSheetButton
+        w = QWidget()
+        v = QVBoxLayout(w)
+        v.setContentsMargins(4, 4, 4, 4)
+        v.setSpacing(4)
+
+        head = QHBoxLayout()
+        self._spectrum_hint = QLabel(
+            "Compute roughness to see the radial power spectrum W(K) and its "
+            "power-law fit (slope −γ₂).")
+        self._spectrum_hint.setWordWrap(True)
+        self._spectrum_hint.setStyleSheet("color: #888;")
+        head.addWidget(self._spectrum_hint, 1)
+        head.addWidget(CheatSheetButton(
+            "01_seafloor_roughness.png", "Seafloor roughness — formulae"),
+            0, Qt.AlignmentFlag.AlignTop)
+        v.addLayout(head)
+
+        try:
+            import pyqtgraph as pg
+            self._spectrum_plot = pg.PlotWidget()
+            self._spectrum_plot.setLogMode(x=True, y=True)
+            self._spectrum_plot.setLabel("bottom", "K", units="rad/m")
+            self._spectrum_plot.setLabel("left", "W", units="m⁴")
+            self._spectrum_plot.showGrid(x=True, y=True, alpha=0.3)
+            # Keep a handle so each update clears old entries instead of
+            # re-adding them (avoids "item already added to this scene").
+            self._spectrum_legend = self._spectrum_plot.addLegend(offset=(-10, 10))
+            self._spectrum_plot.setMinimumHeight(260)
+            self._spectrum_plot.setSizePolicy(
+                QSizePolicy.Policy(7), QSizePolicy.Policy(7))
+            v.addWidget(self._spectrum_plot, 1)
+        except Exception as exc:  # noqa: BLE001 — pyqtgraph should be present
+            self._spectrum_plot = None
+            log_exception("roughness: spectrum plot unavailable", exc, warn=True)
+            self._spectrum_hint.setText("spectrum plot unavailable (pyqtgraph).")
+
+        self._spectrum_status = QLabel("")
+        self._spectrum_status.setWordWrap(True)
+        self._spectrum_status.setStyleSheet("color: #888;")
+        v.addWidget(self._spectrum_status)
+        return w
+
+    def _update_spectrum(self, result: dict | None) -> None:
+        """Plot the radial power spectrum + fit for *result* (or clear)."""
+        plot = getattr(self, "_spectrum_plot", None)
+        if plot is None:
+            return
+        plot.clear()
+        legend = getattr(self, "_spectrum_legend", None)
+        if legend is not None:
+            try:
+                legend.clear()       # drop old entries so they aren't re-added
+            except Exception:        # noqa: BLE001 — pyqtgraph version differences
+                pass
+        from groundtruther.gt import roughness_spectrum as rs
+        data = rs.prepare_spectrum((result or {}).get("spectrum"))
+        if data is None or data["K"].size == 0:
+            self._spectrum_hint.show()
+            self._spectrum_status.setText("")
+            return
+        self._spectrum_hint.hide()
+
+        import numpy as np
+        import pyqtgraph as pg
+        # Shade the fit band. LinearRegionItem is not a data item, so its
+        # coordinates are the plot's (log10) space when logMode is on.
+        band = data["fit_band"]
+        if band:
+            region = pg.LinearRegionItem(
+                values=[np.log10(band[0]), np.log10(band[1])],
+                movable=False, brush=(80, 160, 255, 40))
+            region.setZValue(-10)
+            plot.addItem(region)
+        # Scatter W vs K (data items get log-transformed automatically).
+        plot.plot(data["K"], data["W"], pen=None, symbol="o", symbolSize=3,
+                  symbolPen=None, symbolBrush=(170, 170, 170, 160), name="W(K)")
+        # Power-law fit line (straight line of slope −γ₂ on log-log).
+        if data["K_fit"].size:
+            plot.plot(data["K_fit"], data["W_fit"],
+                      pen=pg.mkPen((255, 90, 90), width=2), name="fit (−γ₂)")
+
+        from groundtruther.gt import roughness_interpret as ri
+        parts = []
+        if data["gamma2"] is not None:
+            parts.append(f"γ₂={data['gamma2']:.2f}")
+        w2_short, _state = ri.w2_cm4_short(result or {})
+        if w2_short:                       # cm⁴ + trust flag (✓/⚠), not raw m⁴
+            parts.append(w2_short)
+        if data["fit_r2"] is not None:
+            parts.append(f"R²={data['fit_r2']:.3f}")
+        if band:
+            parts.append(f"fit band {band[0]:.0f}–{band[1]:.0f} rad/m")
+        footer = "   ".join(parts)
+        if (result or {}).get("is_rippled"):
+            footer += ("  ·  " + ri.texture_text(result)
+                       + " — the radial (isotropic) spectrum is a simplification here")
+        footer += "  ·  data peeling off the fit at high K = stereo noise floor"
+        self._spectrum_status.setText(footer)
 
     # ------------------------------------------------------------------ #
     # Georeferencing — calibration, request geo, write GeoTIFFs           #
@@ -539,6 +753,9 @@ class RoughnessMixin:
             nd = result.get("nodata", 0)
             nodata = float(nd) if nd is not None else None
         ok = self._add_geotiff_layer(reference_key, "mosaic", data, geo, nodata=nodata)
+        if ok:                              # remember it for the report builder
+            self._last_mosaic_png_b64 = png
+            self._last_mosaic_ref = reference_key
         skipped = result.get("frames_skipped") or []
         n_sk = len(skipped) if isinstance(skipped, (list, tuple)) else int(skipped or 0)
         n = result.get("n_frames", "?")
@@ -550,6 +767,75 @@ class RoughnessMixin:
         self._mosaic_task = None
         self._reset_mosaic_button()
         self._georef_status.setText(f"mosaic error: {detail}")
+
+    # ------------------------------------------------------------------ #
+    # Report-builder export — products for the KMZ / HTML report           #
+    # ------------------------------------------------------------------ #
+
+    def report_roughness_html(self):
+        """HTML table of the current frame's roughness metrics, or ``None``.
+
+        Consumed by the report builder's "Roughness" product button.
+        """
+        frame_key = self._current_frame_key()
+        result = self._roughness_cache_get(frame_key) if frame_key else None
+        if not result:
+            return None
+        rows = [("frame", frame_key),
+                ("quality", result.get("quality")),
+                ("matcher", result.get("matcher"))]
+        if roughness_client.is_ok(result):
+            rows += [
+                ("gamma2 (spectral exp.)", _fmt(result.get("gamma2"))),
+                ("w2 [provisional]", _fmt(result.get("w2"))),
+                ("rms height mm [provisional]", _fmt(result.get("rms_height_mm"))),
+                ("rugosity", _fmt(result.get("rugosity"))),
+                ("altitude mm", _fmt(result.get("altitude_mm"))),
+            ]
+        body = "".join(
+            f"<tr><td><b>{k}</b></td><td>{'' if v is None else v}</td></tr>"
+            for k, v in rows)
+        return ('<table border="1" cellpadding="3" cellspacing="0">'
+                f"{body}</table>")
+
+    def export_micro_dem_png(self, path) -> bool:
+        """Save a snapshot of the Micro-DEM 3D view to *path*. Returns success."""
+        view = getattr(self, "_micro_dem_view", None)
+        if view is None or not view.has_surface():
+            return False
+        try:
+            return bool(view.grabFramebuffer().save(str(path)))
+        except Exception as exc:  # noqa: BLE001
+            log_exception("export micro-DEM snapshot", exc, warn=True)
+            return False
+
+    def export_spectrum_png(self, path) -> bool:
+        """Save the spectral-roughness plot to *path*. Returns success."""
+        plot = getattr(self, "_spectrum_plot", None)
+        if plot is None:
+            return False
+        hint = getattr(self, "_spectrum_hint", None)
+        if hint is not None and hint.isVisible():
+            return False                    # no spectrum plotted yet
+        try:
+            return bool(plot.grab().save(str(path)))
+        except Exception as exc:  # noqa: BLE001
+            log_exception("export spectrum plot", exc, warn=True)
+            return False
+
+    def export_mosaic_png(self, path) -> bool:
+        """Write the last-built mosaic image to *path*. Returns success."""
+        b64 = getattr(self, "_last_mosaic_png_b64", None)
+        if not b64:
+            return False
+        try:
+            import base64
+            with open(str(path), "wb") as fh:
+                fh.write(base64.b64decode(b64))
+            return True
+        except Exception as exc:  # noqa: BLE001
+            log_exception("export mosaic image", exc, warn=True)
+            return False
 
     def _apply_mosaic_preset(self, kind: str) -> None:
         """Set the mosaic controls to a named preset (Browse / Publication)."""
@@ -677,6 +963,21 @@ class RoughnessMixin:
             self._clear_georef_layers()
         except Exception:
             pass
+        # Close the pyqtgraph spectrum plot and the GL view FIRST, while their
+        # C++ scene / GL context are still alive.  pyqtgraph keeps process-wide
+        # registries (ViewBox.AllViews, GL items); closing them now deregisters
+        # them so Python GC can't later destroy a wrapper whose C++ object is
+        # already gone — the same access-violation-on-reload guard the image
+        # dock uses for its ImageView.
+        for attr in ("_spectrum_plot", "_micro_dem_view"):
+            widget = getattr(self, attr, None)
+            if widget is None:
+                continue
+            try:
+                widget.close()
+            except Exception:
+                pass
+            setattr(self, attr, None)
         dock = getattr(self, "_roughness_dock", None)
         if dock is None:
             return
@@ -712,6 +1013,20 @@ class RoughnessMixin:
         action.blockSignals(True)
         action.setChecked(visible)
         action.blockSignals(False)
+
+    def _on_roughness_top_level_changed(self, _floating: bool) -> None:
+        """Re-render the 3-D surface after a float / re-dock reparent.
+
+        The reparent gives the ``QOpenGLWidget`` a new GL context; re-rendering
+        the cached surface rebinds its GL items to it (and refreshes after any
+        transient blank during the move).  Deferred to the next event-loop turn
+        so Qt has finished the reparent, and skipped when nothing is rendered.
+        """
+        if getattr(self, "_micro_dem_last_result", None) is None:
+            return
+        from qgis.PyQt.QtCore import QTimer
+        QTimer.singleShot(
+            0, lambda: self._update_micro_dem_3d(self._micro_dem_last_result))
 
     # ------------------------------------------------------------------ #
     # Frame integration                                                    #
@@ -808,7 +1123,9 @@ class RoughnessMixin:
         # surface outputs.
         want_surface = self._rough_surface_check.isChecked() or geo is not None
         want_overlay = self._rough_overlay_check.isChecked()
-        outputs: dict = {}
+        # The spectrum is a small array payload and a core diagnostic shown
+        # alongside the metrics panel — always request it.
+        outputs: dict = {"include_spectrum": True}
         if want_surface:
             outputs["dem_format"] = "mm"
             outputs["include_orthophoto"] = True
@@ -848,6 +1165,10 @@ class RoughnessMixin:
         """True when a cached result already has the requested optional outputs."""
         if cached is None:
             return False
+        # The spectrum is always requested; a cache entry without it predates the
+        # feature, so recompute to fill the Spectrum tab.
+        if not isinstance(cached.get("spectrum"), dict):
+            return False
         if want_surface and not (
                 isinstance(cached.get("micro_dem"), dict)
                 or cached.get("micro_dem_png_b64")):
@@ -885,29 +1206,67 @@ class RoughnessMixin:
     def _clear_roughness_panel(self) -> None:
         for w in getattr(self, "_rough_widgets", {}).values():
             w.setText("—")
+            w.setStyleSheet("")
+        self._reset_metric_labels()
         self._clear_micro_dem_overlay()
         self._update_micro_dem_3d(None)
+        self._update_spectrum(None)
 
     def _show_roughness_result(self, frame_key: str, result: dict) -> None:
         """Fill the panel from a roughness payload and (maybe) overlay the DEM."""
+        from groundtruther.gt import roughness_interpret as ri
         widgets = self._rough_widgets
         widgets["quality"].setText(str(result.get("quality", "—")))
         widgets["matcher"].setText(str(result.get("matcher") or "—"))
 
         if roughness_client.is_ok(result):
             self._rough_status.setText("")
-            for key in ("gamma2", "w2", "rms_height_mm", "rugosity"):
-                widgets[key].setText(_fmt(result.get(key)))
+            gamma2 = result.get("gamma2")
+            self._rough_gamma2.setText(f"γ₂ = {_fmt(gamma2)}")
+            hint = ri.substrate_hint(gamma2, result.get("rugosity"))
+            self._rough_substrate.setText(
+                f"{hint}   (indicative)" if hint else "")
+            self._rough_texture.setText(ri.texture_text(result))
+
+            w2_text, w2_state = ri.w2_display(result)
+            self._rough_w2.setText(w2_text)
+            self._set_trust_style(self._rough_w2, w2_state)
+            rms_text, rms_state = ri.rms_display(result)
+            self._rough_rms.setText(rms_text)
+            self._set_trust_style(self._rough_rms, rms_state)
+
+            widgets["rugosity"].setText(_fmt(result.get("rugosity")))
             widgets["altitude_mm"].setText(self._altitude_text(result))
         else:
             # quality != ok → roughness fields are null; say so plainly.
             self._rough_status.setText(roughness_client.quality_message(result))
-            for key in ("gamma2", "w2", "rms_height_mm", "rugosity", "altitude_mm"):
-                widgets[key].setText("—")
+            self._reset_metric_labels()
 
-        # 3-D photo-textured surface tab + the 2-D height overlay on the image.
+        # Spectral plot + 3-D photo-textured surface + 2-D height overlay.
+        self._update_spectrum(result)
         self._update_micro_dem_3d(result)
         self._update_image_height_overlay(result)
+
+    @staticmethod
+    def _set_trust_style(label, state: str) -> None:
+        """Colour a trust-gated label: ok→green, warn→amber/red, else grey."""
+        color = {"ok": "#2e7d32", "warn": "#c0392b"}.get(state, "#888")
+        label.setStyleSheet(f"color: {color};")
+
+    def _reset_metric_labels(self) -> None:
+        """Blank the hero / trust-gated metric labels."""
+        self._rough_gamma2.setText("γ₂ = —")
+        self._rough_substrate.setText("")
+        self._rough_texture.setText("")
+        self._rough_w2.setText("w2 = —")
+        self._set_trust_style(self._rough_w2, "plain")
+        self._rough_rms.setText("rms height = —")
+        self._set_trust_style(self._rough_rms, "plain")
+        for key in ("rugosity", "altitude_mm"):
+            w = self._rough_widgets.get(key)
+            if w is not None:
+                w.setText("—")
+                w.setStyleSheet("")
 
     def _update_image_height_overlay(self, result: dict) -> None:
         """Drape the per-left-pixel height raster on the displayed image.
@@ -946,17 +1305,25 @@ class RoughnessMixin:
             self._clear_micro_dem_overlay()
 
     def _altitude_text(self, result: dict) -> str:
-        """Service altitude with a QA delta vs the metadata Altimeter if present."""
+        """Service altitude + QA delta vs the metadata Altimeter (green if close).
+
+        Side-effect: colours the altitude label green when |Δ| is within
+        tolerance (a good cross-check), else neutral.
+        """
+        from groundtruther.gt import roughness_interpret as ri
         alt = result.get("altitude_mm")
-        text = _fmt(alt)
+        text = f"{_fmt(alt)} mm" if alt is not None else "—"
         try:
             altimeter_m = float(
                 self.imageMetadata["Altimeter"].iloc[self.imageindex])
-            if alt is not None:
-                delta = float(alt) - altimeter_m * 1000.0
-                text += f"  (Δ vs Altimeter {delta:+.0f} mm)"
         except (KeyError, IndexError, TypeError, ValueError):
-            pass
+            altimeter_m = None
+        delta, in_tol = ri.altitude_delta_mm(alt, altimeter_m)
+        if delta is not None:
+            text += f"   (Δ vs Altimeter {delta:+.0f} mm)"
+        w = self._rough_widgets.get("altitude_mm")
+        if w is not None:
+            w.setStyleSheet("color: #2e7d32;" if in_tol else "")
         return text
 
 
