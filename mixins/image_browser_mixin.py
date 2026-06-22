@@ -17,11 +17,10 @@ from qgis.core import (
 )
 from qgis.gui import QgsVertexMarker
 
-from qgis.PyQt.QtCore import Qt, QSize
+from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import (
-    QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QWidget,
-    QSizePolicy, QSpacerItem, QTextEdit,
+    QLabel, QHBoxLayout, QVBoxLayout, QWidget, QFormLayout,
     QDockWidget, QMainWindow, QAction, QDoubleSpinBox, QToolBar,
 )
 
@@ -416,55 +415,46 @@ class ImageBrowserMixin:
         known.  Stores widget references in ``_meta_widgets`` keyed by column
         name; ``_update_metadata_panel`` then only sets text values.
         """
+        from groundtruther.mixins.ui_style import LABEL_CSS, VALUE_CSS
         self._meta_widgets = {}
 
-        main_layout = QVBoxLayout()
-        main_layout.setSpacing(4)
-        main_layout.setContentsMargins(4, 4, 4, 4)
+        # Same look as the roughness / video metadata panels: a QFormLayout with
+        # grey right-aligned labels and selectable value labels (bigger font).
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        form.setHorizontalSpacing(10)
+        form.setVerticalSpacing(5)
+        form.setContentsMargins(8, 8, 8, 8)
 
-        # Time row — DataFrame index is a datetime
-        time_row = QHBoxLayout()
-        time_row.addWidget(QLabel("Time"))
-        time_row.addItem(
-            QSpacerItem(20, 20, QSizePolicy.Policy(7), QSizePolicy.Policy(1)))
+        # Time row — DataFrame index is a datetime.
+        time_lbl = QLabel("Time")
+        time_lbl.setStyleSheet(LABEL_CSS)
         self._meta_time_widget = ExtendedDateTimeEdit()
-        self._meta_time_widget.setMaximumSize(QSize(250, 16777215))
-        self._meta_time_widget.setMinimumWidth(160)
-        self._meta_time_widget.setSizePolicy(
-            QSizePolicy.Policy(3), QSizePolicy.Policy(5))
         self._meta_time_widget.setReadOnly(True)
         self._meta_time_widget.setButtonSymbols(
             QtWidgets.QAbstractSpinBox.ButtonSymbols(2))
-        time_row.addWidget(self._meta_time_widget)
-        main_layout.addLayout(time_row)
+        self._meta_time_widget.setStyleSheet(VALUE_CSS)
+        self._meta_time_widget.setMaximumWidth(250)
+        form.addRow(time_lbl, self._meta_time_widget)
 
         for col in self.imageMetadata.columns:
             if col in ("usbl_lon", "usbl_lat"):
                 continue          # internal USBL position columns, not metadata
-            row = QHBoxLayout()
-            row.addWidget(QLabel(col))
-            row.addItem(
-                QSpacerItem(20, 20, QSizePolicy.Policy(7), QSizePolicy.Policy(1)))
+            lbl = QLabel(col)
+            lbl.setStyleSheet(LABEL_CSS)
+            w = QLabel("—")
+            w.setWordWrap(True)
+            w.setStyleSheet(VALUE_CSS)
             if col == "Imagename":
-                w = QLabel()
                 w.setOpenExternalLinks(True)
-            elif col == "Annotation":
-                w = QTextEdit()
-                w.setReadOnly(True)
-                w.setFixedHeight(80)
             else:
-                w = QLineEdit()
-                w.setReadOnly(True)
-            w.setMaximumWidth(250)
-            w.setMinimumWidth(160)
-            w.setSizePolicy(QSizePolicy.Policy(3), QSizePolicy.Policy(5))
-            row.addWidget(w)
-            main_layout.addLayout(row)
+                w.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.TextSelectableByMouse)
             self._meta_widgets[col] = w
+            form.addRow(lbl, w)
 
-        main_layout.addStretch()
         container = QWidget()
-        container.setLayout(main_layout)
+        container.setLayout(form)
         self.imagemetadata_gui.metadata_scroll_area.setWidgetResizable(True)
         self.imagemetadata_gui.metadata_scroll_area.setWidget(container)
 
@@ -493,10 +483,10 @@ class ImageBrowserMixin:
             elif col == "Annotation":
                 if isinstance(val, dict) and "Species" in val:
                     counts = self.count_string_occurrences(val["Species"])
-                    w.setPlainText(
+                    w.setText(
                         "\n".join(f"{s}: {c}" for s, c in counts.items()))
                 else:
-                    w.setPlainText("")
+                    w.setText("")
             else:
                 w.setText(str(val))
 

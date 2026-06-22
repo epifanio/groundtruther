@@ -20,7 +20,7 @@ from collections import OrderedDict
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QAction, QCheckBox, QComboBox, QDockWidget, QDoubleSpinBox, QFormLayout,
-    QGroupBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSlider, QSpinBox,
+    QFrame, QGroupBox, QHBoxLayout, QLabel, QPushButton, QSizePolicy, QSpinBox,
     QTabWidget, QVBoxLayout, QWidget,
 )
 from qgis.core import (
@@ -32,6 +32,12 @@ from groundtruther.gt import roughness_client
 from groundtruther.gt import task_runner
 
 _CACHE_MAX = 64
+
+# Shared panel palette / styles (also used by the image-metadata panel).
+from groundtruther.mixins.ui_style import (  # noqa: E402
+    C_OK as _C_OK, C_WARN as _C_WARN, C_MUTED as _C_MUTED,
+    VALUE_CSS as _VALUE_CSS, LABEL_CSS as _LABEL_CSS,
+)
 
 
 class RoughnessMixin:
@@ -111,19 +117,21 @@ class RoughnessMixin:
         vbox.setSpacing(6)
 
         from groundtruther.pygui.cheatsheet import CheatSheetButton
+        # Header: frame id + formula cheat-sheet.
         header = QHBoxLayout()
         self._rough_frame_label = QLabel("—")
         self._rough_frame_label.setWordWrap(True)
-        self._rough_frame_label.setStyleSheet("font-weight: bold;")
+        self._rough_frame_label.setStyleSheet("font-weight: bold; font-size: 12px;")
         header.addWidget(self._rough_frame_label, 1)
         header.addWidget(CheatSheetButton(
-            "01_seafloor_roughness.png", "Seafloor roughness — formulae"))
+            "01_seafloor_roughness.png", "Seafloor roughness — formulae"),
+            0, Qt.AlignmentFlag.AlignTop)
         vbox.addLayout(header)
 
         # HERO — gamma2 is the load-bearing acoustic metric (robust across
         # matchers; separates substrate A/E; #1 feature in the fused classifier).
         self._rough_gamma2 = QLabel("γ₂ = —")
-        self._rough_gamma2.setStyleSheet("font-size: 20pt; font-weight: bold;")
+        self._rough_gamma2.setStyleSheet("font-size: 26pt; font-weight: bold;")
         self._rough_gamma2.setTextInteractionFlags(
             Qt.TextInteractionFlag.TextSelectableByMouse)
         self._rough_gamma2.setToolTip(
@@ -131,42 +139,52 @@ class RoughnessMixin:
             "this tool adds on top of backscatter.")
         vbox.addWidget(self._rough_gamma2)
 
-        # Indicative substrate read off gamma2 + rugosity (NOT a classification).
+        # Indicative substrate read (grey italic) + texture line.
         self._rough_substrate = QLabel("")
         self._rough_substrate.setWordWrap(True)
-        self._rough_substrate.setStyleSheet("color: #888;")
+        self._rough_substrate.setStyleSheet(
+            f"color: {_C_MUTED}; font-size: 13px; font-style: italic;")
         vbox.addWidget(self._rough_substrate)
-
-        # Texture: ripples-vs-bioturbation for this frame.
         self._rough_texture = QLabel("")
         self._rough_texture.setWordWrap(True)
+        self._rough_texture.setStyleSheet("font-size: 13px;")
         vbox.addWidget(self._rough_texture)
 
-        # Provisional metrics, gated per-frame by w2_trustworthy (not a blanket
-        # "[provisional]" — w2 absolute is matcher-limited, trust is per-frame).
+        # Trust-gated metrics (w2 / rms) — prominent, colour-coded per frame
+        # (w2 absolute is matcher-limited; trust is per-frame, not a blanket flag).
         self._rough_w2 = QLabel("w2 = —")
         self._rough_w2.setWordWrap(True)
-        self._rough_w2.setStyleSheet("color: #888;")
+        self._set_trust_style(self._rough_w2, "plain")
         vbox.addWidget(self._rough_w2)
         self._rough_rms = QLabel("rms height = —")
         self._rough_rms.setWordWrap(True)
-        self._rough_rms.setStyleSheet("color: #888;")
+        self._set_trust_style(self._rough_rms, "plain")
         vbox.addWidget(self._rough_rms)
 
-        # Secondary metrics (rugosity / altitude / quality / matcher).
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setStyleSheet(f"color: {_C_MUTED};")
+        vbox.addWidget(sep)
+
+        # Secondary metrics — video-panel style: grey right-aligned labels.
         form = QFormLayout()
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        form.setHorizontalSpacing(10)
+        form.setVerticalSpacing(5)
         for key, label in [("rugosity", "rugosity"), ("altitude_mm", "altitude"),
                            ("quality", "quality"), ("matcher", "matcher")]:
+            lab = QLabel(label)
+            lab.setStyleSheet(_LABEL_CSS)
             w = QLabel("—")
+            w.setStyleSheet(_VALUE_CSS)
             w.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
             self._rough_widgets[key] = w
-            form.addRow(QLabel(label), w)
+            form.addRow(lab, w)
         vbox.addLayout(form)
 
         self._rough_status = QLabel("")
         self._rough_status.setWordWrap(True)
-        self._rough_status.setStyleSheet("color: #888;")
+        self._rough_status.setStyleSheet(f"color: {_C_MUTED}; font-size: 12px;")
         vbox.addWidget(self._rough_status)
 
         # Controls — request only the optional outputs you want rendered.
@@ -235,13 +253,16 @@ class RoughnessMixin:
             self._micro_dem_clear.clicked.connect(view.clear_measurement)
             ctl.addWidget(self._micro_dem_clear)
             ctl.addWidget(QLabel("VE"))
-            self._micro_dem_ve = QSlider(Qt.Orientation.Horizontal)
+            self._micro_dem_ve = QSpinBox()
             self._micro_dem_ve.setRange(1, 30)
             self._micro_dem_ve.setValue(1)
-            self._micro_dem_ve.setToolTip("Vertical exaggeration of the 3-D surface.")
+            self._micro_dem_ve.setSuffix("×")
+            self._micro_dem_ve.setToolTip(
+                "Vertical exaggeration of the 3-D surface "
+                "(scroll, arrows, or type).")
             self._micro_dem_ve.valueChanged.connect(
                 lambda val: view.set_vertical_exaggeration(float(val)))
-            ctl.addWidget(self._micro_dem_ve, 1)
+            ctl.addWidget(self._micro_dem_ve)
             self._micro_dem_cursor = QLabel("")     # live x / y / height under pointer
             ctl.addWidget(self._micro_dem_cursor, 1)
             v.addLayout(ctl)
@@ -1206,7 +1227,7 @@ class RoughnessMixin:
     def _clear_roughness_panel(self) -> None:
         for w in getattr(self, "_rough_widgets", {}).values():
             w.setText("—")
-            w.setStyleSheet("")
+            w.setStyleSheet(_VALUE_CSS)
         self._reset_metric_labels()
         self._clear_micro_dem_overlay()
         self._update_micro_dem_3d(None)
@@ -1249,9 +1270,12 @@ class RoughnessMixin:
 
     @staticmethod
     def _set_trust_style(label, state: str) -> None:
-        """Colour a trust-gated label: ok→green, warn→amber/red, else grey."""
-        color = {"ok": "#2e7d32", "warn": "#c0392b"}.get(state, "#888")
-        label.setStyleSheet(f"color: {color};")
+        """Colour a trust-gated label (green/red); neutral inherits the theme."""
+        css = "font-size: 14px;"
+        color = {"ok": _C_OK, "warn": _C_WARN}.get(state)
+        if color:
+            css += f" color: {color};"
+        label.setStyleSheet(css)
 
     def _reset_metric_labels(self) -> None:
         """Blank the hero / trust-gated metric labels."""
@@ -1266,7 +1290,7 @@ class RoughnessMixin:
             w = self._rough_widgets.get(key)
             if w is not None:
                 w.setText("—")
-                w.setStyleSheet("")
+                w.setStyleSheet(_VALUE_CSS)
 
     def _update_image_height_overlay(self, result: dict) -> None:
         """Drape the per-left-pixel height raster on the displayed image.
@@ -1323,7 +1347,7 @@ class RoughnessMixin:
             text += f"   (Δ vs Altimeter {delta:+.0f} mm)"
         w = self._rough_widgets.get("altitude_mm")
         if w is not None:
-            w.setStyleSheet("color: #2e7d32;" if in_tol else "")
+            w.setStyleSheet(_VALUE_CSS + (f" color: {_C_OK};" if in_tol else ""))
         return text
 
 
