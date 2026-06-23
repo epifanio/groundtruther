@@ -146,6 +146,11 @@ class SettingsMixin:
         """
         dialog = ConfigDialog()
         dialog.settings_saved.connect(self._apply_settings)
+        # Re-evaluate cloud-service availability after settings change (so adding
+        # the FastGIS endpoint + key re-enables GRASS / roughness without a
+        # restart). Runs after _apply_settings, which reloads self.settings.
+        if hasattr(self, "_apply_cloud_availability"):
+            dialog.settings_saved.connect(self._apply_cloud_availability)
         dialog.settings_saved.connect(self._apply_video_settings)
         # Let the query builder pick up changed data sources (soundings,
         # reference-surface GeoTIFF, …) without a plugin restart.

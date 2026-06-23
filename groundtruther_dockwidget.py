@@ -269,6 +269,9 @@ class GroundTrutherDockWidget(
         self._init_layout()                  # LayoutMixin — restore saved positions + reset action
         self._init_session()                 # SessionMixin — load session file + project-save hook
 
+        # Hide the cloud-dependent services when FastGIS isn't configured.
+        self._apply_cloud_availability()
+
         self.w.show()
 
     # ------------------------------------------------------------------ #
@@ -281,6 +284,54 @@ class GroundTrutherDockWidget(
             self.w.gisTools_logger.hide()
         else:
             self.w.gisTools.show()
+
+    # ------------------------------------------------------------------ #
+    # Cloud-service availability (FastGIS)                                 #
+    # ------------------------------------------------------------------ #
+
+    def _cloud_service_configured(self) -> bool:
+        """True when the FastGIS cloud service is configured.
+
+        Either the GRASS API endpoint + key (``Processing.*``) are both set, or
+        a roughness ``direct_url`` (the on-host GPU service) is given — in which
+        case no cloud key is needed.
+        """
+        s = self.settings or {}
+        proc = s.get("Processing", {}) or {}
+        endpoint = str(proc.get("grass_api_endpoint") or "").strip()
+        key = str(proc.get("grass_api_key") or "").strip()
+        direct = str((s.get("Roughness") or {}).get("direct_url") or "").strip()
+        return bool((endpoint and key) or direct)
+
+    def _apply_cloud_availability(self) -> None:
+        """Show/hide the cloud-dependent services based on configuration.
+
+        When FastGIS isn't configured, the GRASS tools, GRASS environment
+        settings, and the Seafloor Roughness panel are hidden + disabled (and any
+        open dock is hidden). Re-run on ``settings_saved`` so entering the key in
+        Settings (the wizard) re-enables them without a restart. The wizard /
+        main Settings dialog itself always stays available — that's where the
+        endpoint + key are entered.
+        """
+        ok = self._cloud_service_configured()
+        actions = [
+            getattr(self, "_roughness_action", None),
+            getattr(self.w, "actionGisTools", None),
+            getattr(self.w, "actiongrass_settings", None),
+        ]
+        for action in actions:
+            if action is not None:
+                action.setVisible(ok)
+                action.setEnabled(ok)
+        if not ok:
+            for dock in (getattr(self, "_roughness_dock", None),
+                         getattr(self.w, "gisTools", None),
+                         getattr(self.w, "gisTools_logger", None)):
+                if dock is not None:
+                    dock.hide()
+        QgsMessageLog.logMessage(
+            f"cloud services {'enabled' if ok else 'hidden (FastGIS not configured)'}",
+            'GroundTruther', Qgis.Info)
 
     # ------------------------------------------------------------------ #
     # Teardown                                                             #
