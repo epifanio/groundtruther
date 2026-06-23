@@ -133,9 +133,9 @@ class VideoBrowserMixin:
     def _wire_video_toolbar_action(self) -> None:
         """Add a 'Video Player' toggle to the plugin toolbar if one exists."""
         try:
-            from groundtruther.mixins.toolbar_icons import make_toggle_icon
+            from groundtruther.mixins.toolbar_icons import apply_icon
             action = QAction(self)
-            action.setIcon(make_toggle_icon("forward.svg"))
+            apply_icon(action, "video.svg")
             action.setCheckable(True)
             action.setToolTip("Show / hide the Video Player")
             action.triggered.connect(self._toggle_video_dock)

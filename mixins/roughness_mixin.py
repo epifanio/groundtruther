@@ -38,6 +38,7 @@ from groundtruther.mixins.ui_style import (  # noqa: E402
     C_OK as _C_OK, C_WARN as _C_WARN, C_MUTED as _C_MUTED,
     VALUE_CSS as _VALUE_CSS, LABEL_CSS as _LABEL_CSS,
 )
+from groundtruther.mixins.toolbar_icons import iconize as _iconize  # noqa: E402
 
 
 class RoughnessMixin:
@@ -86,10 +87,10 @@ class RoughnessMixin:
         _iface.addDockWidget(Qt.DockWidgetArea(2), self._roughness_dock)  # right
         self._roughness_dock.hide()
 
-        from groundtruther.mixins.toolbar_icons import make_toggle_icon
+        from groundtruther.mixins.toolbar_icons import apply_icon
         self._roughness_action = QAction(self)
         try:
-            self._roughness_action.setIcon(make_toggle_icon("cubes.svg"))
+            apply_icon(self._roughness_action, "cubes.svg")
         except Exception:
             self._roughness_action.setText("Roughness")
         self._roughness_action.setCheckable(True)
@@ -204,6 +205,7 @@ class RoughnessMixin:
         self._rough_compute_btn = QPushButton("Compute roughness")
         self._rough_compute_btn.clicked.connect(
             self.compute_roughness_for_current_frame)
+        _iconize(self._rough_compute_btn, "arrows-rotate.svg")
         btn_row.addWidget(self._rough_compute_btn)
         self._rough_auto_check = QCheckBox("Auto")
         self._rough_auto_check.setToolTip(
@@ -247,10 +249,12 @@ class RoughnessMixin:
                 "Toggle measure mode, then click two points on the surface "
                 "(3-D / horizontal / vertical distance).")
             self._micro_dem_measure.toggled.connect(view.set_measure_mode)
+            _iconize(self._micro_dem_measure, "ruler-combined.svg")
             ctl.addWidget(self._micro_dem_measure)
             self._micro_dem_clear = QPushButton("Clear")
             self._micro_dem_clear.setToolTip("Clear the current measurement.")
             self._micro_dem_clear.clicked.connect(view.clear_measurement)
+            _iconize(self._micro_dem_clear, "eraser.svg")
             ctl.addWidget(self._micro_dem_clear)
             ctl.addWidget(QLabel("VE"))
             self._micro_dem_ve = QSpinBox()
@@ -682,20 +686,25 @@ class RoughnessMixin:
 
         preset_row = QHBoxLayout()
         browse_btn = QPushButton("Browse preset")
-        browse_btn.setToolTip("3 mm, anti-aliased — fast overview.")
+        browse_btn.setToolTip("Browse preset — 3 mm, anti-aliased, fast overview.")
         browse_btn.clicked.connect(lambda: self._apply_mosaic_preset("browse"))
+        _iconize(browse_btn, "image.svg")
         preset_row.addWidget(browse_btn)
         pub_btn = QPushButton("Publication preset")
-        pub_btn.setToolTip("ortho, 0.8 mm, lanczos, 8192 px, RGBA — near-native export.")
+        pub_btn.setToolTip(
+            "Publication preset — ortho, 0.8 mm, lanczos, 8192 px, RGBA, "
+            "near-native export.")
         pub_btn.clicked.connect(lambda: self._apply_mosaic_preset("publication"))
+        _iconize(pub_btn, "maximize.svg")
         preset_row.addWidget(pub_btn)
         mform.addRow(preset_row)
 
         self._mosaic_btn = QPushButton("Build mosaic")
         self._mosaic_btn.setToolTip(
-            "Composite the contiguous frames around the current one into a "
-            "georeferenced UTM mosaic (EPSG above) and add it to QGIS.")
+            "Build mosaic — composite the contiguous frames around the current "
+            "one into a georeferenced UTM mosaic (EPSG above) and add it to QGIS.")
         self._mosaic_btn.clicked.connect(self.build_mosaic_for_current_frame)
+        _iconize(self._mosaic_btn, "map-location-dot.svg")
         mform.addRow(self._mosaic_btn)
         v.addWidget(mbox)
 
@@ -708,11 +717,14 @@ class RoughnessMixin:
 
         btn_row = QHBoxLayout()
         save_btn = QPushButton("Save calibration")
-        save_btn.setToolTip("Persist these values for this dataset.")
+        save_btn.setToolTip("Save calibration — persist these values for this dataset.")
         save_btn.clicked.connect(self._save_georef_calibration)
+        _iconize(save_btn, "floppy-disk.svg")
         btn_row.addWidget(save_btn)
         clear_btn = QPushButton("Clear georef layers")
+        clear_btn.setToolTip("Clear georef layers added to QGIS by this panel.")
         clear_btn.clicked.connect(self._clear_georef_layers)
+        _iconize(clear_btn, "circle-xmark.svg")
         btn_row.addWidget(clear_btn)
         v.addLayout(btn_row)
 
@@ -758,7 +770,6 @@ class RoughnessMixin:
         direct = cfg["direct_url"]
         mosaic_direct = (direct.rsplit("/", 1)[0] + "/mosaic") if direct else None
         self._mosaic_btn.setEnabled(False)
-        self._mosaic_btn.setText("building…")
         self._georef_status.setText(
             f"building mosaic (±{int(self._mosaic_window.value())}) around {ref}…")
         if getattr(self, "_mosaic_warn", None) is not None:
@@ -784,8 +795,7 @@ class RoughnessMixin:
     def _reset_mosaic_button(self) -> None:
         btn = getattr(self, "_mosaic_btn", None)
         if btn is not None:
-            btn.setEnabled(True)
-            btn.setText("Build mosaic")
+            btn.setEnabled(True)   # icon-only; label lives in the tooltip
 
     def _on_mosaic_success(self, reference_key: str, result: dict) -> None:
         self._mosaic_task = None
@@ -1283,8 +1293,8 @@ class RoughnessMixin:
     def _set_roughness_busy(self, busy: bool) -> None:
         btn = getattr(self, "_rough_compute_btn", None)
         if btn is not None:
-            btn.setEnabled(not busy)
-            btn.setText("computing…" if busy else "Compute roughness")
+            btn.setEnabled(not busy)   # icon-only; status is shown in the panel
+            btn.setToolTip("computing…" if busy else "Compute roughness")
 
     # ------------------------------------------------------------------ #
     # Display                                                              #

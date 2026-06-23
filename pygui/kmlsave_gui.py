@@ -199,6 +199,55 @@ class SaveKml(QWidget, Ui_Form):
         self.report_items = []
 
         self.editor_save.clicked.connect(self.SavetoPDF)
+        self._harmonize_icons()
+
+    def _harmonize_icons(self):
+        """Swap the Designer raster icons for on-theme tinted SVGs (icon-only).
+
+        Covers the rich-text editor toolbar, the report action buttons, and the
+        2D/3D/selected-points products.  The compact text products (SU / Σ / H /
+        IMG / Rgh / DEM / Spec / Mos) and the colour-swatch pickers are left as
+        they are — their short labels / live colour carry meaning an icon can't.
+        """
+        from groundtruther.mixins.toolbar_icons import iconize
+        mapping = {
+            # rich-text editor
+            "editor_bold": "bold.svg", "editor_italic": "italic.svg",
+            "editor_underline": "underline.svg",
+            "editor_align_left": "align-left.svg",
+            "editor_align_center": "align-center.svg",
+            "editor_align_right": "align-right.svg",
+            "editor_align_justify": "align-justify.svg",
+            "editor_undo": "arrow-rotate-left.svg",
+            "editor_redo": "arrow-rotate-right.svg",
+            "editor_copy": "copy.svg", "editor_cut": "cut.svg",
+            "editor_paste": "paste.svg", "editor_select_all": "select-all.svg",
+            # report actions
+            "save": "floppy-disk.svg", "update": "arrows-rotate.svg",
+            "opendir": "folder-open.svg", "clean": "eraser.svg",
+            "addimage": "file-image.svg", "addlink": "link.svg",
+            "editor_save": "file-export.svg",
+            # graph products defined in the .ui
+            "get_2dgraph": "chart-line.svg", "get_3dgraph": "cubes.svg",
+            "get_selected_points": "map-location-dot.svg",
+        }
+        tips = {
+            "editor_bold": "Bold", "editor_italic": "Italic",
+            "editor_underline": "Underline", "editor_align_left": "Align left",
+            "editor_align_center": "Align center", "editor_align_right": "Align right",
+            "editor_align_justify": "Justify", "editor_undo": "Undo",
+            "editor_redo": "Redo", "editor_copy": "Copy", "editor_cut": "Cut",
+            "editor_paste": "Paste", "editor_select_all": "Select all",
+            "save": "Save report (KMZ)", "update": "Update report preview",
+            "opendir": "Open output directory", "clean": "Clear the editor",
+            "addimage": "Add image", "addlink": "Add link",
+            "editor_save": "Save to PDF", "get_2dgraph": "Add 2-D graph",
+            "get_3dgraph": "Add 3-D graph", "get_selected_points": "Add selected points",
+        }
+        for name, svg in mapping.items():
+            btn = getattr(self, name, None)
+            if btn is not None:
+                iconize(btn, svg, tips.get(name))
 
     def _add_report_item(self, item):
         """Record a product for the styled HTML report (skips empty ones)."""

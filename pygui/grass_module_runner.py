@@ -54,6 +54,11 @@ class ModuleRunnerWidget(QWidget):
         self.cancel = QPushButton("Cancel")
         self.cancel.setEnabled(False)
         self.exit = QPushButton("Close")
+        from groundtruther.mixins.toolbar_icons import iconize
+        iconize(self.reload_layers, "arrows-rotate.svg", "Reload layers")
+        iconize(self.run, "play.svg", "Run module")
+        iconize(self.cancel, "circle-xmark.svg", "Cancel")
+        iconize(self.exit, "power-off.svg", "Close")
         row.addWidget(self.reload_layers)
         row.addWidget(self.run)
         row.addWidget(self.cancel)

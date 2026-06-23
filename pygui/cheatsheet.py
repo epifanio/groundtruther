@@ -54,9 +54,9 @@ class CheatSheetButton(QToolButton):
         self._png = os.path.join(CHEATS_DIR, png)
         self._title = title
         self._dlg = None
-        self.setText("ⓘ")
+        from groundtruther.mixins.toolbar_icons import iconize
+        iconize(self, "circle-info.svg", f"Formulae & symbols — {title}")
         self.setAutoRaise(True)
-        self.setToolTip(f"Formulae & symbols — {title}")
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.clicked.connect(self._show)
 

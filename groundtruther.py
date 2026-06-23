@@ -302,6 +302,7 @@ class GroundTruther:
 
     def initGui(self):
         """Create the menu entries and toolbar icons inside the QGIS GUI."""
+        from groundtruther.mixins.toolbar_icons import apply_icon
 
         icon_path = ':/icons/qtui/icons/epi.gif'
         self.add_action(
@@ -321,13 +322,14 @@ class GroundTruther:
         #     maptool_callback=self.print_coords)
         
 
-        image_query_icon_path = ':/icons/qtui/icons/target.png'
-        image_query_icon = QIcon(image_query_icon_path)
-        image_query_action = QAction(image_query_icon, self.tr(u'Image Browser'), self.iface.mainWindow())
+        image_query_action = QAction(self.tr(u'Image Browser'), self.iface.mainWindow())
+        image_query_action.setToolTip(self.tr(
+            u'Image Browser — click the map to seek the nearest HabCam image'))
         #
         image_query_action.triggered.connect(self.image_query)
         image_query_action.setEnabled(True)
         image_query_action.setCheckable(True)
+        apply_icon(image_query_action, "target.svg")
         #
         self.image_query_tool = QueryTool(self.iface.mapCanvas())# QueryTool(self.iface.mapCanvas())
         self.image_query_tool.setAction(image_query_action)
@@ -341,13 +343,12 @@ class GroundTruther:
         self.actions.append(image_query_action)
 
         
-        grass_query_icon_path = ':/icons/qtui/icons/gui-query.gif'
-        grass_query_icon = QIcon(grass_query_icon_path)
-        grass_query_action = QAction(grass_query_icon, self.tr(u'GRASS Query'), self.iface.mainWindow())
+        grass_query_action = QAction(self.tr(u'GRASS Query'), self.iface.mainWindow())
         #
         grass_query_action.triggered.connect(self.grass_query)
         grass_query_action.setEnabled(True)
         grass_query_action.setCheckable(True)
+        apply_icon(grass_query_action, "query.svg")
         #
         self.grass_query_tool = GRQueryTool(self.iface.mapCanvas())# QueryTool(self.iface.mapCanvas())
         self.grass_query_tool.setAction(grass_query_action)
@@ -362,13 +363,12 @@ class GroundTruther:
         self.actions.append(grass_query_action)
         
         
-        grass_cpr_icon_path = ':/icons/qtui/icons/mActionSelectRectangle.svg'
-        grass_cpr_icon = QIcon(grass_cpr_icon_path)
-        grass_cpr_action = QAction(grass_cpr_icon, self.tr(u'GRASS Computational Region'), self.iface.mainWindow())
+        grass_cpr_action = QAction(self.tr(u'GRASS Computational Region'), self.iface.mainWindow())
         #
         grass_cpr_action.triggered.connect(self.grass_cpr)
         grass_cpr_action.setEnabled(True)
         grass_cpr_action.setCheckable(True)
+        apply_icon(grass_cpr_action, "mActionSelectRectangle.svg")
         #
         self.grass_cpr_tool = GCRTool(self.iface.mapCanvas())# QueryTool(self.iface.mapCanvas())
         self.grass_cpr_tool.setAction(grass_cpr_action)

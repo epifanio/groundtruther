@@ -201,9 +201,9 @@ class LayoutMixin:
             mw.splitDockWidget(self, dock, Qt.Orientation.Vertical)
 
     def _add_layout_menu_action(self) -> None:
-        from groundtruther.mixins.toolbar_icons import make_icon
+        from groundtruther.mixins.toolbar_icons import apply_icon
         action = QAction(self)
-        action.setIcon(make_icon("arrows-rotate.svg"))
+        apply_icon(action, "arrows-rotate.svg")
         action.setToolTip("Restore default layout")
         action.triggered.connect(self._reset_default_layout)
         self.w.toolBar.addSeparator()

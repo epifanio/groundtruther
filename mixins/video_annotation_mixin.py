@@ -101,12 +101,15 @@ class VideoAnnotationMixin:
         """Add annotation actions to the video player's embedded toolbar."""
         toolbar = self._video_player.player_toolbar
 
+        from groundtruther.mixins.toolbar_icons import iconize
+
         self._video_ann_action = QAction("Annotate", self)
         self._video_ann_action.setCheckable(True)
         self._video_ann_action.setToolTip(
             "Show / hide the video annotation editor panel")
         self._video_ann_action.toggled.connect(
             self._toggle_video_annotation_editor)
+        iconize(self._video_ann_action, "table.svg")
         toolbar.addAction(self._video_ann_action)
 
         toolbar.addSeparator()
@@ -117,6 +120,7 @@ class VideoAnnotationMixin:
             "Click and drag on the video frame to draw a new bounding box")
         self._video_ann_draw_action.toggled.connect(
             self._toggle_video_draw_mode)
+        iconize(self._video_ann_draw_action, "mActionSelectRectangle.svg")
         self._video_ann_draw_action.setVisible(False)
         toolbar.addAction(self._video_ann_draw_action)
 

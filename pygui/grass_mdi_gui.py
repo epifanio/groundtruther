@@ -116,16 +116,17 @@ class GrassTools(QMainWindow):
         self.module_search.installEventFilter(self)
         self.module_search.returnPressed.connect(self.open_typed_module)
         self.moduleToolBar.addWidget(self.module_search)
+        from groundtruther.mixins.toolbar_icons import iconize
         self.open_module_btn = QToolButton()
         self.open_module_btn.setText("Open")
         self.open_module_btn.setToolTip("Build & open a dialog for this GRASS module")
         self.open_module_btn.clicked.connect(self.open_typed_module)
+        iconize(self.open_module_btn, "screwdriver-wrench.svg")
         self.moduleToolBar.addWidget(self.open_module_btn)
 
         self.grass_layers_view = QToolButton()
-        grass_layers_view_icon = QIcon(":/icons/qtui/icons/table-list.svg")
         self.grass_layers_view.setToolTip("Show/Hide GRASS Layers")
-        self.grass_layers_view.setIcon(grass_layers_view_icon)
+        iconize(self.grass_layers_view, "table-list.svg")
         self.moduleToolBar.addWidget(self.grass_layers_view)
         self.grass_layers_view.clicked.connect(self.toggle_grass_layers_table)
 
@@ -134,12 +135,14 @@ class GrassTools(QMainWindow):
         self.import_raster_btn.setText("Import Raster")
         self.import_raster_btn.setToolTip("Import a raster file into the active GRASS environment")
         self.import_raster_btn.clicked.connect(lambda: self.import_to_env("raster"))
+        iconize(self.import_raster_btn, "file-image.svg")
         self.moduleToolBar.addWidget(self.import_raster_btn)
 
         self.import_vector_btn = QToolButton()
         self.import_vector_btn.setText("Import Vector")
         self.import_vector_btn.setToolTip("Import a vector file into the active GRASS environment")
         self.import_vector_btn.clicked.connect(lambda: self.import_to_env("vector"))
+        iconize(self.import_vector_btn, "map-location-dot.svg")
         self.moduleToolBar.addWidget(self.import_vector_btn)
 
         # Add the checked GRASS raster(s) from the table into the QGIS project
@@ -147,6 +150,7 @@ class GrassTools(QMainWindow):
         self.add_to_qgis_btn.setText("Add to QGIS")
         self.add_to_qgis_btn.setToolTip("Add the checked GRASS raster(s) to the QGIS project")
         self.add_to_qgis_btn.clicked.connect(self.add_selected_to_qgis)
+        iconize(self.add_to_qgis_btn, "arrow-up-right-dots.svg")
         self.moduleToolBar.addWidget(self.add_to_qgis_btn)
 
         # Show/hide the active env's current computational region on the map
@@ -154,6 +158,7 @@ class GrassTools(QMainWindow):
         self.show_region_btn.setText("Region")
         self.show_region_btn.setCheckable(True)
         self.show_region_btn.setToolTip("Show/hide the active GRASS computational region on the map")
+        iconize(self.show_region_btn, "mActionSelectRectangle.svg")
         self.show_region_btn.clicked.connect(self.parent.toggle_grass_region)
         self.moduleToolBar.addWidget(self.show_region_btn)
 
