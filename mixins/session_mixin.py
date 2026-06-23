@@ -36,9 +36,9 @@ class SessionMixin:
         (a configured session file then takes precedence).
         """
         try:
-            from groundtruther.mixins.toolbar_icons import make_icon
+            from groundtruther.mixins.toolbar_icons import apply_icon
             action = QAction(self)
-            action.setIcon(make_icon("floppy-disk.svg"))
+            apply_icon(action, "floppy-disk.svg")
             action.setToolTip("Save GroundTruther session")
             action.triggered.connect(lambda: self.save_session())
             self.w.toolBar.addAction(action)

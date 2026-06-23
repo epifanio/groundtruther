@@ -6,11 +6,58 @@ UI feedback.
 """
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 from scipy import spatial
+
+
+# --- on-disk image-file resolution -----------------------------------------
+# The metadata stores a bare frame name (e.g. "201503.20150619.181140656.204627").
+# Different deliveries of the same survey store the pixels under different
+# suffix/extension combinations — the mono set as "<name>.jpg", the stereo set as
+# "<name>_orig.png", etc.  Resolve by probing the common variants so one metadata
+# file drives every delivery.
+_IMAGE_VARIANTS = ("", "_orig")
+_IMAGE_EXTS = (".jpg", ".jpeg", ".png", ".tif", ".tiff")
+_PREFERRED_VARIANT: tuple | None = None   # (suffix, ext) that last matched
+
+
+def resolve_image_path(dirname, imagename) -> str | None:
+    """Return the on-disk path of *imagename* within *dirname*, or ``None``.
+
+    Probes common ``<name><suffix><ext>`` combinations (e.g. ``<name>.jpg`` and
+    ``<name>_orig.png``) so the same metadata works across mono / stereo
+    deliveries.  Remembers the matching pattern so subsequent lookups are a
+    single ``stat``.
+    """
+    global _PREFERRED_VARIANT
+    if not dirname or imagename is None or str(imagename) == "":
+        return None
+    base = os.path.join(str(dirname), str(imagename))
+    combos = []
+    if _PREFERRED_VARIANT is not None:
+        combos.append(_PREFERRED_VARIANT)
+    combos.extend((s, e) for s in _IMAGE_VARIANTS for e in _IMAGE_EXTS
+                  if (s, e) != _PREFERRED_VARIANT)
+    for suffix, ext in combos:
+        path = base + suffix + ext
+        if os.path.isfile(path):
+            _PREFERRED_VARIANT = (suffix, ext)
+            return path
+    return None
+
+
+def image_path_or_default(dirname, imagename, default_ext: str = ".jpg") -> str:
+    """:func:`resolve_image_path`, falling back to ``<name><default_ext>`` when
+    nothing is on disk — so callers always have a stable path to display/report.
+    """
+    found = resolve_image_path(dirname, imagename)
+    if found:
+        return found
+    return os.path.join(str(dirname), str(imagename) + default_ext)
 
 
 def load_metadata(parquet_path: str | Path) -> pd.DataFrame:

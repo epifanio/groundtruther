@@ -269,6 +269,9 @@ class QueryBuilder(QWidget, Ui_Form):
         # self.clean_graph.clicked.connect(self.refresh_settings)
         self.reload_settings.clicked.connect(self.refresh_settings)
         self.add_graph.clicked.connect(self.grab_tab)
+        from groundtruther.mixins.toolbar_icons import iconize as _iconize
+        _iconize(self.reload_settings, "arrows-rotate.svg", "Reload settings")
+        _iconize(self.add_graph, "image.svg", "Add graph (snapshot current tab)")
         # self.tabWidget.setEnabled(False)
         # get the settings
         # add the soundings as an entry to qb_pointdatasource
@@ -282,6 +285,7 @@ class QueryBuilder(QWidget, Ui_Form):
         self.set_backscatter_field.currentIndexChanged.connect(self.get_backscatter_field)
         self.draw_graph.clicked.connect(self.get_shape_geom)
         self.draw_graph.clicked.connect(self.plot_hist)
+        _iconize(self.draw_graph, "chart-line.svg", "Draw graph")
 
         self.graphicsView = pg.PlotWidget(self.tab_2)
         self.graphicsView.setObjectName("graphicsView")
@@ -343,9 +347,12 @@ class QueryBuilder(QWidget, Ui_Form):
         self.ref3d_measure.setToolTip(
             "Toggle measure mode, then click two points on the surface")
         self.ref3d_measure.toggled.connect(self.glw_ref.set_measure_mode)
+        _iconize(self.ref3d_measure, "ruler-combined.svg")
         ref3d_ctrl.addWidget(self.ref3d_measure)
         self.ref3d_clear = QPushButton("Clear")
+        self.ref3d_clear.setToolTip("Clear the current measurement.")
         self.ref3d_clear.clicked.connect(self.glw_ref.clear_measurement)
+        _iconize(self.ref3d_clear, "eraser.svg")
         ref3d_ctrl.addWidget(self.ref3d_clear)
         # Vertical exaggeration slider (1× … 20×)
         ref3d_ctrl.addWidget(QLabel("VE"))
@@ -382,6 +389,7 @@ class QueryBuilder(QWidget, Ui_Form):
         self.plothist_opt = QHBoxLayout()
         self.plot_button = QPushButton('Refresh')
         self.plot_button.clicked.connect(self.plot_hist)
+        _iconize(self.plot_button, "arrows-rotate.svg", "Refresh histogram")
         self.plotnine_window = Window()
         self.plotting_widget = QWidget()
         self.plot_layout = QVBoxLayout()
@@ -431,9 +439,10 @@ class QueryBuilder(QWidget, Ui_Form):
         # cross hair
 
     def add_image_link(self):
+        from groundtruther.gt import image_manager as img_mgr
         image__path_selected = ''
         for i in self.image_selection_pd['Imagename']:
-            image_path = os.path.join(self.dirname, i+".jpg")
+            image_path = img_mgr.image_path_or_default(self.dirname, i)
             image__path_selected += f'<img src="{image_path}" alt="Smiley face" height="300"><br>'
                 # link = self.textlink()
         self.image_selection.setHtml(image__path_selected)
@@ -1202,10 +1211,11 @@ class QueryBuilder(QWidget, Ui_Form):
 
     def _selected_image_paths(self):
         """Absolute paths of the sampling-shape images that exist on disk."""
+        from groundtruther.gt import image_manager as img_mgr
         paths = []
         for name in self.image_selection_pd['Imagename']:
-            image_path = os.path.join(self.dirname, name + ".jpg")
-            if os.path.exists(image_path):
+            image_path = img_mgr.resolve_image_path(self.dirname, name)
+            if image_path:
                 paths.append(image_path)
         return paths
 

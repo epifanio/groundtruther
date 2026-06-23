@@ -42,7 +42,14 @@ class GrassIntegrationMixin:
         self.w.actiongrass_settings.triggered.connect(self.show_grass_dialog)
 
     def show_grass_dialog(self):
-        self.grass_dialog.exec()
+        act = getattr(self.w, "actiongrass_settings", None)
+        if act is not None and act.isCheckable():
+            act.setChecked(True)            # highlight the toolbar button while open
+        try:
+            self.grass_dialog.exec()
+        finally:
+            if act is not None and act.isCheckable():
+                act.setChecked(False)
         QgsMessageLog.logMessage(
             f"GRASS dialog closed, grassenabled={self.grass_dialog.grassenabled}",
             'GroundTruther', Qgis.Info)
@@ -59,13 +66,18 @@ class GrassIntegrationMixin:
             return
         self._grass_ctx_added = True
 
+        from groundtruther.mixins.toolbar_icons import apply_icon
+
         self.action_import_raster = QAction(
             "Send to active GRASS environment")
+        apply_icon(self.action_import_raster, "grass_location.svg")
         self.action_import_raster.triggered.connect(
             self.import_active_raster_layer_to_grass)
 
         self.action_set_computational_region_from_raster = QAction(
             "Set GRASS Server Computational Region to layer extent")
+        apply_icon(self.action_set_computational_region_from_raster,
+                   "mActionSelectRectangle.svg")
         self.action_set_computational_region_from_raster.triggered.connect(
             self.set_grass_region_from_raster)
 
@@ -78,11 +90,14 @@ class GrassIntegrationMixin:
 
         self.action_import_vector = QAction(
             "Send to active GRASS environment")
+        apply_icon(self.action_import_vector, "grass_location.svg")
         self.action_import_vector.triggered.connect(
             self.import_active_vector_layer_to_grass)
 
         self.action_set_computational_region_from_vector = QAction(
             "Set GRASS Server Computational Region to layer extent")
+        apply_icon(self.action_set_computational_region_from_vector,
+                   "mActionSelectRectangle.svg")
         self.action_set_computational_region_from_vector.triggered.connect(
             self.set_grass_region_from_vector)
 

@@ -156,7 +156,14 @@ class SettingsMixin:
         # reference-surface GeoTIFF, …) without a plugin restart.
         if getattr(self, "querybuilder", None) is not None:
             dialog.settings_saved.connect(self.querybuilder.refresh_settings)
-        dialog.exec()
+        act = getattr(self.w, "actionWizard", None)
+        if act is not None and act.isCheckable():
+            act.setChecked(True)            # highlight the toolbar button while open
+        try:
+            dialog.exec()
+        finally:
+            if act is not None and act.isCheckable():
+                act.setChecked(False)
 
     def _open_config_dialog(self):
         """Open the config dialog without connecting to ``_apply_settings``.

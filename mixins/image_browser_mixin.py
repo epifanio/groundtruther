@@ -478,7 +478,7 @@ class ImageBrowserMixin:
             except KeyError:
                 continue
             if col == "Imagename":
-                link = os.path.join(self.dirname, str(val) + ".jpg")
+                link = img_mgr.image_path_or_default(self.dirname, str(val))
                 w.setText(f'<a href="file://{link}">{val}</a>')
             elif col == "Annotation":
                 if isinstance(val, dict) and "Species" in val:
@@ -500,9 +500,9 @@ class ImageBrowserMixin:
         if self.imageMetadata is None:
             return
 
-        img_path = os.path.join(
+        img_path = img_mgr.image_path_or_default(
             self.dirname,
-            self.imageMetadata["Imagename"].iloc[self.imageindex] + ".jpg",
+            self.imageMetadata["Imagename"].iloc[self.imageindex],
         )
         self.imv.imageItem.axisOrder = "row-major"
         if self.w.actionImageBrowser.isChecked():
@@ -510,24 +510,43 @@ class ImageBrowserMixin:
 
         # A new frame invalidates any micro-DEM overlay from the previous one.
         self._clear_micro_dem_overlay()
-        disp = _split_stereo(_cached_imread(img_path), self._stereo_display_mode)
-        self._displayed_shape = getattr(disp, "shape", None)
-        self.imv.setImage(disp)
+        # The image referenced by the metadata may not be on disk (partial
+        # dataset, unmounted drive, corrupt file). Decode defensively: on failure
+        # warn in the status bar and carry on so the metadata panel + map marker
+        # still update for the frame — only the picture is skipped.
+        disp = None
+        try:
+            raw = _cached_imread(img_path)
+            # Reveal the Full/Left/Right toggle only when this frame is actually a
+            # side-by-side stereo pair; hide it for ordinary single-camera frames.
+            self._set_stereo_controls_visible(_is_stereo_pair(raw))
+            disp = _split_stereo(raw, self._stereo_display_mode)
+        except Exception as exc:  # noqa: BLE001 — a bad/missing frame must not crash browsing
+            self._warn_image_missing(img_path, exc)
 
-        # Annotation editor dock takes priority if open
-        ann_editor_open = (
-            hasattr(self, 'annotation_editor_dock')
-            and self.annotation_editor_dock.isVisible()
-        )
-        if ann_editor_open:
-            annotation = self.imageMetadata["Annotation"].iloc[self.imageindex]
-            imagename = self.imageMetadata["Imagename"].iloc[self.imageindex]
-            self.annotation_editor.load_image(
-                self.imageindex, imagename,
-                annotation, self.imageannotationfile)
-        elif self.w.actionAnnotation.isChecked():
-            self.add_image_annotation()
+        self._displayed_shape = getattr(disp, "shape", None)
+        self._displayed_arr = disp
+        if disp is not None:
+            self.imv.setImage(disp)
+            self._apply_auto_stretch()
+
+            # Annotation editor dock takes priority if open
+            ann_editor_open = (
+                hasattr(self, 'annotation_editor_dock')
+                and self.annotation_editor_dock.isVisible()
+            )
+            if ann_editor_open:
+                annotation = self.imageMetadata["Annotation"].iloc[self.imageindex]
+                imagename = self.imageMetadata["Imagename"].iloc[self.imageindex]
+                self.annotation_editor.load_image(
+                    self.imageindex, imagename,
+                    annotation, self.imageannotationfile)
+            elif self.w.actionAnnotation.isChecked():
+                self.add_image_annotation()
+            else:
+                self.clear_image_annotation()
         else:
+            # No image to draw annotations on.
             self.clear_image_annotation()
 
         record = self.imageMetadata.iloc[self.imageindex]
@@ -555,11 +574,26 @@ class ImageBrowserMixin:
                 f"record length {len(record)} for image index {self.imageindex}",
                 'GroundTruther', Qgis.Warning)
 
+    def _warn_image_missing(self, img_path: str, exc: Exception) -> None:
+        """An image referenced by the metadata can't be read — warn, don't crash.
+
+        Shows a transient hint in the QGIS status bar and logs the detail; the
+        metadata panel and map marker still update so browsing continues.
+        """
+        name = os.path.basename(img_path)
+        if hasattr(self, 'w'):
+            self.w.statusbar.showMessage(
+                f"Image not on disk: {name} — showing metadata only.", 8000)
+        QgsMessageLog.logMessage(
+            f"add_image: image not readable, skipping display "
+            f"[{img_path}] ({type(exc).__name__}: {exc})",
+            'GroundTruther', Qgis.Warning)
+
     def on_send(self):
         """Emit image path and metadata string to connected widgets."""
-        image_path = os.path.join(
+        image_path = img_mgr.image_path_or_default(
             self.dirname,
-            self.imageMetadata["Imagename"].iloc[self.imageindex] + ".jpg")
+            self.imageMetadata["Imagename"].iloc[self.imageindex])
         self.send_image_path.emit(image_path)
 
         # Build a metadata HTML summary from whatever columns are available
@@ -750,9 +784,9 @@ class ImageBrowserMixin:
         self._image_dock.hide()  # all plugin docks start hidden; user opens via toolbar
 
         # Toggle action in self.w toolbar so the user can re-open the dock
-        from groundtruther.mixins.toolbar_icons import make_toggle_icon
+        from groundtruther.mixins.toolbar_icons import make_toggle_icon, apply_icon
         self._image_dock_action = QAction(self)
-        self._image_dock_action.setIcon(make_toggle_icon("file-image.svg"))
+        apply_icon(self._image_dock_action, "file-image.svg")
         self._image_dock_action.setCheckable(True)
         self._image_dock_action.setChecked(False)
         self._image_dock_action.setToolTip("Show / hide the Image Browser")
@@ -767,7 +801,7 @@ class ImageBrowserMixin:
         # Builder) with or without the big image view open.
         self._image_nav_action = QAction(self)
         try:
-            self._image_nav_action.setIcon(make_toggle_icon("forward.svg"))
+            apply_icon(self._image_nav_action, "forward.svg")
         except Exception:
             self._image_nav_action.setText("Idx")
         self._image_nav_action.setCheckable(True)
@@ -784,6 +818,9 @@ class ImageBrowserMixin:
 
         # Move actionAnnotation from self.w toolbar into the image browser toolbar
         self.w.toolBar.removeAction(self.w.actionAnnotation)
+        apply_icon(self.w.actionAnnotation, "pen-to-square.svg")
+        if not self.w.actionAnnotation.toolTip():
+            self.w.actionAnnotation.setToolTip("Annotation overlay")
         self._image_toolbar.addAction(self.w.actionAnnotation)
         # Replace the old showAnnotationThreshold connection with one that
         # shows/hides the confidence row inside this dock
@@ -809,6 +846,7 @@ class ImageBrowserMixin:
             Qt.DockWidgetArea.LeftDockWidgetArea, self._image_metadata_dock)
 
         self._meta_panel_action = QAction("Metadata", self._image_inner_window)
+        apply_icon(self._meta_panel_action, "table-list.svg")
         self._meta_panel_action.setCheckable(True)
         self._meta_panel_action.setToolTip("Show / hide the image metadata panel")
         self._meta_panel_action.toggled.connect(self._image_metadata_dock.setVisible)
@@ -817,11 +855,23 @@ class ImageBrowserMixin:
         self._image_toolbar.addSeparator()
         self._image_toolbar.addAction(self._meta_panel_action)
 
-        # Stereo display toggle: Full | Left | Right (exclusive). Hidden until a
-        # stereo pair is shown would be ideal, but a static group is simpler and
-        # harmless for single frames (split is a no-op there).
+        # Auto-stretch: percentile (2–98%) contrast stretch applied to each frame
+        # via pyqtgraph's display levels.  Off = the histogram's data min/max.
+        self._auto_stretch_action = QAction(self._image_inner_window)
+        self._auto_stretch_action.setCheckable(True)
+        self._auto_stretch_action.setToolTip(
+            "Auto-stretch contrast (2–98 % per frame)")
+        apply_icon(self._auto_stretch_action, "contrast.svg")
+        self._auto_stretch_action.toggled.connect(
+            lambda _checked: self._apply_auto_stretch())
+        self._image_toolbar.addAction(self._auto_stretch_action)
+
+        # Stereo display toggle: Full | Left | Right (exclusive) — picks which
+        # part of a HabCam side-by-side stereo frame to show.  Only meaningful for
+        # stereo pairs, so the whole group is hidden and revealed per-frame by
+        # ``_set_stereo_controls_visible`` (no effect / clutter on single frames).
         from qgis.PyQt.QtWidgets import QActionGroup
-        self._image_toolbar.addSeparator()
+        self._stereo_separator = self._image_toolbar.addSeparator()
         self._stereo_group = QActionGroup(self._image_inner_window)
         self._stereo_group.setExclusive(True)
         self._stereo_actions = {}
@@ -834,6 +884,7 @@ class ImageBrowserMixin:
             self._stereo_group.addAction(act)
             self._image_toolbar.addAction(act)
             self._stereo_actions[mode] = act
+        self._set_stereo_controls_visible(False)   # shown only for stereo frames
 
         QgsMessageLog.logMessage(
             "Image browser dock created", "GroundTruther", Qgis.Info)
@@ -845,6 +896,56 @@ class ImageBrowserMixin:
         self._stereo_display_mode = mode
         if self.imageMetadata is not None:
             self.add_image()
+
+    def _set_stereo_controls_visible(self, visible: bool) -> None:
+        """Show the Full/Left/Right toggle only for side-by-side stereo frames."""
+        sep = getattr(self, "_stereo_separator", None)
+        if sep is not None:
+            sep.setVisible(visible)
+        for act in getattr(self, "_stereo_actions", {}).values():
+            act.setVisible(visible)
+
+    @staticmethod
+    def _percentile_levels(arr, low: float = 2.0, high: float = 98.0):
+        """(low, high) display levels from the *low*/*high* percentiles of *arr*.
+
+        Operates on the colour channels jointly; subsamples big frames so the
+        stretch stays snappy while browsing.  Returns ``(None, None)`` if empty.
+        """
+        a = np.asarray(arr)
+        if a.ndim >= 3:
+            a = a[..., :3]
+        flat = a.reshape(-1)
+        if flat.size == 0:
+            return None, None
+        step = max(1, flat.size // 100_000)     # ~100k-sample estimate is plenty
+        flat = flat[::step]
+        lo, hi = np.percentile(flat, (low, high))
+        return float(lo), float(hi)
+
+    def _apply_auto_stretch(self) -> None:
+        """Apply / clear the percentile contrast stretch on the current frame."""
+        act = getattr(self, "_auto_stretch_action", None)
+        arr = getattr(self, "_displayed_arr", None)
+        if act is None or arr is None:
+            return
+        if not act.isChecked():
+            try:
+                self.imv.autoLevels()       # back to data min/max
+            except Exception as exc:        # noqa: BLE001 — display tweak only
+                log_exception("auto-stretch: autoLevels failed", exc, warn=True)
+            return
+        lo, hi = self._percentile_levels(arr)
+        if lo is None or hi <= lo:
+            return
+        try:
+            self.imv.setLevels(lo, hi)
+        except Exception:
+            try:                            # API differences across pyqtgraph
+                self.imv.getImageItem().setLevels([lo, hi])
+                self.imv.ui.histogram.setLevels(lo, hi)
+            except Exception as exc:        # noqa: BLE001
+                log_exception("auto-stretch: setLevels failed", exc, warn=True)
 
     def _on_image_conf_changed(self, value: float) -> None:
         """Update the threshold and immediately redraw the annotation overlay."""

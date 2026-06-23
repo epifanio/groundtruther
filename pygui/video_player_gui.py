@@ -264,21 +264,32 @@ class VideoPlayerWidget(QWidget):
         # --- Playback controls ---
         controls = QHBoxLayout()
 
+        from groundtruther.mixins.toolbar_icons import iconize, make_icon
+
         self._btn_prev = QToolButton()
-        self._btn_prev.setText("◀◀")
         self._btn_prev.setToolTip("Step back one frame")
         self._btn_prev.clicked.connect(self.step_backward)
+        iconize(self._btn_prev, "backward.svg")
         controls.addWidget(self._btn_prev)
 
+        # Play button manages its own icon (play <-> pause swap on toggle), so it
+        # is driven by a retint hook rather than the registry's auto re-tint.
         self._btn_play = QPushButton("▶  Play")
         self._btn_play.setCheckable(True)
         self._btn_play.toggled.connect(self._on_play_toggled)
+        self._btn_play.setText("")
+        self._btn_play.setToolTip("Play / pause")
+        self._icon_play = make_icon("play.svg")
+        self._icon_pause = make_icon("pause.svg")
+        self._btn_play.setIcon(self._icon_play)
+        from groundtruther.mixins.toolbar_icons import add_retint_hook
+        add_retint_hook(self._retint_transport_icons)
         controls.addWidget(self._btn_play)
 
         self._btn_next = QToolButton()
-        self._btn_next.setText("▶▶")
         self._btn_next.setToolTip("Step forward one frame")
         self._btn_next.clicked.connect(self.step_forward)
+        iconize(self._btn_next, "forward.svg")
         controls.addWidget(self._btn_next)
 
         controls.addStretch()
@@ -659,7 +670,7 @@ class VideoPlayerWidget(QWidget):
         self._playing = False
         self._btn_play.blockSignals(True)
         self._btn_play.setChecked(False)
-        self._btn_play.setText("▶  Play")
+        self._btn_play.setIcon(self._icon_play)
         self._btn_play.blockSignals(False)
 
     # ------------------------------------------------------------------ #
@@ -671,10 +682,17 @@ class VideoPlayerWidget(QWidget):
         speed = self._speed_spinbox.value() if hasattr(self, "_speed_spinbox") else 1.0
         return max(self._MIN_INTERVAL_MS, int(1000 / (self._fps * speed)))
 
+    def _retint_transport_icons(self) -> None:
+        """Rebuild the cached play/pause icons at the current theme + reapply."""
+        from groundtruther.mixins.toolbar_icons import make_icon
+        self._icon_play = make_icon("play.svg")
+        self._icon_pause = make_icon("pause.svg")
+        self._btn_play.setIcon(self._icon_pause if self._playing else self._icon_play)
+
     def _on_play_toggled(self, checked: bool) -> None:
         if checked:
             self._playing = True
-            self._btn_play.setText("⏸  Pause")
+            self._btn_play.setIcon(self._icon_pause)
             self._timer.start(self._timer_interval())
             self.playback_started.emit()
         else:

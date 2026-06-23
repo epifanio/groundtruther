@@ -72,3 +72,36 @@ def test_filter_annotations_by_confidence():
 def test_filter_annotations_handles_missing():
     assert im.filter_annotations_by_confidence(None, 0.5) == []
     assert im.filter_annotations_by_confidence(np.nan, 0.5) == []
+
+
+# --- image-file resolution (mono .jpg vs stereo _orig.png) ------------------
+
+def test_resolve_image_path_mono_jpg(tmp_path):
+    (tmp_path / "frame1.jpg").write_bytes(b"x")
+    assert im.resolve_image_path(tmp_path, "frame1") == str(tmp_path / "frame1.jpg")
+
+
+def test_resolve_image_path_stereo_orig_png(tmp_path):
+    (tmp_path / "frame2_orig.png").write_bytes(b"x")
+    assert im.resolve_image_path(tmp_path, "frame2") == str(tmp_path / "frame2_orig.png")
+
+
+def test_resolve_image_path_missing_returns_none(tmp_path):
+    assert im.resolve_image_path(tmp_path, "nope") is None
+    assert im.resolve_image_path("", "frame") is None
+    assert im.resolve_image_path(tmp_path, None) is None
+
+
+def test_resolve_image_path_preferred_does_not_break_other_pattern(tmp_path):
+    # Resolving a stereo frame must not stop a later mono frame from resolving.
+    (tmp_path / "a_orig.png").write_bytes(b"x")
+    (tmp_path / "b.jpg").write_bytes(b"x")
+    assert im.resolve_image_path(tmp_path, "a").endswith("a_orig.png")
+    assert im.resolve_image_path(tmp_path, "b").endswith("b.jpg")
+
+
+def test_image_path_or_default_falls_back(tmp_path):
+    (tmp_path / "real_orig.png").write_bytes(b"x")
+    assert im.image_path_or_default(tmp_path, "real").endswith("real_orig.png")
+    # missing -> stable <name>.jpg path (for display / not-found warnings)
+    assert im.image_path_or_default(tmp_path, "ghost") == str(tmp_path / "ghost.jpg")

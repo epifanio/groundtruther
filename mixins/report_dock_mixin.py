@@ -21,8 +21,8 @@ def _make_toggle_action(title: str, tooltip: str, toggle_slot, visibility_slot,
     action = QAction(parent)
     if icon_svg:
         try:
-            from groundtruther.mixins.toolbar_icons import make_toggle_icon
-            action.setIcon(make_toggle_icon(icon_svg))
+            from groundtruther.mixins.toolbar_icons import apply_icon
+            apply_icon(action, icon_svg)
         except Exception:
             action.setText(title)
     else:

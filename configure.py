@@ -189,6 +189,21 @@ class ConfigDialog(QDialog, AppSettings):
             "(image index, zoom, query selection, dock layout)")
         self.select_vrt_path.clicked.connect(self.set_session_path)
 
+        # On-theme tinted icons (icon-only): folder picker "…" buttons + the
+        # Save / Close actions.
+        from groundtruther.mixins.toolbar_icons import iconize
+        for name in ("select_image_path", "select_metadata_path",
+                     "select_imageannotation_path", "select_mbes_path",
+                     "select_kml_path", "select_video_path",
+                     "select_video_metadata_path", "select_vrt_path"):
+            btn = getattr(self, name, None)
+            if btn is not None:
+                iconize(btn, "folder-open.svg", "Browse…")
+        if getattr(self, "setOption", None) is not None:
+            iconize(self.setOption, "floppy-disk.svg", "Save settings")
+        if getattr(self, "quit", None) is not None:
+            iconize(self.quit, "circle-xmark.svg", "Close")
+
         # Populate fields from disk – silently, no validation dialogs
         self._populate_fields()
 
@@ -285,6 +300,8 @@ class ConfigDialog(QDialog, AppSettings):
             "this raster to the sampling shape instead of gridding the soundings.")
         button = QToolButton(); button.setText("...")
         button.clicked.connect(self.set_reference_surface_path)
+        from groundtruther.mixins.toolbar_icons import iconize
+        iconize(button, "folder-open.svg", "Browse…")
         row.addWidget(label)
         row.addWidget(self.reference_surface_path)
         row.addWidget(button)

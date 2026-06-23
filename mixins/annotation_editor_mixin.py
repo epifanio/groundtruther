@@ -28,10 +28,13 @@ class AnnotationEditorMixin:
         # Toolbar lives in the image browser window
         toolbar = self._image_toolbar
 
+        from groundtruther.mixins.toolbar_icons import iconize
+
         self._ann_editor_action = QtWidgets.QAction("Annotate", self._image_inner_window)
         self._ann_editor_action.setCheckable(True)
         self._ann_editor_action.setToolTip("Show/hide the annotation editor panel")
         self._ann_editor_action.toggled.connect(self._toggle_annotation_editor)
+        iconize(self._ann_editor_action, "table.svg")
         toolbar.addAction(self._ann_editor_action)
 
         toolbar.addSeparator()
@@ -41,6 +44,7 @@ class AnnotationEditorMixin:
         self._draw_ann_action.setToolTip(
             "Click and drag on the image to draw a new bounding box")
         self._draw_ann_action.toggled.connect(self._toggle_draw_mode)
+        iconize(self._draw_ann_action, "mActionSelectRectangle.svg")
         self._draw_ann_action.setVisible(False)
         toolbar.addAction(self._draw_ann_action)
 
