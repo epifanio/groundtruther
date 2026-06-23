@@ -17,11 +17,10 @@ from qgis.core import (
 )
 from qgis.gui import QgsVertexMarker
 
-from qgis.PyQt.QtCore import Qt, QSize
+from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtGui import QColor
 from qgis.PyQt.QtWidgets import (
-    QLabel, QLineEdit, QHBoxLayout, QVBoxLayout, QWidget,
-    QSizePolicy, QSpacerItem, QTextEdit,
+    QLabel, QHBoxLayout, QVBoxLayout, QWidget, QFormLayout,
     QDockWidget, QMainWindow, QAction, QDoubleSpinBox, QToolBar,
 )
 
@@ -257,6 +256,48 @@ class ImageBrowserMixin:
         index, _distance = img_mgr.nearest_image_index(self.kdt, lon, lat)
         return index
 
+    def _sampling_lonlat(self, record):
+        """Return ``(lon, lat)`` for the current frame's sampling point.
+
+        Uses the calibrated USBL seafloor fix (``Xutm + dx`` / ``Yutm + dy``)
+        transformed from the survey CRS (``Roughness.epsg``, default 32619) to
+        WGS-84, so the red cross, the roughness raster, and the substrate map all
+        coincide.  Falls back to the ``habcam_lon``/``habcam_lat`` model when the
+        USBL nav columns are missing or the transform fails.
+        """
+        # Prefer the usbl_lon/usbl_lat precomputed at load (one transform pass,
+        # and the exact positions the KDTree image lookup was built on).
+        try:
+            if "usbl_lon" in record.index:
+                return float(record["usbl_lon"]), float(record["usbl_lat"])
+        except Exception:  # noqa: BLE001 — fall through to the per-record path
+            pass
+        from groundtruther.gt import roughness_geo
+        easting, northing = roughness_geo.usbl_easting_northing(record)
+        if easting is not None and northing is not None:
+            try:
+                lonlat = self._usbl_transform().transform(
+                    QgsPointXY(easting, northing))
+                return lonlat.x(), lonlat.y()
+            except Exception as exc:  # noqa: BLE001 — degrade to the model position
+                log_exception("sampling USBL transform", exc, warn=True)
+        return float(record["habcam_lon"]), float(record["habcam_lat"])
+
+    def _usbl_transform(self):
+        """Cached survey-CRS → WGS-84 transform for the USBL sampling point."""
+        try:
+            epsg = int(((self.settings.get("Roughness") or {}).get("epsg")) or 32619)
+        except Exception:  # noqa: BLE001
+            epsg = 32619
+        xform = getattr(self, "_usbl_xform", None)
+        if xform is None or getattr(self, "_usbl_xform_epsg", None) != epsg:
+            src = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
+            dst = QgsCoordinateReferenceSystem("EPSG:4326")
+            xform = QgsCoordinateTransform(src, dst, QgsProject.instance())
+            self._usbl_xform = xform
+            self._usbl_xform_epsg = epsg
+        return xform
+
     def zoom_to(self):
         """Pan and zoom the map canvas to the current image coordinates."""
         try:
@@ -374,53 +415,46 @@ class ImageBrowserMixin:
         known.  Stores widget references in ``_meta_widgets`` keyed by column
         name; ``_update_metadata_panel`` then only sets text values.
         """
+        from groundtruther.mixins.ui_style import LABEL_CSS, VALUE_CSS
         self._meta_widgets = {}
 
-        main_layout = QVBoxLayout()
-        main_layout.setSpacing(4)
-        main_layout.setContentsMargins(4, 4, 4, 4)
+        # Same look as the roughness / video metadata panels: a QFormLayout with
+        # grey right-aligned labels and selectable value labels (bigger font).
+        form = QFormLayout()
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        form.setHorizontalSpacing(10)
+        form.setVerticalSpacing(5)
+        form.setContentsMargins(8, 8, 8, 8)
 
-        # Time row — DataFrame index is a datetime
-        time_row = QHBoxLayout()
-        time_row.addWidget(QLabel("Time"))
-        time_row.addItem(
-            QSpacerItem(20, 20, QSizePolicy.Policy(7), QSizePolicy.Policy(1)))
+        # Time row — DataFrame index is a datetime.
+        time_lbl = QLabel("Time")
+        time_lbl.setStyleSheet(LABEL_CSS)
         self._meta_time_widget = ExtendedDateTimeEdit()
-        self._meta_time_widget.setMaximumSize(QSize(250, 16777215))
-        self._meta_time_widget.setMinimumWidth(160)
-        self._meta_time_widget.setSizePolicy(
-            QSizePolicy.Policy(3), QSizePolicy.Policy(5))
         self._meta_time_widget.setReadOnly(True)
         self._meta_time_widget.setButtonSymbols(
             QtWidgets.QAbstractSpinBox.ButtonSymbols(2))
-        time_row.addWidget(self._meta_time_widget)
-        main_layout.addLayout(time_row)
+        self._meta_time_widget.setStyleSheet(VALUE_CSS)
+        self._meta_time_widget.setMaximumWidth(250)
+        form.addRow(time_lbl, self._meta_time_widget)
 
         for col in self.imageMetadata.columns:
-            row = QHBoxLayout()
-            row.addWidget(QLabel(col))
-            row.addItem(
-                QSpacerItem(20, 20, QSizePolicy.Policy(7), QSizePolicy.Policy(1)))
+            if col in ("usbl_lon", "usbl_lat"):
+                continue          # internal USBL position columns, not metadata
+            lbl = QLabel(col)
+            lbl.setStyleSheet(LABEL_CSS)
+            w = QLabel("—")
+            w.setWordWrap(True)
+            w.setStyleSheet(VALUE_CSS)
             if col == "Imagename":
-                w = QLabel()
                 w.setOpenExternalLinks(True)
-            elif col == "Annotation":
-                w = QTextEdit()
-                w.setReadOnly(True)
-                w.setFixedHeight(80)
             else:
-                w = QLineEdit()
-                w.setReadOnly(True)
-            w.setMaximumWidth(250)
-            w.setMinimumWidth(160)
-            w.setSizePolicy(QSizePolicy.Policy(3), QSizePolicy.Policy(5))
-            row.addWidget(w)
-            main_layout.addLayout(row)
+                w.setTextInteractionFlags(
+                    Qt.TextInteractionFlag.TextSelectableByMouse)
             self._meta_widgets[col] = w
+            form.addRow(lbl, w)
 
-        main_layout.addStretch()
         container = QWidget()
-        container.setLayout(main_layout)
+        container.setLayout(form)
         self.imagemetadata_gui.metadata_scroll_area.setWidgetResizable(True)
         self.imagemetadata_gui.metadata_scroll_area.setWidget(container)
 
@@ -449,10 +483,10 @@ class ImageBrowserMixin:
             elif col == "Annotation":
                 if isinstance(val, dict) and "Species" in val:
                     counts = self.count_string_occurrences(val["Species"])
-                    w.setPlainText(
+                    w.setText(
                         "\n".join(f"{s}: {c}" for s, c in counts.items()))
                 else:
-                    w.setPlainText("")
+                    w.setText("")
             else:
                 w.setText(str(val))
 
@@ -501,8 +535,13 @@ class ImageBrowserMixin:
 
         if len(record) != 0:
             self._update_metadata_panel(record)
-            self.w.longitude.setText(str(round(record["habcam_lon"], 8)))
-            self.w.latitude.setText(str(round(record["habcam_lat"], 8)))
+            # Sampling-point position: the calibrated USBL fix (Xutm+dx, Yutm+dy)
+            # so the red cross coincides with the roughness raster and the
+            # substrate map; fall back to the habcam_lon/lat model if the USBL
+            # nav columns are absent.
+            lon, lat = self._sampling_lonlat(record)
+            self.w.longitude.setText(str(round(lon, 8)))
+            self.w.latitude.setText(str(round(lat, 8)))
             total = len(self.imageMetadata)
             self._image_counter_label.setText(f"{self.imageindex} / {total - 1}")
             if self.w.zoomto.isChecked():
@@ -619,11 +658,14 @@ class ImageBrowserMixin:
 
         Design notes
         ------------
-        * self.w.imageBrowsing (navigation controls) intentionally stays in
-          self.w.  Moving a Designer-generated dock between QMainWindows
-          corrupts Qt's internal dock-layout state for self.w and causes
-          access-violation crashes when mouse events route through self.w's
-          toolbar/statusbar machinery.
+        * self.w.imageBrowsing (navigation controls) is detached from self.w and
+          registered as a TOP-LEVEL QGIS dock (self._image_nav_dock) so it can be
+          docked anywhere in QGIS / floated / placed next to the Query Builder —
+          not confined to the inner image window.  Its visibility follows the
+          Image Browser dock (_on_image_dock_visibility).  Safe because self.w is
+          stripped of all its docks in init_ui, so this reparent leaves self.w's
+          QMainWindowLayout empty (the old access-violation came from walking a
+          non-empty self.w during dock moves).
         * self._image_toolbar is a plain QToolBar added to a VBox layout
           container, NOT via QMainWindow.addToolBar().  Using addToolBar()
           creates QToolBarWidgetAction wrappers that can dangle when the
@@ -677,15 +719,22 @@ class ImageBrowserMixin:
         # Clear self.w's central widget (imv has been reparented away)
         self.w.setCentralWidget(QWidget())
 
-        # Move the navigation controls dock (slider, spinbox, fwd/rwd buttons,
-        # step, zoom-to, range) from self.w into the image browser inner window.
-        # Safe now that the inner window has no addToolBar() toolbar — the old
-        # crash was caused by addToolBar()'s QToolBarWidgetAction bookkeeping,
-        # not by dock reparenting itself.
+        # Register the navigation controls (slider, spinbox, fwd/rwd, step,
+        # zoom-to, range) as a TOP-LEVEL QGIS dock rather than nesting it inside
+        # the image-browser inner window. That lets the user dock it anywhere in
+        # QGIS (or float it / re-dock it next to the Query Builder) instead of
+        # only back into the inner window. Its visibility follows the Image
+        # Browser dock (see _on_image_dock_visibility).
         self.w.removeDockWidget(self.w.imageBrowsing)
-        self._image_inner_window.addDockWidget(
-            Qt.DockWidgetArea.BottomDockWidgetArea, self.w.imageBrowsing)
-        self.w.imageBrowsing.show()
+        self._image_nav_dock = self.w.imageBrowsing
+        self._image_nav_dock.setObjectName("GroundTrutherImageNavDock")
+        self._image_nav_dock.setWindowTitle("Image Index")
+        self._image_nav_dock.setAllowedAreas(Qt.DockWidgetArea(15))       # all areas
+        self._image_nav_dock.setFeatures(
+            QDockWidget.DockWidgetFeature(7))                             # C|M|F
+        _iface.addDockWidget(
+            Qt.DockWidgetArea.BottomDockWidgetArea, self._image_nav_dock)
+        self._image_nav_dock.hide()
 
         # Outer floating dock in the main QGIS window
         self._image_dock = QDockWidget("Image Browser", _iface.mainWindow())
@@ -712,6 +761,26 @@ class ImageBrowserMixin:
         first = self.w.toolBar.actions()
         self.w.toolBar.insertAction(first[0] if first else None,
                                     self._image_dock_action)
+
+        # Independent toggle for the Image Index nav dock — fully decoupled from
+        # the Image Browser, so the slider can be used (e.g. next to the Query
+        # Builder) with or without the big image view open.
+        self._image_nav_action = QAction(self)
+        try:
+            self._image_nav_action.setIcon(make_toggle_icon("forward.svg"))
+        except Exception:
+            self._image_nav_action.setText("Idx")
+        self._image_nav_action.setCheckable(True)
+        self._image_nav_action.setChecked(False)
+        self._image_nav_action.setToolTip("Show / hide the Image Index navigator")
+        self._image_nav_action.toggled.connect(self._toggle_nav_dock)
+        self._image_nav_dock.visibilityChanged.connect(self._on_nav_dock_visibility)
+        # Place it right after the Image Browser toggle.
+        acts = self.w.toolBar.actions()
+        after = acts[acts.index(self._image_dock_action) + 1] \
+            if self._image_dock_action in acts \
+            and acts.index(self._image_dock_action) + 1 < len(acts) else None
+        self.w.toolBar.insertAction(after, self._image_nav_action)
 
         # Move actionAnnotation from self.w toolbar into the image browser toolbar
         self.w.toolBar.removeAction(self.w.actionAnnotation)
@@ -791,7 +860,18 @@ class ImageBrowserMixin:
             self.add_image_annotation()
 
     def _cleanup_image_browser_dock(self) -> None:
-        """Remove the floating image browser dock from QGIS."""
+        """Remove the floating image browser dock + nav dock from QGIS."""
+        from qgis.utils import iface as _iface
+        # Remove the independent Image Index nav dock first (don't deleteLater —
+        # it's a Designer child of self.w, torn down with it).
+        nav = getattr(self, '_image_nav_dock', None)
+        if nav is not None:
+            self._image_nav_dock = None
+            try:
+                nav.hide()
+                _iface.removeDockWidget(nav)
+            except Exception:
+                pass
         if not hasattr(self, '_image_dock') or self._image_dock is None:
             return
         dock = self._image_dock
@@ -800,7 +880,6 @@ class ImageBrowserMixin:
         try:
             dock.hide()
             dock.setWidget(None)
-            from qgis.utils import iface as _iface
             _iface.removeDockWidget(dock)
             dock.deleteLater()
         except Exception:
@@ -816,7 +895,30 @@ class ImageBrowserMixin:
         else:
             dock.hide()
 
+    def _toggle_nav_dock(self, checked: bool) -> None:
+        """Show/hide the Image Index nav dock (independent of the Image Browser)."""
+        nav = getattr(self, '_image_nav_dock', None)
+        if nav is None:
+            return
+        if checked:
+            nav.show()
+            nav.raise_()
+        else:
+            nav.hide()
+
+    def _on_nav_dock_visibility(self, visible: bool) -> None:
+        action = getattr(self, '_image_nav_action', None)
+        if action is None:
+            return
+        action.blockSignals(True)
+        action.setChecked(visible)
+        action.blockSignals(False)
+
     def _on_image_dock_visibility(self, visible: bool) -> None:
+        # NOTE: do NOT couple the Image Index nav dock here — visibilityChanged
+        # also fires when the image dock is tabbed behind another panel, which
+        # would wrongly hide the nav on focus loss. The nav follows the explicit
+        # toggle in _toggle_image_dock instead.
         action = getattr(self, '_image_dock_action', None)
         if action is None:
             return

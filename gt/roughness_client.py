@@ -103,7 +103,8 @@ def _extract_detail(response) -> str:
 
 def _build_body(frame_key, res_mm, n_water, return_dem, geo=None, *,
                 dem_format=None, dem_max_side=None, include_orthophoto=False,
-                include_left_height=False, include_left_preview=False) -> dict:
+                include_left_height=False, include_left_preview=False,
+                include_spectrum=False) -> dict:
     """Assemble the request JSON; GT sends the key plus only the knobs in use.
 
     Optional outputs are off by default — request only what will be rendered:
@@ -135,6 +136,8 @@ def _build_body(frame_key, res_mm, n_water, return_dem, geo=None, *,
         body["include_left_height"] = True
     if include_left_preview:
         body["include_left_preview"] = True
+    if include_spectrum:
+        body["include_spectrum"] = True
     if geo:
         body["geo"] = geo
     return body
@@ -150,6 +153,7 @@ def roughness_for_frame(frame_key, *, endpoint: str | None = None,
                         include_orthophoto: bool = False,
                         include_left_height: bool = False,
                         include_left_preview: bool = False,
+                        include_spectrum: bool = False,
                         timeout: int = _TIMEOUT) -> dict:
     """Compute roughness for one HabCam frame and return the parsed JSON dict.
 
@@ -189,7 +193,8 @@ def roughness_for_frame(frame_key, *, endpoint: str | None = None,
         dem_format=dem_format, dem_max_side=dem_max_side,
         include_orthophoto=include_orthophoto,
         include_left_height=include_left_height,
-        include_left_preview=include_left_preview)
+        include_left_preview=include_left_preview,
+        include_spectrum=include_spectrum)
 
     if direct_url and direct_url.strip():
         url = direct_url.strip()
@@ -264,7 +269,8 @@ def _post_json(body: dict, *, endpoint, api_key, route, direct_url, timeout,
 
 def _build_mosaic_body(reference_key, window, mode, out_gsd_m, epsg, *,
                        max_side=None, interp=None, supersample=None,
-                       alpha=False, nodata=None) -> dict:
+                       alpha=False, nodata=None, overlap_threshold=None,
+                       illumination_correct=None, gain_compensate=None) -> dict:
     """Assemble the mode-A mosaic request JSON (reference + window + controls)."""
     if not (reference_key and str(reference_key).strip()):
         raise RoughnessError("A reference_key is required")
@@ -284,14 +290,25 @@ def _build_mosaic_body(reference_key, window, mode, out_gsd_m, epsg, *,
         body["alpha"] = True
     if nodata is not None:
         body["nodata"] = float(nodata)
+    if overlap_threshold is not None:
+        body["overlap_threshold"] = float(overlap_threshold)
+    # Radiometric corrections (pixel/auto): default ON server-side, so send the
+    # bool only when set explicitly (lets the user turn them OFF).
+    if illumination_correct is not None:
+        body["illumination_correct"] = bool(illumination_correct)
+    if gain_compensate is not None:
+        body["gain_compensate"] = bool(gain_compensate)
     return body
 
 
-def mosaic_by_reference(reference_key, *, window: int = 5, mode: str = "flat",
+def mosaic_by_reference(reference_key, *, window: int = 5, mode: str = "auto",
                         out_gsd_m: float | None = None, epsg: int | None = None,
                         max_side: int | None = None, interp: str | None = None,
                         supersample: int | None = None, alpha: bool = False,
                         nodata: float | None = None,
+                        overlap_threshold: float | None = None,
+                        illumination_correct: bool | None = None,
+                        gain_compensate: bool | None = None,
                         endpoint: str | None = None, api_key: str | None = None,
                         route: str = MOSAIC_ROUTE, direct_url: str | None = None,
                         timeout: int = _TIMEOUT_MOSAIC) -> dict:
@@ -304,7 +321,17 @@ def mosaic_by_reference(reference_key, *, window: int = 5, mode: str = "flat",
     n_frames, frames_skipped, out_gsd_m, ...}``.
 
     Controls (defaults are the service's):
-      * ``mode`` — ``"flat"`` (altitude/f scale, fast) or ``"ortho"`` (relief-corrected)
+      * ``mode`` — ``"auto"`` (default; picks ``pixel``/``flat`` per window from the
+        nav-predicted overlap vs ``overlap_threshold``) · ``"flat"`` (altitude/f
+        scale, fast) · ``"ortho"`` (relief-corrected) · ``"pixel"`` (register by
+        image content). Response echoes ``mode_requested``/``mode``/``nav_overlap``
+        and, for pixel, ``register.{pixel_pairs,n_pairs}``.
+      * ``overlap_threshold`` — for ``auto``: median per-frame overlap ≥ this → pixel,
+        else flat (default 0.6)
+      * ``illumination_correct`` — flat-field the strobe vignette + equalize
+        brightness (default ON; the main brightness fix). Normalizes radiometry —
+        turn OFF for absolute-radiometry work.
+      * ``gain_compensate`` — Brown–Lowe overlap gain compensation (default ON).
       * ``out_gsd_m`` — output GSD (default 0.003 = 3 mm); lower → sharper / nearer native
       * ``max_side`` — output side cap (default 4096; raise to 8192 for big fine strips)
       * ``interp`` — ``"linear"`` (browse) / ``"area"`` (anti-aliased coarse) /
@@ -321,7 +348,10 @@ def mosaic_by_reference(reference_key, *, window: int = 5, mode: str = "flat",
     """
     body = _build_mosaic_body(reference_key, window, mode, out_gsd_m, epsg,
                               max_side=max_side, interp=interp,
-                              supersample=supersample, alpha=alpha, nodata=nodata)
+                              supersample=supersample, alpha=alpha, nodata=nodata,
+                              overlap_threshold=overlap_threshold,
+                              illumination_correct=illumination_correct,
+                              gain_compensate=gain_compensate)
     return _post_json(body, endpoint=endpoint, api_key=api_key, route=route,
                       direct_url=direct_url, timeout=timeout, what="mosaic")
 

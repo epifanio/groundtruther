@@ -199,9 +199,11 @@ class MosaicTask(QgsTask):
     succeeded = pyqtSignal(str, dict)   # (reference_key, mosaic payload)
     errored = pyqtSignal(str, str)      # (reference_key, error detail)
 
-    def __init__(self, reference_key, *, window=5, mode="flat", out_gsd_m=None,
+    def __init__(self, reference_key, *, window=5, mode="auto", out_gsd_m=None,
                  epsg=None, max_side=None, interp=None, supersample=None,
-                 alpha=False, nodata=None, endpoint=None, api_key=None,
+                 alpha=False, nodata=None, overlap_threshold=None,
+                 illumination_correct=None, gain_compensate=None,
+                 endpoint=None, api_key=None,
                  route=roughness_client.MOSAIC_ROUTE, direct_url=None,
                  description=None):
         super().__init__(description or f"Mosaic {reference_key}",
@@ -216,6 +218,9 @@ class MosaicTask(QgsTask):
         self.supersample = supersample
         self.alpha = alpha
         self.nodata = nodata
+        self.overlap_threshold = overlap_threshold
+        self.illumination_correct = illumination_correct
+        self.gain_compensate = gain_compensate
         self.endpoint = endpoint
         self.api_key = api_key
         self.route = route
@@ -230,6 +235,9 @@ class MosaicTask(QgsTask):
                 out_gsd_m=self.out_gsd_m, epsg=self.epsg, max_side=self.max_side,
                 interp=self.interp, supersample=self.supersample,
                 alpha=self.alpha, nodata=self.nodata,
+                overlap_threshold=self.overlap_threshold,
+                illumination_correct=self.illumination_correct,
+                gain_compensate=self.gain_compensate,
                 endpoint=self.endpoint, api_key=self.api_key,
                 route=self.route, direct_url=self.direct_url)
             return True
@@ -244,9 +252,11 @@ class MosaicTask(QgsTask):
             self.errored.emit(self.reference_key, self._error or "unknown error")
 
 
-def run_mosaic_task(reference_key, *, window=5, mode="flat", out_gsd_m=None,
+def run_mosaic_task(reference_key, *, window=5, mode="auto", out_gsd_m=None,
                     epsg=None, max_side=None, interp=None, supersample=None,
-                    alpha=False, nodata=None, endpoint=None, api_key=None,
+                    alpha=False, nodata=None, overlap_threshold=None,
+                    illumination_correct=None, gain_compensate=None,
+                    endpoint=None, api_key=None,
                     route=roughness_client.MOSAIC_ROUTE, direct_url=None,
                     on_success=None, on_error=None,
                     description=None) -> MosaicTask:
@@ -258,7 +268,9 @@ def run_mosaic_task(reference_key, *, window=5, mode="flat", out_gsd_m=None,
     task = MosaicTask(
         reference_key, window=window, mode=mode, out_gsd_m=out_gsd_m, epsg=epsg,
         max_side=max_side, interp=interp, supersample=supersample, alpha=alpha,
-        nodata=nodata, endpoint=endpoint, api_key=api_key, route=route,
+        nodata=nodata, overlap_threshold=overlap_threshold,
+        illumination_correct=illumination_correct, gain_compensate=gain_compensate,
+        endpoint=endpoint, api_key=api_key, route=route,
         direct_url=direct_url, description=description)
     if on_success:
         task.succeeded.connect(on_success)

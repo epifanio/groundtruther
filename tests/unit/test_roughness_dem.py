@@ -167,3 +167,72 @@ def test_colors_from_rgb_alignment_and_alpha():
     assert np.allclose(colors[0, 0, :3], [1.0, 0.0, 0.0])   # red, normalised
     assert colors[1, 1, 3] == 0.0                           # invalid -> transparent
     assert colors[0, 0, 3] == 1.0
+
+
+# --- edge-spike mitigation (clip_sigma / erode) ----------------------------
+
+def test_clip_sigma_masks_outlier_spike():
+    h = np.full((6, 6), -2050.0, dtype=np.float32)
+    h[0, 0] = 5000.0                       # a wild edge spike
+    obj = _grid_obj(h)
+    _, _, Z, valid = rd.mesh_from_micro_dem(obj, clip_sigma=5.0, erode=0)
+    # spike cell masked out and flattened to the median (no 5000 in Z)
+    assert valid[0, 0] == False            # (cols,rows): col0,row0 == h[0,0]
+    assert Z.max() < 0                      # filled with median ~ -2050, spike gone
+
+
+def test_clip_sigma_keeps_normal_relief():
+    # smooth ramp, no outliers -> nothing masked
+    h = np.tile(np.linspace(-2060, -2040, 8), (8, 1)).astype(np.float32)
+    _, _, Z, valid = rd.mesh_from_micro_dem(_grid_obj(h), clip_sigma=5.0, erode=0)
+    assert valid.all()
+
+
+def test_erode_peels_ring_around_nodata():
+    h = np.full((7, 7), -2050.0, dtype=np.float32)
+    h[3, 3] = np.nan                       # a no-data hole
+    _, _, Z, valid = rd.mesh_from_micro_dem(_grid_obj(h), erode=1)
+    # the hole AND its 4-neighbours are masked
+    assert valid[3, 3] == False
+    assert valid[2, 3] == False and valid[4, 3] == False
+    assert valid[3, 2] == False and valid[3, 4] == False
+    assert not np.isnan(Z).any()           # masked cells filled, surface continuous
+
+
+def test_mitigation_off_by_default():
+    h = np.full((5, 5), -2050.0, dtype=np.float32)
+    h[0, 0] = 9000.0
+    _, _, Z, valid = rd.mesh_from_micro_dem(_grid_obj(h))   # no clip/erode
+    assert valid.all()                     # nothing masked when params unset
+
+
+# --- face culling (opaque mesh, no transparent holes) ----------------------
+
+def test_valid_faces_full_grid():
+    v = np.ones((3, 3), bool)            # nx=3, ny=3 -> 4 quads -> 8 triangles
+    f = rd.valid_faces(v)
+    assert f.shape == (8, 3)
+    assert f.max() == 8 and f.min() == 0   # indices 0..nx*ny-1
+    assert f.dtype == np.int32
+
+
+def test_valid_faces_skips_quads_touching_hole():
+    v = np.ones((3, 3), bool)
+    v[1, 1] = False                      # centre hole touches all 4 quads
+    f = rd.valid_faces(v)
+    assert f.shape == (0, 3)             # every quad touches the hole -> no faces
+
+
+def test_valid_faces_partial():
+    v = np.ones((2, 3), bool)            # 2 quads
+    v[0, 0] = False                      # kills the first quad only
+    f = rd.valid_faces(v)
+    assert f.shape == (2, 3)            # one valid quad -> 2 triangles
+    # the surviving quad is cols 1..2: corners 1,2,4,5 (ny=3)
+    assert set(f.ravel().tolist()) <= {1, 2, 4, 5}
+
+
+def test_valid_faces_degenerate():
+    assert rd.valid_faces(np.ones((1, 5), bool)).shape == (0, 3)
+    with pytest.raises(ValueError):
+        rd.valid_faces(np.ones(5, bool))

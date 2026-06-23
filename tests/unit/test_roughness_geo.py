@@ -36,26 +36,67 @@ def test_build_geo_incomplete_returns_none(e, n, h):
     assert rg.build_geo(e, n, h) is None
 
 
+# --- USBL position ----------------------------------------------------------
+
+def test_usbl_easting_northing():
+    rec = {"Xutm": 510918.4, "Yutm": 4545982.3, "dx": 144.9, "dy": 4.5}
+    e, n = rg.usbl_easting_northing(rec)
+    assert e == pytest.approx(511063.3)        # Xutm + dx
+    assert n == pytest.approx(4545986.8)       # Yutm + dy
+
+
+def test_usbl_missing_offset_falls_back_to_base():
+    e, n = rg.usbl_easting_northing({"Xutm": 100.0, "Yutm": 200.0})  # no dx/dy
+    assert (e, n) == (100.0, 200.0)
+
+
+def test_usbl_missing_base_is_none():
+    assert rg.usbl_easting_northing({"dx": 1.0, "dy": 2.0}) == (None, None)
+
+
+def test_usbl_xy_vectorized():
+    import pandas as pd
+    df = pd.DataFrame({"Xutm": [100.0, 200.0], "Yutm": [10.0, 20.0],
+                       "dx": [1.0, 2.0], "dy": [0.5, np.nan]})
+    e, n = rg.usbl_xy(df)
+    assert e.tolist() == [101.0, 202.0]            # Xutm + dx
+    assert n.tolist() == [10.5, 20.0]              # Yutm + dy (NaN offset -> 0)
+
+
+def test_usbl_xy_missing_columns():
+    import pandas as pd
+    assert rg.usbl_xy(pd.DataFrame({"Yutm": [1.0]})) == (None, None)
+
+
 # --- geo_from_record --------------------------------------------------------
 
-def test_geo_from_record_uses_heading_then_bearing():
-    rec = {"Xutm_adj": 100.0, "Yutm_adj": 200.0, "bearing": 88.3}  # no Heading
+def test_geo_from_record_uses_usbl_fix():
+    # easting = Xutm + dx, northing = Yutm + dy (NOT Xutm_adj / sXutm)
+    rec = {"Xutm": 1000.0, "Yutm": 2000.0, "dx": 12.0, "dy": -3.0, "bearing": 88.3}
     geo = rg.geo_from_record(rec)
+    assert geo["easting"] == pytest.approx(1012.0)
+    assert geo["northing"] == pytest.approx(1997.0)
     assert geo["heading_deg"] == pytest.approx(88.3)
+    assert geo["layback_m"] == 0.0             # position already corrected
 
-    rec2 = {"Xutm_adj": 100.0, "Yutm_adj": 200.0, "Heading": 90.0, "bearing": 88.3}
-    assert rg.geo_from_record(rec2)["heading_deg"] == 90.0  # Heading wins
+
+def test_geo_from_record_uses_heading_then_bearing():
+    base = {"Xutm": 100.0, "Yutm": 200.0, "dx": 0.0, "dy": 0.0}
+    assert rg.geo_from_record({**base, "bearing": 88.3})["heading_deg"] == pytest.approx(88.3)
+    assert rg.geo_from_record(
+        {**base, "Heading": 90.0, "bearing": 88.3})["heading_deg"] == 90.0  # Heading wins
 
 
 def test_geo_from_record_missing_nav():
-    assert rg.geo_from_record({"Xutm_adj": 1.0}) is None        # no northing/heading
+    assert rg.geo_from_record({"Xutm": 1.0}) is None        # no Yutm / heading
 
 
 def test_geo_from_record_pandas_series():
     import pandas as pd
-    s = pd.Series({"Xutm_adj": 510916.7, "Yutm_adj": 4545982.0, "bearing": 88.0})
+    s = pd.Series({"Xutm": 510916.7, "Yutm": 4545982.0, "dx": 2.0, "dy": 1.0,
+                   "bearing": 88.0})
     geo = rg.geo_from_record(s, heading_offset_deg=2.0, mirror=True)
-    assert geo["easting"] == pytest.approx(510916.7)
+    assert geo["easting"] == pytest.approx(510918.7)        # Xutm + dx
     assert geo["heading_offset_deg"] == 2.0
     assert geo["mirror"] is True
 

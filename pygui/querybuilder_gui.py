@@ -245,6 +245,15 @@ class QueryBuilder(QWidget, Ui_Form):
         # in refresh_settings(); these are only fallbacks before a file is read.
         self.set_backscatter_field.addItems(['Corrected Backscatter Value', 'Backscatter Value'])
         self.backscatter_field = 'Corrected Backscatter Value'
+        # Formula cheat sheet immediately right of the backscatter-field selector
+        # (explains BS_area / BS_n / True Angle / incidence in place).
+        try:
+            from groundtruther.pygui.cheatsheet import CheatSheetButton
+            self.horizontalLayout_4.insertWidget(1, CheatSheetButton(
+                "02_multibeam_backscatter.png",
+                "Backscatter processing — formulae"))
+        except Exception as exc:  # noqa: BLE001 — info button must never block init
+            log_exception("query builder cheat-sheet button", exc, warn=True)
         self.refresh_settings()
         self.qb_ellipsemajoraxis.hide()
         self.qb_ellipseminoraxis.hide()
@@ -588,6 +597,28 @@ class QueryBuilder(QWidget, Ui_Form):
             except Exception as exc:
                 log_exception("refresh_settings: reference 3D re-render", exc, warn=True)
 
+    def refresh_reference_3d_on_redock(self, *_args) -> None:
+        """Re-render the reference-surface 3-D after a dock float / re-dock.
+
+        Reparenting the BS Query Builder dock gives the GL view (a
+        ``QOpenGLWidget``) a new context; re-rendering the cached sampling-shape
+        surface rebinds its GL items to it.  No-op when nothing is shown.
+        Deferred to the next event-loop turn so Qt finishes the reparent first.
+        """
+        view = getattr(self, "glw_ref", None)
+        if view is None or self._last_geom_array is None or not view.has_surface():
+            return
+        from qgis.PyQt.QtCore import QTimer
+        QTimer.singleShot(0, self._deferred_reference_3d_refresh)
+
+    def _deferred_reference_3d_refresh(self) -> None:
+        if self._last_geom_array is None:
+            return
+        try:
+            self._render_reference_3d(self._last_geom_array)
+        except Exception as exc:  # noqa: BLE001 — a refresh must not wedge the UI
+            log_exception("reference 3D redock re-render", exc, warn=True)
+
     def getshape(self, index):
         self.shape = self.qb_shapeselection.itemText(index)
         QgsMessageLog.logMessage(f"shape selected: {self.shape}", 'GroundTruther', Qgis.Info)
@@ -764,9 +795,17 @@ class QueryBuilder(QWidget, Ui_Form):
             point_selection_index = get_spatial_selection_cpu(points, polygon)
             self.point_selection_pd = self.point_df[point_selection_index]
         QgsMessageLog.logMessage(f"point selection: {len(self.point_selection_pd)} points", 'GroundTruther', Qgis.Info)
-        # self.image_df
-        img_x = self.image_df['Xutm_adj'].values
-        img_y = self.image_df['Yutm_adj'].values
+        # Image positions for "which images fall in the sampling shape" must use
+        # the SAME calibrated USBL fix (Xutm+dx / Yutm+dy) as the sampling-shape
+        # centre, the red marker, and the roughness raster — not the layback
+        # model (Xutm_adj). Fall back to the model only if the USBL columns are
+        # absent. (Column arithmetic works for both pandas and cudf.)
+        if 'Xutm' in self.image_df.columns and 'dx' in self.image_df.columns:
+            img_x = (self.image_df['Xutm'] + self.image_df['dx']).values
+            img_y = (self.image_df['Yutm'] + self.image_df['dy']).values
+        else:
+            img_x = self.image_df['Xutm_adj'].values
+            img_y = self.image_df['Yutm_adj'].values
 
         if self.settings['Processing']['gpu_avaibility']:
             image_selection_index = get_spatial_selection_gpu(img_x, img_y, xx, yy)

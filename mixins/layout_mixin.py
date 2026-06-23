@@ -1,15 +1,17 @@
 """Dock-layout persistence and default-layout reset."""
 from qgis.PyQt.QtCore import QSettings, Qt
-from qgis.PyQt.QtWidgets import QAction
+from qgis.PyQt.QtWidgets import QAction, QDockWidget
 
 _KEY = "GroundTruther/layout"
 
 # Default dock areas for each managed dock (attribute name → Qt area value)
 _DEFAULTS = {
-    "_image_dock":  Qt.DockWidgetArea.RightDockWidgetArea,
-    "_video_dock":  Qt.DockWidgetArea.RightDockWidgetArea,
-    "_report_dock": Qt.DockWidgetArea.RightDockWidgetArea,
-    "_query_dock":  Qt.DockWidgetArea.RightDockWidgetArea,
+    "_image_dock":     Qt.DockWidgetArea.RightDockWidgetArea,
+    "_image_nav_dock": Qt.DockWidgetArea.BottomDockWidgetArea,
+    "_video_dock":     Qt.DockWidgetArea.RightDockWidgetArea,
+    "_report_dock":    Qt.DockWidgetArea.RightDockWidgetArea,
+    "_query_dock":     Qt.DockWidgetArea.RightDockWidgetArea,
+    "_roughness_dock": Qt.DockWidgetArea.RightDockWidgetArea,
 }
 
 
@@ -75,7 +77,12 @@ class LayoutMixin:
             area_raw = s.value(f"{prefix}/area")
             area_int = int(area_raw) if area_raw is not None else None
 
-            if floating:
+            # Never float a non-floatable dock (e.g. the 3-D-GL docks): doing so
+            # programmatically re-triggers the QOpenGLWidget reparent that wedges
+            # the UI. Such a dock is restored to its dock area instead.
+            floatable = bool(dock.features()
+                             & QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+            if floating and floatable:
                 dock.setFloating(True)
                 if geom is not None:
                     dock.restoreGeometry(geom)

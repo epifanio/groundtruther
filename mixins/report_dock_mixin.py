@@ -78,6 +78,11 @@ class ReportDockMixin:
             icon_svg="chart-line.svg",
         )
         self._query_dock.visibilityChanged.connect(self._on_query_dock_visibility)
+        # Float / re-dock reparents the reference-surface 3-D GL view into a new
+        # window; re-render it afterwards so its GL items rebind to the new
+        # context (same pattern as the roughness Micro-DEM 3D view).
+        self._query_dock.topLevelChanged.connect(
+            lambda _f: self.querybuilder.refresh_reference_3d_on_redock())
         self.w.toolBar.addAction(self._query_dock_action)
 
         QgsMessageLog.logMessage(

@@ -139,8 +139,13 @@ def test_output_flags_off_by_default(capture):
     rc.roughness_for_frame(FRAME, endpoint=EP, api_key=KEY)
     body = capture["calls"][-1]["json"]
     for k in ("dem_format", "dem_max_side", "include_orthophoto",
-              "include_left_height", "include_left_preview"):
+              "include_left_height", "include_left_preview", "include_spectrum"):
         assert k not in body
+
+
+def test_include_spectrum_forwarded(capture):
+    rc.roughness_for_frame(FRAME, endpoint=EP, api_key=KEY, include_spectrum=True)
+    assert capture["calls"][-1]["json"]["include_spectrum"] is True
 
 
 # --- direct fast-path -------------------------------------------------------
@@ -245,16 +250,37 @@ def test_mosaic_builds_url_auth_and_body(capture):
     call = capture["calls"][-1]
     assert call["url"] == f"{EP}/seafloor/mosaic"
     assert call["headers"]["X-API-Key"] == KEY
-    assert call["json"] == {"reference_key": FRAME, "window": 5, "mode": "flat"}
+    # default mode is now "auto" (per-window pixel/flat from nav overlap)
+    assert call["json"] == {"reference_key": FRAME, "window": 5, "mode": "auto"}
 
 
 def test_mosaic_optional_params(capture):
     capture["response"] = FakeResponse(json_data={"mosaic_png_b64": "x"})
-    rc.mosaic_by_reference(FRAME, window=3, mode="ortho", out_gsd_m=0.003,
-                           epsg=32619, endpoint=EP, api_key=KEY)
+    rc.mosaic_by_reference(FRAME, window=3, mode="auto", out_gsd_m=0.003,
+                           epsg=32619, overlap_threshold=0.6,
+                           endpoint=EP, api_key=KEY)
     assert capture["calls"][-1]["json"] == {
-        "reference_key": FRAME, "window": 3, "mode": "ortho",
-        "out_gsd_m": 0.003, "epsg": 32619}
+        "reference_key": FRAME, "window": 3, "mode": "auto",
+        "out_gsd_m": 0.003, "epsg": 32619, "overlap_threshold": 0.6}
+
+
+def test_mosaic_radiometry_toggles(capture):
+    capture["response"] = FakeResponse(json_data={"mosaic_png_b64": "x"})
+    # default ON in the UI → sent as booleans (False must reach the server too)
+    rc.mosaic_by_reference(FRAME, window=3, mode="auto",
+                           illumination_correct=True, gain_compensate=False,
+                           endpoint=EP, api_key=KEY)
+    body = capture["calls"][-1]["json"]
+    assert body["illumination_correct"] is True
+    assert body["gain_compensate"] is False
+
+
+def test_mosaic_radiometry_omitted_when_unset(capture):
+    capture["response"] = FakeResponse(json_data={"mosaic_png_b64": "x"})
+    rc.mosaic_by_reference(FRAME, endpoint=EP, api_key=KEY)   # None → server default
+    body = capture["calls"][-1]["json"]
+    assert "illumination_correct" not in body
+    assert "gain_compensate" not in body
 
 
 def test_mosaic_direct_url_skips_auth(capture):
