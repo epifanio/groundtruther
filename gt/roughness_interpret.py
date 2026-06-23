@@ -121,6 +121,49 @@ def altitude_delta_mm(altitude_mm, altimeter_m, tol_mm: float = ALTITUDE_TOL_MM)
     return (delta, abs(delta) <= tol_mm)
 
 
+def mosaic_summary(result: dict | None) -> str:
+    """One-line mosaic mode + content-registration summary, or ``""``.
+
+    e.g. ``"auto: overlap 0.87 → pixel · 0/2 by content"``.  Surfaces the per-
+    request decision: ``mode_requested`` → chosen ``mode`` from ``nav_overlap``,
+    and (for pixel) how many frame pairs registered by image content vs nav
+    fallback (``register.pixel_pairs``/``n_pairs``).
+    """
+    r = result or {}
+    chosen = r.get("mode")
+    req = r.get("mode_requested")
+    ov = num(r.get("nav_overlap"))
+    parts = []
+    if req and chosen and req != chosen:
+        parts.append(f"{req}: overlap {ov:.2f} → {chosen}" if ov is not None
+                     else f"{req} → {chosen}")
+    elif chosen:
+        parts.append(f"{chosen} (overlap {ov:.2f})" if ov is not None
+                     else str(chosen))
+    reg = r.get("register")
+    if isinstance(reg, dict) and reg.get("n_pairs"):
+        parts.append(f"{reg.get('pixel_pairs', 0)}/{reg['n_pairs']} by content")
+    return " · ".join(parts)
+
+
+def mosaic_register_warning(result: dict | None) -> tuple[str, str | None]:
+    """``(warning_text, quality)`` for a mosaic ``register`` block, else ``("", None)``.
+
+    *quality* is ``"ok"`` | ``"low"`` | ``"none"`` | ``None``.  Surfaces the
+    server's ``register.warning``; for ``"none"`` (a featureless region that
+    can't be content-mosaicked) appends a single-frame inspection hint.
+    """
+    reg = (result or {}).get("register")
+    if not isinstance(reg, dict):
+        return ("", None)
+    quality = reg.get("quality")
+    warning = (reg.get("warning") or "").strip()
+    if quality == "none" and "single frame" not in warning.lower():
+        hint = "featureless region — inspect single frames here instead"
+        warning = f"{warning} · {hint}" if warning else hint
+    return (warning, quality)
+
+
 def w2_cm4_short(result: dict) -> tuple[str, str]:
     """Compact ``(text, state)`` for footers, e.g. ``w₂=0.07 cm⁴ ✓``."""
     w2 = num((result or {}).get("w2_cm4"))

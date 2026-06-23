@@ -108,3 +108,50 @@ def test_w2_cm4_short():
     text, state = ri.w2_cm4_short({"w2_cm4": 0.07, "w2_trustworthy": True})
     assert text.startswith("w₂=") and "cm⁴" in text and ri.CHECK in text and state == "ok"
     assert ri.w2_cm4_short({})[0] == ""
+
+
+# --- mosaic summary ---------------------------------------------------------
+
+def test_mosaic_summary_auto_to_pixel():
+    s = ri.mosaic_summary({"mode_requested": "auto", "mode": "pixel",
+                           "nav_overlap": 0.867,
+                           "register": {"pixel_pairs": 5, "n_pairs": 6}})
+    assert "auto: overlap 0.87 → pixel" in s
+    assert "5/6 by content" in s
+
+
+def test_mosaic_summary_auto_to_flat():
+    s = ri.mosaic_summary({"mode_requested": "auto", "mode": "flat",
+                           "nav_overlap": 0.41})
+    assert s == "auto: overlap 0.41 → flat"
+
+
+def test_mosaic_summary_explicit_mode():
+    s = ri.mosaic_summary({"mode_requested": "ortho", "mode": "ortho"})
+    assert s == "ortho"
+
+
+def test_mosaic_summary_empty():
+    assert ri.mosaic_summary({}) == ""
+    assert ri.mosaic_summary(None) == ""
+
+
+# --- mosaic register warning ------------------------------------------------
+
+def test_mosaic_register_warning_low():
+    t, q = ri.mosaic_register_warning({"register": {
+        "quality": "low", "pixel_pairs": 0, "n_pairs": 10,
+        "warning": "0/10 pairs registered — low texture, nav-placed"}})
+    assert q == "low" and "low texture" in t
+
+
+def test_mosaic_register_warning_none_adds_hint():
+    t, q = ri.mosaic_register_warning({"register": {"quality": "none", "warning": ""}})
+    assert q == "none" and "single frames" in t
+
+
+def test_mosaic_register_warning_ok_and_absent():
+    _, q = ri.mosaic_register_warning({"register": {"quality": "ok"}})
+    assert q == "ok"
+    assert ri.mosaic_register_warning({}) == ("", None)
+    assert ri.mosaic_register_warning(None) == ("", None)

@@ -269,7 +269,8 @@ def _post_json(body: dict, *, endpoint, api_key, route, direct_url, timeout,
 
 def _build_mosaic_body(reference_key, window, mode, out_gsd_m, epsg, *,
                        max_side=None, interp=None, supersample=None,
-                       alpha=False, nodata=None) -> dict:
+                       alpha=False, nodata=None, overlap_threshold=None,
+                       illumination_correct=None, gain_compensate=None) -> dict:
     """Assemble the mode-A mosaic request JSON (reference + window + controls)."""
     if not (reference_key and str(reference_key).strip()):
         raise RoughnessError("A reference_key is required")
@@ -289,14 +290,25 @@ def _build_mosaic_body(reference_key, window, mode, out_gsd_m, epsg, *,
         body["alpha"] = True
     if nodata is not None:
         body["nodata"] = float(nodata)
+    if overlap_threshold is not None:
+        body["overlap_threshold"] = float(overlap_threshold)
+    # Radiometric corrections (pixel/auto): default ON server-side, so send the
+    # bool only when set explicitly (lets the user turn them OFF).
+    if illumination_correct is not None:
+        body["illumination_correct"] = bool(illumination_correct)
+    if gain_compensate is not None:
+        body["gain_compensate"] = bool(gain_compensate)
     return body
 
 
-def mosaic_by_reference(reference_key, *, window: int = 5, mode: str = "flat",
+def mosaic_by_reference(reference_key, *, window: int = 5, mode: str = "auto",
                         out_gsd_m: float | None = None, epsg: int | None = None,
                         max_side: int | None = None, interp: str | None = None,
                         supersample: int | None = None, alpha: bool = False,
                         nodata: float | None = None,
+                        overlap_threshold: float | None = None,
+                        illumination_correct: bool | None = None,
+                        gain_compensate: bool | None = None,
                         endpoint: str | None = None, api_key: str | None = None,
                         route: str = MOSAIC_ROUTE, direct_url: str | None = None,
                         timeout: int = _TIMEOUT_MOSAIC) -> dict:
@@ -309,7 +321,17 @@ def mosaic_by_reference(reference_key, *, window: int = 5, mode: str = "flat",
     n_frames, frames_skipped, out_gsd_m, ...}``.
 
     Controls (defaults are the service's):
-      * ``mode`` — ``"flat"`` (altitude/f scale, fast) or ``"ortho"`` (relief-corrected)
+      * ``mode`` — ``"auto"`` (default; picks ``pixel``/``flat`` per window from the
+        nav-predicted overlap vs ``overlap_threshold``) · ``"flat"`` (altitude/f
+        scale, fast) · ``"ortho"`` (relief-corrected) · ``"pixel"`` (register by
+        image content). Response echoes ``mode_requested``/``mode``/``nav_overlap``
+        and, for pixel, ``register.{pixel_pairs,n_pairs}``.
+      * ``overlap_threshold`` — for ``auto``: median per-frame overlap ≥ this → pixel,
+        else flat (default 0.6)
+      * ``illumination_correct`` — flat-field the strobe vignette + equalize
+        brightness (default ON; the main brightness fix). Normalizes radiometry —
+        turn OFF for absolute-radiometry work.
+      * ``gain_compensate`` — Brown–Lowe overlap gain compensation (default ON).
       * ``out_gsd_m`` — output GSD (default 0.003 = 3 mm); lower → sharper / nearer native
       * ``max_side`` — output side cap (default 4096; raise to 8192 for big fine strips)
       * ``interp`` — ``"linear"`` (browse) / ``"area"`` (anti-aliased coarse) /
@@ -326,7 +348,10 @@ def mosaic_by_reference(reference_key, *, window: int = 5, mode: str = "flat",
     """
     body = _build_mosaic_body(reference_key, window, mode, out_gsd_m, epsg,
                               max_side=max_side, interp=interp,
-                              supersample=supersample, alpha=alpha, nodata=nodata)
+                              supersample=supersample, alpha=alpha, nodata=nodata,
+                              overlap_threshold=overlap_threshold,
+                              illumination_correct=illumination_correct,
+                              gain_compensate=gain_compensate)
     return _post_json(body, endpoint=endpoint, api_key=api_key, route=route,
                       direct_url=direct_url, timeout=timeout, what="mosaic")
 

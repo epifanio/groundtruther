@@ -627,11 +627,23 @@ class RoughnessMixin:
         self._mosaic_gsd.setSuffix(" m")
         self._mosaic_gsd.setToolTip("Output ground sample distance (m/pixel).")
         mform.addRow("Out GSD", self._mosaic_gsd)
-        self._mosaic_ortho = QCheckBox("Relief-corrected (ortho)")
-        self._mosaic_ortho.setToolTip(
-            "flat = altitude/f scale (fast); ortho = relief-corrected using the "
-            "per-frame micro-DEM.")
-        mform.addRow(self._mosaic_ortho)
+        self._mosaic_mode = QComboBox()
+        self._mosaic_mode.addItems(["Auto", "Flat", "Ortho", "Pixel"])
+        self._mosaic_mode.setToolTip(
+            "Auto (default): decide per window from the nav-predicted overlap — "
+            "register by image content (pixel) where frames pile up, nav placement "
+            "(flat) where the nav is well-spread.\n"
+            "Flat = nav placement (fast) · Ortho = relief-corrected via the "
+            "per-frame micro-DEM · Pixel = always register by content.")
+        mform.addRow("Mode", self._mosaic_mode)
+        self._mosaic_overlap = QDoubleSpinBox()
+        self._mosaic_overlap.setRange(0.0, 1.0)
+        self._mosaic_overlap.setSingleStep(0.05)
+        self._mosaic_overlap.setDecimals(2)
+        self._mosaic_overlap.setValue(0.6)
+        self._mosaic_overlap.setToolTip(
+            "Auto threshold: median per-frame overlap ≥ this → pixel, else flat.")
+        mform.addRow("Auto overlap ≥", self._mosaic_overlap)
         self._mosaic_interp = QComboBox()
         self._mosaic_interp.addItems(["auto", "linear", "area", "lanczos", "cubic"])
         self._mosaic_interp.setToolTip(
@@ -653,6 +665,21 @@ class RoughnessMixin:
             "automatically (robust). Off = 3-band + nodata fill.")
         mform.addRow(self._mosaic_alpha)
 
+        # Radiometric corrections (pixel/auto mode) — default ON for a clean
+        # visual mosaic; uncheck illumination for absolute-radiometry work.
+        self._mosaic_illum = QCheckBox("Illumination correct")
+        self._mosaic_illum.setChecked(True)
+        self._mosaic_illum.setToolTip(
+            "Flat-field the strobe vignette + equalize brightness (the main "
+            "brightness fix). Normalizes radiometry — great for a visual mosaic; "
+            "uncheck for absolute-radiometry work.")
+        mform.addRow(self._mosaic_illum)
+        self._mosaic_gain = QCheckBox("Gain compensate (overlap)")
+        self._mosaic_gain.setChecked(True)
+        self._mosaic_gain.setToolTip(
+            "Brown–Lowe overlap gain compensation across the windowed frames.")
+        mform.addRow(self._mosaic_gain)
+
         preset_row = QHBoxLayout()
         browse_btn = QPushButton("Browse preset")
         browse_btn.setToolTip("3 mm, anti-aliased — fast overview.")
@@ -671,6 +698,13 @@ class RoughnessMixin:
         self._mosaic_btn.clicked.connect(self.build_mosaic_for_current_frame)
         mform.addRow(self._mosaic_btn)
         v.addWidget(mbox)
+
+        # Pixel/auto registration-quality banner — hidden unless the service
+        # warns (low texture → nav-placed; none → featureless, can't content-mosaic).
+        self._mosaic_warn = QLabel("")
+        self._mosaic_warn.setWordWrap(True)
+        self._mosaic_warn.setVisible(False)
+        v.addWidget(self._mosaic_warn)
 
         btn_row = QHBoxLayout()
         save_btn = QPushButton("Save calibration")
@@ -727,16 +761,21 @@ class RoughnessMixin:
         self._mosaic_btn.setText("building…")
         self._georef_status.setText(
             f"building mosaic (±{int(self._mosaic_window.value())}) around {ref}…")
+        if getattr(self, "_mosaic_warn", None) is not None:
+            self._mosaic_warn.setVisible(False)   # clear any prior warning banner
         gsd = float(self._mosaic_gsd.value())
         interp = self._mosaic_interp.currentText()
         if interp == "auto":     # smart: anti-alias coarse, sharpen near-native
             interp = "area" if gsd > 0.001 else "lanczos"
         self._mosaic_task = task_runner.run_mosaic_task(
             ref, window=int(self._mosaic_window.value()),
-            mode=("ortho" if self._mosaic_ortho.isChecked() else "flat"),
+            mode=self._mosaic_mode.currentText().lower(),
+            overlap_threshold=float(self._mosaic_overlap.value()),
             out_gsd_m=gsd, epsg=int(self._georef_epsg.value()),
             max_side=int(self._mosaic_maxside.value()), interp=interp,
             alpha=self._mosaic_alpha.isChecked(),
+            illumination_correct=self._mosaic_illum.isChecked(),
+            gain_compensate=self._mosaic_gain.isChecked(),
             endpoint=cfg["endpoint"], api_key=cfg["api_key"],
             direct_url=mosaic_direct,
             on_success=self._on_mosaic_success, on_error=self._on_mosaic_error,
@@ -780,13 +819,40 @@ class RoughnessMixin:
         skipped = result.get("frames_skipped") or []
         n_sk = len(skipped) if isinstance(skipped, (list, tuple)) else int(skipped or 0)
         n = result.get("n_frames", "?")
-        self._georef_status.setText(
-            f"mosaic added: {n} frames, {n_sk} skipped, {bands}-band (EPSG:{geo['epsg']})"
-            if ok else "mosaic: failed to write raster")
+        if ok:
+            from groundtruther.gt import roughness_interpret as ri
+            base = (f"mosaic added: {n} frames, {n_sk} skipped, "
+                    f"{bands}-band (EPSG:{geo['epsg']})")
+            summary = ri.mosaic_summary(result)
+            self._georef_status.setText(
+                base + (f"  ·  {summary}" if summary else ""))
+            self._show_mosaic_warning(result)
+        else:
+            self._georef_status.setText("mosaic: failed to write raster")
+
+    def _show_mosaic_warning(self, result) -> None:
+        """Show/hide the registration-quality banner from ``register.{quality,warning}``."""
+        banner = getattr(self, "_mosaic_warn", None)
+        if banner is None:
+            return
+        from groundtruther.gt import roughness_interpret as ri
+        text, quality = ri.mosaic_register_warning(result)
+        if not text:
+            banner.setText("")
+            banner.setVisible(False)
+            return
+        color = {"none": _C_WARN, "low": "#d6a200"}.get(quality, _C_MUTED)
+        icon = "⚠" if quality in ("low", "none") else "ℹ"
+        banner.setStyleSheet(
+            f"color: {color}; font-size: 12px; font-weight: bold;")
+        banner.setText(f"{icon} {text}")
+        banner.setVisible(True)
 
     def _on_mosaic_error(self, reference_key: str, detail: str) -> None:
         self._mosaic_task = None
         self._reset_mosaic_button()
+        if getattr(self, "_mosaic_warn", None) is not None:
+            self._mosaic_warn.setVisible(False)
         self._georef_status.setText(f"mosaic error: {detail}")
 
     # ------------------------------------------------------------------ #
@@ -861,13 +927,13 @@ class RoughnessMixin:
     def _apply_mosaic_preset(self, kind: str) -> None:
         """Set the mosaic controls to a named preset (Browse / Publication)."""
         if kind == "publication":
-            self._mosaic_ortho.setChecked(True)
+            self._mosaic_mode.setCurrentText("Ortho")
             self._mosaic_gsd.setValue(0.0008)
             self._mosaic_interp.setCurrentText("lanczos")
             self._mosaic_maxside.setValue(8192)
             self._mosaic_alpha.setChecked(True)
         else:  # browse
-            self._mosaic_ortho.setChecked(False)
+            self._mosaic_mode.setCurrentText("Auto")
             self._mosaic_gsd.setValue(0.003)
             self._mosaic_interp.setCurrentText("area")
             self._mosaic_maxside.setValue(4096)
