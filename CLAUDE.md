@@ -81,6 +81,17 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
   the old `config/templates/config_template.yaml` had no `Roughness:` block, so every save
   silently deleted that section. A dialog field you do not add to `get_gui_settings()` is
   simply preserved.
+- **`ConfigDialog` must init exactly one base: `QDialog.__init__(self, parent)` — never
+  `super()`.** `ConfigDialog(QDialog, AppSettings)` inherits two `QWidget`s, so PyQt's
+  cooperative init walks on to `AppSettings.__init__`, which calls `setupUi()` a *second*
+  time; the attribute references then point at the newer widget set while the older one is
+  what's shown, so the dialog looks unpopulated and is missing every programmatic row —
+  and **the tests still pass**. `tests/gui/test_config_dialog.py::test_the_ui_is_built_exactly_once`
+  counts the widgets to catch it.
+- **New settings widgets are added programmatically in `ConfigDialog`, not to the `.ui`**
+  (`_add_reference_surface_row`, `_add_video_annotation_row`, `_add_roughness_box`) —
+  `qtui/app_settings.ui` is stale, so regenerating it would drop them. The dialog now has a
+  widget for every key in `config_model.py`; a coverage test enforces that.
 - **`qtui/*.ui` files are STALE vs the generated `pygui/Ui_*.py`.** Video widgets and
   others were hand-added directly to the generated `.py`; the `.ui` was never updated.
   **Do NOT run `compile_ui.sh` wholesale** — it regenerates from stale `.ui` and silently

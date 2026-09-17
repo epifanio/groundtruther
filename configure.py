@@ -7,7 +7,8 @@ import yaml
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QDialog, QFileDialog, QMessageBox,
-    QHBoxLayout, QLabel, QLineEdit, QToolButton,
+    QCheckBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
+    QLineEdit, QSpinBox, QToolButton, QVBoxLayout,
 )
 
 from groundtruther.pygui.app_settings_gui import AppSettings
@@ -150,7 +151,18 @@ class ConfigDialog(QDialog, AppSettings):
     settings_saved = pyqtSignal()
 
     def __init__(self, parent=None):
-        super().__init__()
+        # Initialise exactly one base, explicitly. Two traps here, both caught
+        # by tests/gui/test_config_dialog.py:
+        #   * `super().__init__()` followed by `QDialog.__init__(self, parent)`
+        #     (what this used to do) runs the sip constructor twice and orphans
+        #     the first C++ object — a segfault at teardown once several
+        #     dialogs have been built.
+        #   * `super().__init__(parent)` alone is worse: PyQt's cooperative
+        #     multiple inheritance walks on to AppSettings.__init__, which
+        #     calls setupUi() a *second* time. The attribute references then
+        #     point at the newer widget set while the older one is what's
+        #     actually shown — a dialog that looks unpopulated and is missing
+        #     every programmatically added row.
         QDialog.__init__(self, parent)
         self.setupUi(self)
 
@@ -169,6 +181,10 @@ class ConfigDialog(QDialog, AppSettings):
         self.select_kml_path.clicked.connect(self.set_kml_path)
         self.select_video_path.clicked.connect(self.set_video_path)
         self.select_video_metadata_path.clicked.connect(self.set_video_metadata_path)
+        # The remaining config keys have no widgets in the generated UI, so they
+        # are built here (same reason as the reference-surface row above).
+        self._add_video_annotation_row()
+        self._add_roughness_box()
         self.gpu_avaibility.currentIndexChanged.connect(self._on_gpu_index_changed)
         self.setOption.clicked.connect(self.write_config)
         self.quit.clicked.connect(self.close)
@@ -187,7 +203,8 @@ class ConfigDialog(QDialog, AppSettings):
         for name in ("select_image_path", "select_metadata_path",
                      "select_imageannotation_path", "select_mbes_path",
                      "select_kml_path", "select_video_path",
-                     "select_video_metadata_path", "select_vrt_path"):
+                     "select_video_metadata_path", "select_vrt_path",
+                     "select_video_annotation_path"):
             btn = getattr(self, name, None)
             if btn is not None:
                 iconize(btn, "folder-open.svg", "Browse…")
@@ -201,6 +218,11 @@ class ConfigDialog(QDialog, AppSettings):
 
         # GPU toggle disabled until RAPIDS detection is implemented
         self.gpu_avaibility.setEnabled(False)
+
+        # The generated UI sizes itself for the sections it knows about; the
+        # roughness box roughly doubles the content, so open a bit taller.
+        # Everything still lives in the .ui's scroll area.
+        self.resize(620, 760)
 
     # ------------------------------------------------------------------
     # Internal helpers
@@ -243,9 +265,38 @@ class ConfigDialog(QDialog, AppSettings):
         # Video fields (widgets are now always present via Ui_app_settings_ui)
         self.video_path.setText(_text(video.get("videofile")))
         self.video_metadata_path.setText(_text(video.get("videometadata")))
+        self.video_annotation_path.setText(_text(video.get("videoannotation")))
 
         session = settings.get("Session", {}) or {}
         self.vrt_path.setText(_text(session.get("groundtruther_project")))
+
+        # Roughness — the defaults here mirror ``config_model.RoughnessSettings``;
+        # the coercion helpers mean a junk YAML value shows as the default
+        # rather than raising.
+        rough = settings.get("Roughness") or {}
+        self.roughness_base_url.setText(_text(rough.get("base_url")))
+        self.roughness_route.setText(_text(rough.get("route")))
+        self.roughness_direct_url.setText(_text(rough.get("direct_url")))
+        self.roughness_res_mm.setValue(
+            config_check.as_float(rough.get("res_mm"), 0.0))
+        self.roughness_n_water.setValue(
+            config_check.as_float(rough.get("n_water"), 0.0))
+        self.roughness_dem_max_side.setValue(
+            config_check.as_int(rough.get("dem_max_side"), 512))
+        self.roughness_georeference.setChecked(
+            config_check.as_bool(rough.get("georeference"), False))
+        self.roughness_epsg.setValue(
+            config_check.as_int(rough.get("epsg"), 32619))
+        self.roughness_heading_offset.setValue(
+            config_check.as_float(rough.get("heading_offset_deg"), 0.0))
+        self.roughness_mirror.setChecked(
+            config_check.as_bool(rough.get("mirror"), False))
+        self.roughness_dem_trim_border.setValue(
+            config_check.as_int(rough.get("dem_trim_border"), 2))
+        self.roughness_dem_clip_sigma.setValue(
+            config_check.as_float(rough.get("dem_clip_sigma"), 5.0))
+        self.roughness_dem_erode.setValue(
+            config_check.as_int(rough.get("dem_erode"), 1))
 
     def _on_gpu_index_changed(self, index):
         self.gpu_avaibility_value = self.gpu_avaibility.itemText(index) == "Enabled"
@@ -285,6 +336,188 @@ class ConfigDialog(QDialog, AppSettings):
         )
         if file_name:
             self.mbes_path.setText(file_name)
+
+    def _add_video_annotation_row(self):
+        """Append the 'Annotations' row to the Video group box.
+
+        ``Video.videoannotation`` is the last config key the generated UI never
+        got a widget for; without one it could only be hand-edited in YAML.
+        """
+        self.video_annotation_path = QLineEdit()
+        self.video_annotation_path.setToolTip(
+            "CSV mapping frame indices to bounding-box annotations "
+            "(columns: frame_index, bboxes, species, confidences).")
+        self.select_video_annotation_path = QToolButton()
+        self.select_video_annotation_path.setText("...")
+        self.select_video_annotation_path.clicked.connect(
+            self.set_video_annotation_path)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Annotations"))
+        row.addWidget(self.video_annotation_path)
+        row.addWidget(self.select_video_annotation_path)
+        self.video_config_box.layout().addLayout(row)
+
+    def _add_roughness_box(self):
+        """Build the 'Seafloor roughness' group box (all ``Roughness.*`` keys).
+
+        Inserted after the Video box, before the trailing spacer + buttons.
+        These 13 keys previously existed only in YAML — and before the
+        merge-based save they were silently deleted on every save (see
+        ``PLANNING/config-validation-hardening.md``).
+        """
+        # Imported lazily: gt.roughness_client imports configure.log_exception,
+        # so a module-level import here is a circular import.
+        from groundtruther.gt.roughness_client import DEFAULT_ROUTE
+
+        box = QGroupBox("Seafloor roughness")
+        box.setObjectName("roughness_config_box")
+        outer = QVBoxLayout(box)
+
+        # --- service / transport ---
+        service = QGroupBox("Service")
+        form = QFormLayout(service)
+        self.roughness_base_url = QLineEdit()
+        self.roughness_base_url.setPlaceholderText(
+            "(empty → use the GRASS API endpoint above)")
+        self.roughness_base_url.setToolTip(
+            "FastGIS base URL for the roughness route. Leave empty to reuse "
+            "Processing.grass_api_endpoint and its API key.")
+        form.addRow("Base URL", self.roughness_base_url)
+
+        self.roughness_route = QLineEdit()
+        self.roughness_route.setPlaceholderText(
+            f"(empty → {DEFAULT_ROUTE})")
+        self.roughness_route.setToolTip(
+            "Route path appended to the base URL.")
+        form.addRow("Route", self.roughness_route)
+
+        self.roughness_direct_url = QLineEdit()
+        self.roughness_direct_url.setPlaceholderText(
+            "(empty → go through FastGIS)")
+        self.roughness_direct_url.setToolTip(
+            "On-host GPU service URL, e.g. http://127.0.0.1:7871/roughness. "
+            "When set, GroundTruther POSTs here directly with no auth, "
+            "skipping FastGIS — only useful when running on the GPU host.")
+        form.addRow("Direct URL", self.roughness_direct_url)
+        outer.addWidget(service)
+
+        # --- computation knobs (0 = let the service decide) ---
+        compute = QGroupBox("Computation")
+        form = QFormLayout(compute)
+        self.roughness_res_mm = self._make_double_spin(
+            0.0, 100.0, 1, 0.5, " mm", special="service default",
+            tooltip="DEM resolution requested from the service.")
+        form.addRow("Resolution", self.roughness_res_mm)
+
+        self.roughness_n_water = self._make_double_spin(
+            0.0, 2.0, 3, 0.001, "", special="service default",
+            tooltip="Refractive index of water. Leave at the service default "
+                    "— the 2015 HabCam calibration is already in-water.")
+        form.addRow("n water", self.roughness_n_water)
+
+        self.roughness_dem_max_side = QSpinBox()
+        self.roughness_dem_max_side.setRange(64, 4096)
+        self.roughness_dem_max_side.setSingleStep(64)
+        self.roughness_dem_max_side.setToolTip(
+            "Cap on the longest side of the returned micro-DEM grid.")
+        form.addRow("DEM max side", self.roughness_dem_max_side)
+        outer.addWidget(compute)
+
+        # --- georeferencing ---
+        georef = QGroupBox("Georeferencing (defaults for new datasets)")
+        georef.setToolTip(
+            "The roughness panel's Georef tab saves its own calibration per "
+            "dataset (QgsSettings) and that takes precedence — these values "
+            "apply to datasets with no saved calibration yet.")
+        form = QFormLayout(georef)
+        self.roughness_georeference = QCheckBox("Write GeoTIFFs and add them to QGIS")
+        form.addRow(self.roughness_georeference)
+
+        self.roughness_epsg = QSpinBox()
+        self.roughness_epsg.setRange(1024, 999999)
+        self.roughness_epsg.setToolTip("Projected CRS EPSG (32619 = UTM 19N).")
+        form.addRow("EPSG", self.roughness_epsg)
+
+        self.roughness_heading_offset = self._make_double_spin(
+            -180.0, 180.0, 2, 0.5, " °",
+            tooltip="Residual heading fine-tune. The mount is known, so 0 is "
+                    "correct out of the box.")
+        form.addRow("Heading offset", self.roughness_heading_offset)
+
+        self.roughness_mirror = QCheckBox("Mirror")
+        self.roughness_mirror.setToolTip(
+            "Escape hatch — enable only if a mosaic comes out "
+            "port/starboard-flipped.")
+        form.addRow(self.roughness_mirror)
+        outer.addWidget(georef)
+
+        # --- 3-D mesh edge-spike mitigation ---
+        mesh = QGroupBox("3-D mesh edge-spike mitigation")
+        mesh.setToolTip(
+            "The stereo DEM is unreliable at the grid border and around "
+            "no-data holes. These are the starting values for the live "
+            "controls on the Micro-DEM 3D tab.")
+        form = QFormLayout(mesh)
+        self.roughness_dem_trim_border = QSpinBox()
+        self.roughness_dem_trim_border.setRange(0, 10)
+        self.roughness_dem_trim_border.setToolTip(
+            "Drop N outer rings of the DEM grid.")
+        form.addRow("Trim border", self.roughness_dem_trim_border)
+
+        self.roughness_dem_clip_sigma = self._make_double_spin(
+            0.0, 20.0, 1, 0.5, "", special="off",
+            tooltip="Mask height outliers beyond N robust σ from the median. "
+                    "Lower = more aggressive spike removal.")
+        form.addRow("Clip σ", self.roughness_dem_clip_sigma)
+
+        self.roughness_dem_erode = QSpinBox()
+        self.roughness_dem_erode.setRange(0, 5)
+        self.roughness_dem_erode.setToolTip(
+            "Peel N rings off every no-data / outlier boundary "
+            "(higher = fewer edge spikes, less coverage).")
+        form.addRow("Erode", self.roughness_dem_erode)
+        outer.addWidget(mesh)
+
+        # Slot it in after the Video box rather than appending, so the trailing
+        # spacer and the Save / Close buttons stay at the bottom.
+        column = self.video_config_box.parentWidget().layout()
+        column.insertWidget(column.indexOf(self.video_config_box) + 1, box)
+        self.roughness_config_box = box
+
+    @staticmethod
+    def _make_double_spin(minimum, maximum, decimals, step, suffix,
+                          special=None, tooltip=None):
+        """A configured ``QDoubleSpinBox``.
+
+        *special* labels the minimum value as "not set" (shown instead of the
+        number); :meth:`get_gui_settings` maps it back to ``None``.
+        """
+        spin = QDoubleSpinBox()
+        spin.setRange(minimum, maximum)
+        spin.setDecimals(decimals)
+        spin.setSingleStep(step)
+        if suffix:
+            spin.setSuffix(suffix)
+        if special is not None:
+            spin.setSpecialValueText(special)
+        if tooltip:
+            spin.setToolTip(tooltip)
+        return spin
+
+    @staticmethod
+    def _spin_value_or_none(spin):
+        """The spin box's value, or ``None`` when it sits on its special value."""
+        if spin.specialValueText() and spin.value() == spin.minimum():
+            return None
+        return spin.value()
+
+    def set_video_annotation_path(self):
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Set video annotation CSV", self.video_annotation_path.text(),
+            "CSV files (*.csv);;All files (*)",
+        )
+        if file_name:
+            self.video_annotation_path.setText(file_name)
 
     def _add_reference_surface_row(self):
         """Append a 'Reference surface (GeoTIFF)' row to the MBES group box."""
@@ -357,7 +590,12 @@ class ConfigDialog(QDialog, AppSettings):
     # ------------------------------------------------------------------
 
     def get_gui_settings(self):
-        """Return a settings dict built from the current form field values."""
+        """Return a settings dict built from the current form field values.
+
+        Covers every key in ``config_model.HabcamSettings``; ``write_config``
+        still merges it into the document on disk, so an unknown section a
+        future version adds is preserved rather than dropped.
+        """
         def _opt(text):
             """Return None for empty/whitespace strings, else the stripped text."""
             return text.strip() or None
@@ -379,15 +617,29 @@ class ConfigDialog(QDialog, AppSettings):
                 "grass_api_endpoint": _opt(self.grass_api_endpoint.text()),
                 "grass_api_key": _opt(self.grass_api_key.text()),
             },
-            # No "videoannotation" key — the dialog has no widget for it, and
-            # write_config merges this dict into the file on disk, so omitting
-            # it preserves whatever the user hand-edited there.
             "Video": {
                 "videofile": _opt(self.video_path.text()),
                 "videometadata": _opt(self.video_metadata_path.text()),
+                "videoannotation": _opt(self.video_annotation_path.text()),
             },
             "Session": {
                 "groundtruther_project": _opt(self.vrt_path.text()),
+            },
+            "Roughness": {
+                "base_url": _opt(self.roughness_base_url.text()),
+                "route": _opt(self.roughness_route.text()),
+                "direct_url": _opt(self.roughness_direct_url.text()),
+                # None = "let the service decide" (the spin box's special value)
+                "res_mm": self._spin_value_or_none(self.roughness_res_mm),
+                "n_water": self._spin_value_or_none(self.roughness_n_water),
+                "dem_max_side": self.roughness_dem_max_side.value(),
+                "georeference": self.roughness_georeference.isChecked(),
+                "epsg": self.roughness_epsg.value(),
+                "heading_offset_deg": self.roughness_heading_offset.value(),
+                "mirror": self.roughness_mirror.isChecked(),
+                "dem_trim_border": self.roughness_dem_trim_border.value(),
+                "dem_clip_sigma": self.roughness_dem_clip_sigma.value(),
+                "dem_erode": self.roughness_dem_erode.value(),
             },
         }
 
