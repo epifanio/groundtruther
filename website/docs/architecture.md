@@ -19,6 +19,7 @@ flowchart TB
         VID["Video Player"]
         ANN["Annotation editors"]
         GR["GRASS integration"]
+        RGH["Seafloor Roughness"]
         RPT["Report Builder"]
       end
       QB["Acoustic Query Builder"]
@@ -26,6 +27,8 @@ flowchart TB
         API["grass_api client"]
         IMG["image_manager (KD-tree)"]
         VMG["video_manager"]
+        ROU["roughness_client / _geo / _dem"]
+        CFG["config_check (per-key validation)"]
         TASK["task_runner (QgsTask)"]
       end
       FORM["Schema-driven<br/>module dialogs"]
@@ -37,6 +40,8 @@ flowchart TB
       TASK --> API
       IB --> IMG
       VID --> VMG
+      RGH --> ROU
+      ROU --> REST
     end
     PLUGIN --- CANVAS
   end
@@ -102,6 +107,7 @@ flowchart LR
 | Viewer / plots | pyqtgraph, PyOpenGL, matplotlib, plotnine |
 | Geospatial | pyproj, simplekml, geojson, requests |
 | Acceleration | numba (optional GPU: cudf/cuspatial) |
+| Video decode | av (PyAV, preferred), opencv-python-headless (fallback) |
 | Config / templating | PyYAML, pydantic, starlette, Jinja2 |
 | Host-provided (do **not** pip-install) | qgis, gdal/osgeo, PyQt6 |
 
@@ -117,6 +123,9 @@ flowchart LR
   interface description, so the toolset extends to new modules with no UI code.
 - **Async by default for compute:** long-running modules run as background tasks
   with progress/cancel, keeping QGIS responsive.
+- **Per-key, severity-aware configuration:** the YAML config is graded one key at
+  a time, so a single stale path disables its own feature and nothing else. See
+  [Validation & troubleshooting](configuration/validation.md).
 
 For the developer/agent-oriented internals (conventions, gotchas, testing without
 the GUI), see `CLAUDE.md` and `docs/grass_fastgis.md` in the repository.

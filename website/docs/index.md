@@ -27,6 +27,9 @@ look like here?"* — and build defensible, reproducible interpretations that li
   confidence scores.
 - **Query MBES products acoustically** — pull backscatter / bathymetric-derivative
   values under points or sampling shapes via a remote GRASS GIS service.
+- **Measure seafloor roughness from the imagery itself** — per-frame spectral
+  roughness, a real-height micro-DEM and georeferenced photo mosaics, computed
+  from the HabCam stereo pairs.
 - **Run any GRASS module on demand** — the toolbox builds a dialog from the
   module's own interface description and returns results straight to QGIS.
 - **Generate quantitative reports** that tie the acoustic and optical evidence
@@ -52,9 +55,13 @@ GroundTruther is described in a peer-reviewed article in *Environmental Modellin
 
 !!! tip "Get started"
     Head to **[Installation](installation/index.md)** to set up QGIS and the
-    plugin, then explore the **[Tools](tools/image-browser.md)**. A free
+    plugin, point it at your data via **[Configuration](configuration/index.md)**,
+    then explore the **[Tools](tools/image-browser.md)**. A free
     [sample dataset](https://zenodo.org/records/7995674) (CC-BY-4.0) lets you try
     everything end-to-end.
+
+    Bringing your own survey? The **[Data model](data-model/image-metadata.md)**
+    section documents every column GroundTruther reads.
 
 ## At a glance
 
@@ -63,5 +70,6 @@ GroundTruther is described in a peer-reviewed article in *Environmental Modellin
 | **Host** | QGIS 4 / Qt6 (Linux, macOS, Windows) |
 | **Inputs** | MBES soundings (Parquet), bathymetry rasters, HabCam imagery + metadata, survey video + GPS log, detector annotations |
 | **Acoustic/GRASS backend** | [FastGIS GRASS API](tools/grass-fastgis.md) (`api.fastgis.eu`) |
+| **Configuration** | One YAML file per install — [27 settings](configuration/settings-reference.md) |
 | **Sample data** | [Zenodo 7995674](https://zenodo.org/records/7995674) (CC-BY-4.0) |
 | **License** | GPL-2.0-or-later |

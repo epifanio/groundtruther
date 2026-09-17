@@ -73,6 +73,15 @@ nav:
       - Video Player: tools/video-player.md
       - Image & Video Annotation: tools/annotation.md
       - Acoustic Query Builder: tools/query-builder.md
+      - Seafloor Roughness: tools/seafloor-roughness.md
       - Report Builder: tools/report-builder.md
       - GRASS / FastGIS toolbox: tools/grass-fastgis.md
+  - Configuration:
+      - configuration/index.md
+      - Settings reference: configuration/settings-reference.md
+      - Validation & troubleshooting: configuration/validation.md
+  - Data model:
+      - Image metadata: data-model/image-metadata.md
+      - MBES soundings: data-model/mbes-soundings.md
+      - Annotations & video: data-model/annotations-and-video.md
   - Architecture: architecture.md

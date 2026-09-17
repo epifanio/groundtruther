@@ -13,6 +13,8 @@ To add a real screenshot:
    - `query-builder-1.png`
    - `report-builder-1.png`
    - `grass-settings-1.png`, `grass-module-1.png`, `grass-region-1.png`
+   - `roughness-metrics-1.png`
+   - `settings-dialog-1.png`
 3. In the corresponding `docs/tools/*.md`, swap the `placeholder.svg` `src` for your
    file name (the `<figure>` blocks are marked with a `TODO` comment).
 
