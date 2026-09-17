@@ -23,9 +23,9 @@ own. Installing it has three parts:
 - **QGIS ≥ 4.0** (Qt6 / PyQt6).
 - Python **3.12+** (whatever your QGIS bundles).
 - The packages in [`dependencies/requirements.txt`](https://github.com/epifanio/groundtruther/blob/master/dependencies/requirements.txt):
-  `numpy, pandas, pyarrow, scikit-image, scipy, opencv-python-headless,
-  pyqtgraph, PyOpenGL, matplotlib, plotnine, pyproj, simplekml, requests, PyYAML,
-  pydantic, starlette, Jinja2, geojson, numba`.
+  `numpy, pandas, pyarrow, scikit-image, scipy, opencv-python-headless, av,
+  pyqtgraph, PyOpenGL, matplotlib, plotnine, pyproj, simplekml, requests, geojson,
+  PyYAML, pydantic, starlette, Jinja2, numba`.
 
 !!! warning "Never pip-install these"
     `qgis`, `gdal`/`osgeo`, and `PyQt` ship **with** QGIS — installing them via
@@ -68,8 +68,18 @@ Then install the plugin (below).
 Open **GroundTruther → Settings** and point it at your data (HabCam images +
 metadata, MBES soundings, optional video + GPS log, export folder) and the
 **GRASS API endpoint + key** for the acoustic toolbox. Settings persist to
-`config/config.yaml`. A ready-to-use [sample dataset](https://zenodo.org/records/7995674)
-is available.
+`config/config.yaml` inside the installed plugin folder.
+
+Only the HabCam **image folder** and **metadata file** are mandatory; every other
+setting is optional and simply disables its own feature when left empty.
+
+→ **[Configuration](../configuration/index.md)** covers where the file lives (and
+that it holds your API key), **[all 27 settings](../configuration/settings-reference.md)**,
+and **[what to do when one is wrong](../configuration/validation.md)**. The formats
+the data files themselves must have are in
+**[Data model](../data-model/image-metadata.md)**.
+
+A ready-to-use [sample dataset](https://zenodo.org/records/7995674) is available.
 
 Continue to your platform: **[Linux](linux.md)** · **[macOS](macos.md)** ·
 **[Windows](windows.md)**.

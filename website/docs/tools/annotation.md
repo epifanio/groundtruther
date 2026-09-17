@@ -39,3 +39,8 @@ re-select it for editing or deletion.
     Image annotations come from / persist to the `imageannotation` CSV; video
     annotations are keyed by frame index. Both feed the same labelled-observation
     model used elsewhere in the plugin.
+
+    The two file formats are different and are documented column by column in
+    **[Annotations & video](../data-model/annotations-and-video.md)** — the image
+    CSV is read *positionally* (column order matters, header names do not), the
+    video CSV by header name.

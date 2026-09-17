@@ -66,16 +66,22 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
   `as_bool` / `as_path_str`, and check `os.path.isfile/isdir` before reading.
 
 ## CRITICAL gotchas (these will bite)
-- **`config/config.yaml` is tracked but holds machine-specific paths AND the GRASS API
-  key (a secret).** NEVER `git add`/commit your local `config.yaml`. Keep it as an
-  uncommitted working-tree edit; the committed version has an empty `grass_api_key`.
+- **`config/config.yaml` holds machine-specific paths AND the GRASS API key (a
+  secret).** It is **gitignored** (`config/config.yaml` in `.gitignore`, since
+  9dfc3e6); the committed template is `config/config.example.yaml`. Never
+  `git add -f` it, and never paste it into an issue or a log.
 - **Config validation is per key and severity-aware** ([gt/config_check.py](gt/config_check.py)).
   Only `HabCam.imagepath` + `HabCam.imagemetadata` are *errors* (they block startup);
   every other key is a *warning* when set-but-invalid and silent when unset, so one
   stale path can only disable its own feature. `configure.get_settings_checked()` returns
   `(settings, report)`; `config_check.degrade()` blanks **only** the failed keys. Adding a
-  config key means adding it to both `config_model.py` and `config_check.SPEC` — a unit
-  test asserts the two match.
+  config key means adding it in **three** places: `config_model.py`,
+  `config_check.SPEC`, and a row in
+  [website/docs/configuration/settings-reference.md](website/docs/configuration/settings-reference.md).
+  Two unit tests enforce the chain — `tests/unit/test_config_check.py`
+  (`test_spec_covers_exactly_the_pydantic_model`) and
+  `tests/unit/test_settings_docs.py` — so a key added in only one or two of them
+  fails the suite.
 - **The Settings dialog saves by *merging* into the file on disk** (`config_check.merge_settings`
   + `yaml.safe_dump`), not by re-rendering a template. Do not reintroduce a fixed template:
   the old `config/templates/config_template.yaml` had no `Roughness:` block, so every save
@@ -102,6 +108,25 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
   main window via `iface.addDockWidget(...)` (see how image/GRASS docks do it).
 - **You can't reliably launch the QGIS GUI from an agent shell** (it exits with no
   output). Verify with the headless patterns below; the live GUI is the user's job.
+
+## Documentation
+- **User-facing docs are the MkDocs Material site in [website/](website/)**, published to
+  <https://epifanio.github.io/groundtruther/> by `.github/workflows/docs.yml` on every
+  push to `master` touching `website/**` — **merging a `website/` change publishes it**.
+  Check with `mkdocs build --strict -f website/mkdocs.yml` (strict catches broken
+  internal links and pages missing from the nav). `website/site/` is a build artifact —
+  never commit it.
+- Sections: Installation · Tools (one page per feature) · **Configuration** (all 27
+  keys + the validation model) · **Data model** (every column the plugin reads) ·
+  Architecture. Adding a *feature* means adding its tool page **and** its config keys
+  to the settings reference.
+- `docs/grass_fastgis.md` is agent-facing and stays separate from the site.
+  `help/` is a retired Plugin Builder Sphinx stub, reduced to a pointer at the site
+  and kept only because `Makefile` / `pb_tool.cfg` expect `help/build/html` to exist —
+  **do not add docs there.**
+- Screenshots live in `website/docs/assets/img/`; pages that need one point at
+  `placeholder.svg` with a `TODO` comment naming the expected file. Agents cannot
+  capture them — leave the placeholder and tell the user which image to take.
 
 ## Testing
 - **Test suite: `tests/`** (`unit/` = no QGIS/network, `gui/` = offscreen Qt,

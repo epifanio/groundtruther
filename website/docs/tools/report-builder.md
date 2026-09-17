@@ -24,12 +24,14 @@ quantitative report.
 2. Open the **Report Builder** dock and compose/preview the report.
 3. **Export** — files are written to the `kmldir` folder from Settings.
 
-## Inputs (Settings → Export)
+## Inputs
 
-| Setting | What it is |
-|---|---|
-| `kmldir` | Output folder for generated reports / KMZ files. |
-| `filemanager` | *Optional* external file-manager executable used to open the export folder. |
+| Setting | Section | What it is |
+|---|---|---|
+| `kmldir` | **Export** | Output folder for generated reports / KMZ files. |
+| `filemanager` | **Filesystem** | *Optional* external file-manager executable used to open the export folder. |
+
+See the [settings reference](../configuration/settings-reference.md#export).
 
 !!! tip
     Keep the export folder under version control or a shared drive so reports for

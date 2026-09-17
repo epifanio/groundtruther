@@ -88,4 +88,12 @@ not just a hard-coded few.
 |---|---|
 | `grass_api_endpoint` | FastGIS API base URL. |
 | `grass_api_key` | API key sent as `X-API-Key`. |
-| `gpu_avaibility` | Whether a CUDA GPU is available for spatial selection acceleration. |
+| `gpu_avaibility` | Whether a CUDA GPU is available for spatial selection acceleration. (Spelled exactly like that in the file.) |
+
+Full descriptions, defaults and failure modes:
+[settings reference → Processing](../configuration/settings-reference.md#processing).
+
+!!! tip "The roughness service reuses these credentials"
+    [Seafloor Roughness](seafloor-roughness.md) sends its requests to the same
+    FastGIS endpoint with the same API key, so configuring the toolbox configures
+    roughness too.

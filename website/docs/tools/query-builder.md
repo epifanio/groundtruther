@@ -37,6 +37,18 @@ acoustic side of the "ground-truthing" happens.
 | Setting | What it is |
 |---|---|
 | `soundings` | MBES soundings table (Parquet) used for spatial selection. |
+| `reference_surface` | *Optional* GeoTIFF DEM. When set, the 3-D viewer clips **this raster** to the sampling shape instead of gridding the selected soundings; it falls back to the soundings surface if the file is missing or unreadable. |
+
+Column-by-column — including how the backscatter field is chosen and what the
+port/starboard/fold beam filter does:
+**[MBES soundings](../data-model/mbes-soundings.md)**.
 
 GRASS raster layers (backscatter, derivatives) live in the active GRASS
 environment — see the [GRASS / FastGIS toolbox](grass-fastgis.md).
+
+!!! tip "Column names are configurable"
+    Easting, Northing, Longitude and Latitude are read from **editable text
+    fields** in the query builder, so a table using different names works without
+    any code change. If one of the four is missing, the spatial tools stay
+    disabled and the missing names are logged to the `GroundTruther` message-log
+    tab.

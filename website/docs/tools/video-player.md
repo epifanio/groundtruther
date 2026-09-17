@@ -11,8 +11,8 @@ canvas follows the footage.
 
 ## What it does
 
-- Loads a **video file** and an associated **GPS metadata log** (per-frame, or
-  timestamped positions), decoding frames with OpenCV.
+- Loads a **video file** and an associated **navigation log**, decoding frames
+  with PyAV where available and OpenCV otherwise.
 - In **geo-link** mode, pans the map canvas to the GPS position of the current
   frame (nearest-position lookup), so the map tracks the video.
 - Renders the **GPS track** as a styled line layer on the canvas for context.
@@ -31,9 +31,16 @@ canvas follows the footage.
 | Setting | What it is |
 |---|---|
 | `videofile` | Video file (MP4 / H.264 recommended). |
-| `videometadata` | GPS log with per-frame or timestamped positions (frame index / timestamp, latitude, longitude; optionally depth, heading, …). |
-| `videoannotation` | *Optional* per-frame bounding-box annotations. |
+| `videometadata` | Cruise-survey navigation CSV — degrees + decimal minutes with N/S/E/W hemisphere codes, converted to signed decimal degrees on load. |
+| `videoannotation` | *Optional* per-frame bounding-box annotations (`frame_index`, `bboxes`, `species`, `confidences`). |
 
-!!! note "Headless OpenCV"
-    The dependency is `opencv-python-headless` on purpose — it avoids bundling a
-    second copy of Qt that would clash with QGIS's own Qt libraries.
+Exact column lists for both:
+**[Annotations & video](../data-model/annotations-and-video.md#video-metadata-csv)**.
+
+!!! note "Two decode backends"
+    **PyAV** (`av`) is the preferred backend: unlike OpenCV's FFmpeg path it
+    deinterlaces interlaced sources, which FFmpeg 7/8 otherwise refuses to
+    convert. The player falls back to OpenCV when PyAV is unavailable.
+
+    The OpenCV dependency is `opencv-python-headless` on purpose — it avoids
+    bundling a second copy of Qt that would clash with QGIS's own Qt libraries.

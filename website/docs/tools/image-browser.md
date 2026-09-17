@@ -16,8 +16,10 @@ with the map and the imagery kept in sync.
   found instantly.
 - Displays the current image in a fast `pyqtgraph` viewer with an **LRU cache**
   for smooth back-and-forth navigation.
-- Shows a **metadata panel** for the current image (position, depth, altimeter,
-  field-of-view, mm/pixel, salinity/temperature, …).
+- Shows a **metadata panel** listing **every** column of the metadata table for
+  the current image (position, depth, altimeter, field-of-view, mm/pixel,
+  salinity/temperature, …) plus its acquisition time — so extra columns of your
+  own appear automatically.
 - Overlays **bounding-box annotations** (e.g. detector output) with a tunable
   **confidence threshold**.
 
@@ -46,7 +48,13 @@ with the map and the imagery kept in sync.
 | `imagemetadata` | Per-image metadata table (Parquet) — must include image name, longitude, latitude (plus depth, FOV, etc.). |
 | `imageannotation` | *Optional* CSV mapping image names to bounding boxes + species + confidence. |
 
-!!! tip
-    The map marker placed at the current image position uses the active project
-    CRS; coordinates from the metadata are treated as WGS-84 and reprojected as
-    needed.
+Column-by-column: **[Image metadata](../data-model/image-metadata.md)** ·
+**[Annotation CSV](../data-model/annotations-and-video.md#image-annotation-csv)**.
+
+!!! tip "Which position the marker uses"
+    The marker sits on the **calibrated USBL fix** (`Xutm + dx` / `Yutm + dy`,
+    reprojected to WGS-84 at load), falling back to `habcam_lon` / `habcam_lat`
+    when those columns are absent. The same position drives the nearest-image
+    lookup, the KMZ export and the query builder's sampling centre, so all four
+    always coincide — see
+    [Positioning](../data-model/image-metadata.md#positioning-read-this-first).
