@@ -1,13 +1,13 @@
-# TODO — A photogrammetric seabed ribbon, to close the scale gap between the micro-DEM and the MBES
+# A photogrammetric seabed ribbon, to close the scale gap between the micro-DEM and the MBES
 
 | | |
 |---|---|
-| **Status** | `PLANNED` |
+| **Status** | `DONE` (phase 2 blocked — see the Progress Log) |
 | **Type** | feat |
 | **Worktree branch** | `feat/photogrammetric-ribbon` |
 | **Created** | 2026-09-17 |
 | **Related memory** | `data-model-facts`, `roughness-integration`, `fastgis-grass-api`, `documentation` |
-| **Execution PR** | _(filled in by the execution agent)_ |
+| **Execution PR** | [#36](https://github.com/epifanio/groundtruther/pull/36) |
 | **Depends on** | [#31](https://github.com/epifanio/groundtruther/issues/31) — the heading fix **must land first** |
 
 ## Objective
@@ -170,16 +170,16 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv
 
 ### Phase 1 — pick the strip (no API calls)
 
-- [ ] **1. Score the 161 candidate runs by texture**, using ORB + RANSAC inlier counts on
+- [x] **1. Score the 161 candidate runs by texture**, using ORB + RANSAC inlier counts on
       consecutive pairs (sample ~30 pairs per run; the full pass over the archive is slow).
       Record link rate and median inliers per run. **This replaces relief as the selection
       criterion** — see Context.
-- [ ] **2. Pick the strip** maximising (link rate × relief × on-DEM fraction). The current
+- [x] **2. Pick the strip** maximising (link rate × relief × on-DEM fraction). The current
       front-runner from the sampling already done is **rows 6663–6958** — 296 frames,
       172 m of track, 4.16 m of relief under it, 100 % on the DEM, 36 % nav overlap,
       **57 % ORB link rate**. Backup: **43537–43851** (315 frames, 175 m, 3.70 m, 59 %).
       Avoid 55651–55954 and 62911–63201 — highest relief, no texture, unbuildable.
-- [ ] **3. Build the registration chain offline**, imagery only: ORB + RANSAC between
+- [x] **3. Build the registration chain offline**, imagery only: ORB + RANSAC between
       consecutive left halves, reject transforms inconsistent with the expected ~510 mm
       advance, and **bridge unlinked gaps with nav**. Output a per-frame 2-D pose
       (position + heading) plus a per-frame flag saying whether it came from pixels or
@@ -188,53 +188,53 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv
 
 ### Phase 2 — fetch (the only API phase)
 
-- [ ] **4. Disk cache first, then fetch.** `dem_format:"mm"`, `include_orthophoto`,
+- [ ] **4. Disk cache first, then fetch.** **BLOCKED — API key rejected (401).** `dem_format:"mm"`, `include_orthophoto`,
       `geo` from the corrected `geo_from_record`, `dem_max_side` at the service default.
       ~300 calls; first is ~14 s cold, then ~0.5 s. Persist raw JSON per frame keyed by
       `frame_key` **before** any decoding, so a decode bug never costs a refetch.
-- [ ] **5. Sanity-check the batch**: `quality == "ok"` rate, `altitude_mm` vs the metadata
+- [ ] **5. Sanity-check the batch** — implemented (`inspect`), blocked on task 4.: `quality == "ok"` rate, `altitude_mm` vs the metadata
       `Altimeter` (they should agree to a few cm), `valid_fraction`, and that every
       `micro_dem` carries a nested `geo` block. Report the `insufficient_coverage` rate —
       on turbid frames it will not be zero.
 
 ### Phase 3 — composite
 
-- [ ] **6. `gt/ribbon.py` — resample into one grid.** Target 3 mm in the survey CRS
+- [x] **6. `gt/ribbon.py` — resample into one grid.** (verified on a synthetic seabed) Target 3 mm in the survey CRS
       (EPSG:32619). At 172 m × ~1.2 m that is roughly **57 000 × 400** cells — ~92 MB
       float32 per band, which is fine; 1 mm would be 9× that and is not. Each frame's grid
       is a **rotated** affine, so this is a proper resample, not a paste.
-- [ ] **7. Blend the overlaps.** ~36–46 % along-track overlap means most cells are seen
+- [x] **7. Blend the overlaps.** ~36–46 % along-track overlap means most cells are seen
       twice. Start with a distance-transform feather (what the service's mosaic does);
       keep the per-cell observation count as a QA band.
-- [ ] **8. Write the outputs**: `ribbon_dem.tif` (1-band Float32, NaN nodata) and
+- [x] **8. Write the outputs** — code done + run on the simulation; real GeoTIFFs blocked on task 4.: `ribbon_dem.tif` (1-band Float32, NaN nodata) and
       `ribbon_ortho.tif` (3-band RGB), both EPSG:32619, via `roughness_geo.write_geotiff`.
       Confirm they land on the bathymetry in QGIS.
-- [ ] **9. Quantify the seams** — where two frames overlap, the elevation difference
+- [x] **9. Quantify the seams** — implemented and reported; 9.0 mm on the simulation, real value blocked on task 4. — where two frames overlap, the elevation difference
       between them is the registration error. Report its distribution, split by whether
       the link was pixel-derived or nav-bridged. **This number is the honest quality
       statement for the whole product**; put it in the docs page.
 
 ### Phase 4 — the two analyses that justify it
 
-- [ ] **10. Profile vs MBES.** Bin the ribbon to 1 m along track, compare against
+- [x] **10. Profile vs MBES.** — baseline re-measured on this strip (0.115 m, not 0.27 m); ribbon half blocked on task 4. Bin the ribbon to 1 m along track, compare against
       `bathy_2015.tif` sampled at the USBL fix. **Baseline to beat: the vehicle's own
       `-(V_Depth + Altimeter)` already matches the MBES to 0.27 m median** (corr 0.662,
       n ≈ 78 000) — that measurement is in the `data-model-facts` memory. If the ribbon
       does not beat 0.27 m, say so plainly; it would mean the ribbon adds texture, not
       accuracy, which is still a legitimate result.
-- [ ] **11. The scale-gap spectrum — the point of the exercise.** Compute the along-track
+- [x] **11. The scale-gap spectrum — the point of the exercise.** Compute the along-track
       1-D power spectrum of the ribbon across 3 mm … 170 m. Overlay the per-frame γ₂ fits
       (`gt/roughness_spectrum.prepare_spectrum`) and the MBES-derived spectrum where they
       overlap. **Does the per-frame power law extrapolate into the 1.2–3 m band, or does
       it break?** Either answer is publishable; a break would mean γ₂ must not be
       extrapolated to acoustic footprints without a correction.
-- [ ] **12. Write it up** — a `website/docs/tools/` page or a `docs/` note (decide which:
+- [x] **12. Write it up** — `docs/photogrammetric_ribbon.md`. — a `website/docs/tools/` page or a `docs/` note (decide which:
       the ribbon is a script, not a plugin tool, so it may belong in `docs/`). Must state
       the texture constraint, the seam error from task 9, and the spectrum result.
 
 ### Closing
 
-- [ ] **13. Tests, memory, Progress Log**, rename `TODO_` → `Status: DONE`, PR opened and
+- [x] **13. Tests, memory, Progress Log**, rename `TODO_` → `Status: DONE`, PR opened and
       left unmerged.
 
 ## Acceptance criteria & verification
@@ -320,4 +320,138 @@ will review, and I want to look at the ribbon over the bathymetry in QGIS myself
 
 ## Progress log
 
-_(appended by the execution agent)_
+**2026-09-17/18 — executed on `feat/photogrammetric-ribbon`, worktree
+`../groundtruther-photogrammetric-ribbon`.**
+
+### Prerequisite
+
+Confirmed before anything else: issue #31 is CLOSED, PR #35 merged 2026-09-17,
+and `geo_from_record({'bearing': 175, ...})` returns `heading_deg = 355.0`. The
+ribbon is built on the corrected heading.
+
+### Phase 1 — done, on real imagery
+
+`inventory` reproduced the plan's figures exactly: 73 710 stereo frames, **161**
+contiguous runs of ≥150 frames sitting ≥80 % on `bathy_2015.tif`, with the same
+candidate list and reliefs.
+
+**The matcher had to be rebuilt before it measured anything.** A plain
+ORB+RANSAC — the configuration the plan's table implies — returned 0 % link rate
+on every strip tested, including ones the plan reported at 57–59 %. Four changes
+were needed, each measured: no preprocessing (flat-field and CLAHE both *lowered*
+the inlier count), a loose Lowe ratio of 0.95, detection masked to the
+overlapping band, and — the important one — a displacement prefilter before
+RANSAC plus a physical gate after it. Without the gate, RANSAC returns confident
+15–25-inlier consensuses on wrong transforms; several were observed on real
+pairs and an ungated chain would have integrated them silently.
+
+`scan` scored the candidates by texture, in descending relief, and **stopped
+after 13 of 161 runs with a proof**: the score is `link_rate × relief ×
+on_dem_frac` with `link_rate ≤ 1`, so once the leader's score exceeded the relief
+of every remaining run, none could win.
+
+Chosen: **rows 6663–6958** (296 frames, 172 m), the plan's front-runner.
+Strip 55651 scored marginally higher (3.289 vs 3.230) but on a *tenth* of the
+inliers (22 vs 239) — and it is the strip the plan called unbuildable mud. Its
+1 % over the first 150 frames against 57 % sampled across all 304 means its
+texture is real but localised. 6663 was taken on robustness. Note that these
+link rates are **not comparable** with the planning table: different matcher,
+and the whole run sampled rather than its first 150 frames.
+
+`chain` on the full strip:
+
+| | |
+|---|---|
+| link rate | **89.8 %** (265/295) |
+| median inliers (linked) | 309 |
+| longest unbroken registered run | **119 pairs**, mean 48 |
+| nav step/frame | median **92 mm** |
+| chain step/frame | median **491 mm** |
+| frames from pixels / nav | 265 / 31 |
+
+The plan expected ~2.4-frame fragments bridged by nav; it is the other way
+round. The 92 mm-vs-491 mm finding reproduces exactly.
+
+**Two independent geometry checks passed**, either of which a heading or
+body-axis sign error would break: the chain's own end-to-end azimuth is 273.1°
+against the corrected nav heading 273.2° (a pre-#31 heading would have run it
+backwards), and calibrating the focal length against the nav's end-to-end
+displacement over 50-frame windows returns 2507 px against the nominal
+rectified-left 2480.28 px — **a ratio of 1.011**.
+
+### Phase 2 — BLOCKED
+
+`https://api.fastgis.eu/seafloor/roughness` returns **`401 invalid or revoked
+API key`** for the key in `config/config.yaml` (also checked: `/seafloor/health`
+same, and unknown paths 404 — the service is up, the credential is dead). There
+is only one key on this machine. **No API calls were made beyond the two probes.**
+
+Everything downstream of the fetch is therefore implemented and verified against
+a synthetic seabed rather than real micro-DEMs. `scripts/build_ribbon.py
+simulate` fabricates a cache in the exact response shape from a surface whose
+along-track spectrum is known exactly, so a reviewer can run the whole pipeline
+without credentials — and so the moment a key exists, `fetch` is the only
+missing step.
+
+### Phases 3–4 — code complete, verified on synthetic, awaiting real data
+
+Three design decisions worth recording:
+
+- **The target grid is track-aligned, not north-up.** 172 m of ribbon at 3 mm is
+  ~57 000 × 400 cells aligned but ~41 000 × 41 000 north-up — seventy times the
+  cells. The plan's own 57 000 × 400 sizing only works aligned.
+- **The response cache keeps the nav-built geotransform**; the chain correction is
+  applied at composite time (`adjust_geotransform`). The cache therefore never
+  depends on the chain and a re-chain costs no refetch.
+- **The spectrum must be band-averaged before fitting.** Across 1.2–3 m a 172 m
+  profile holds only ~30 Fourier ordinates at ~100 % error each; fitted raw, a
+  planted exponent came back scattered by more than a unit. `power_law_fit` now
+  also reports a standard error on the exponent.
+
+End-to-end verification on a planted γ₂ = 3.00 through the real
+`simulate → composite → analyse` path: **γ₁ = 2.35 ± 0.41** recovered in the
+1.2–3 m band (planted 2.00, inside 1σ), **measured/predicted amplitude 1.02×
+(+0.1 dB)**, seam error **9.0 mm** median — the resampling-and-blending floor,
+since the simulation has no registration error by construction.
+
+Three defects were found and fixed *by* tests rather than after them: a boxcar
+anchor smoother leaking the USBL's 6-frame sawtooth back into the chain, a
+trend-blind smoother shortening the track by several percent (which arrived
+disguised as a 17 % focal-length error), and a √2 in the synthetic surface's mode
+amplitudes putting it a clean factor of two below its own target spectrum.
+
+### Task 11 — what can and cannot be said
+
+**Service-independent and real:** the MBES's own along-track spectrum on this
+strip is **γ₁ = 3.60 ± 0.16 (γ₂ ≈ 4.60)** over 2–40 m, r² 0.95. Per-frame γ₂ on
+this survey runs ~2.4–3.6, so the metre-scale spectrum is **much steeper** than
+the frame-scale one — a hint that the power law does *not* extrapolate. It is
+only a hint and is **not** the answer: a 1 m MBES grid is smoothed by its own
+gridding exactly in this band, which steepens a spectrum there. The ribbon is
+what settles it, because it measures both bands with one sensor. Not rounded off,
+not guessed at.
+
+**Task 10's baseline was re-measured and it moved.** On this strip
+`-(V_Depth + Altimeter)` matches the MBES to **0.115 m median |dz|, corr 0.988**
+— not the survey-wide 0.27 m / 0.662 the plan quotes. The ribbon has a harder
+target here than the plan assumed, and should be judged against 0.115 m.
+
+### Verification
+
+`.venv/bin/pytest` — **403 passed, 7 skipped** (gui needs QGIS, integration needs
+a key). 72 of those are new in `tests/unit/test_ribbon.py`, all synthetic, no
+network, including an end-to-end test that a planted roughness survives
+resample → blend → profile → spectrum. No `website/` page changed, so no
+`mkdocs build`; the ribbon is a script and is documented in
+`docs/photogrammetric_ribbon.md`.
+
+### Left undone
+
+- **Task 4/5 (fetch + batch sanity) and the real halves of tasks 8–11.** Blocked
+  on the credential, not on the code.
+- The compositing convention (image bottom→top = heading) is consistent
+  throughout and derived from `INTERFACE.md`, but **has never been confirmed
+  against a live response**. `inspect` prints `geotransform heading - nav
+  heading` precisely to confirm it on the first real fetch; it must be ~0.
+- No ribbon GeoTIFFs exist to look at in QGIS yet, so the user's manual checks
+  cannot be done.

@@ -145,3 +145,5 @@ help/build/
 gtenv/
 # Local config — carries the FastGIS API key; use config/config.example.yaml as a template
 config/config.yaml
+ribbon_work/
+ribbon_work_sim/
