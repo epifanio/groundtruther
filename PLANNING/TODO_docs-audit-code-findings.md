@@ -206,39 +206,46 @@ Two traps worth knowing if you re-derive this independently:
   per frame ≈ 571 px, against a 1024 px frame height — so consecutive frames overlap
   ~44 % and a gap of 2 has no overlap at all.
 
-### The one gap — check it before landing the fix
+### The gap that was open, and how it was closed
 
-Every measurement above was made on the **`imgs_jpg/*.jpg` delivery**. The service does
-not read those: it reads the stereo `<name>_orig.png` from its **own** `/data` archive and
-works in the *rectified left* frame. Nothing on this machine holds a stereo original — a
-filesystem-wide search for `*_orig.png` found none — so **the one link that could not be
-verified offline is whether the JPEG delivery has the same vertical orientation as the
-rectified left image the service produces.**
+Every measurement above was originally made on the `imgs_jpg/*.jpg` delivery, while the
+service reads the stereo `<name>_orig.png` from its own archive and works in the
+*rectified left* frame. If `jpg == vflip(rectified_left)`, the whole finding inverts and
+today's code would be correct — so this was a hard gate, not a footnote.
 
-This is decision-changing, not a footnote. If `jpg == vflip(rectified_left)`, then in the
-*service's* frame content moves **up**, image-up is astern, and `heading_deg = bearing`
-— today's code — is **correct**, and applying the fix would break a working
-georeference.
+**Closed, offline.** The stereo archive is on an external drive at
+`/run/media/epinux/WD_BLACK/DATA/HBC/DATA/2015_stereo` (73 710 `*_orig.png`, 2720 × 1024
+side-by-side). Correlating each JPEG against all eight candidate orientations of both
+halves:
 
-What makes a flip unlikely, but not impossible:
+| candidate | correlation | mean abs diff |
+|---|---|---|
+| **LEFT half, as-is** | **+0.985** | **2.6** |
+| LEFT half, vertically flipped | +0.51 | 12.6 |
+| LEFT half, horizontally flipped | +0.26 | 15.4 |
+| LEFT half, rotated 180° | +0.22 | 15.8 |
+| RIGHT half, any orientation | ≤ +0.52 | ≥ 12.6 |
 
-- the JPEG is exactly **1360 × 1024**, INTERFACE.md's rectified-left `full_shape`;
-- INTERFACE.md's overlay-registration section explicitly anticipates it — *"identity if
-  the JPG **is** the rectified left"*;
-- the measured ground motion (464 mm) matches the kinematic prediction (495 mm) using
-  `f = 2480.28`, the rectified-left focal length — so the JPEG is that image at native
-  scale. **But a vertical flip preserves scale**, so this does not rule one out;
-- the JPEGs were delivered from `…/habcam_jpg_2015/` for human annotation work, and such
-  deliveries are normally "as the camera sees it".
+Identical on all three frames tested. **The JPEG delivery is the left half of the stereo
+pair, unflipped** — the residual 2.6 is JPEG compression noise. Rectification (raw left →
+rectified left) is an orientation-preserving homography by construction, so image-up is
+the same in all three frames.
 
-**The check is one API call** and it is cheap: request `include_left_preview` for a frame
-whose JPEG is on disk and compare the returned `left_preview_png_b64` with the JPEG —
-the registration step INTERFACE.md already describes. Same orientation (identity, not a
-flip) ⟹ the chain closes and the fix is right. This is a better use of the plan's single
-authorised live call than rendering a raster and eyeballing it.
+Then the whole measurement was **re-run directly on the stereo left halves**, i.e. the
+exact pixels the service reads:
 
-**Conclusion** (subject to that check). The correct `heading_deg` is the vessel heading
-≈ COG ≈ `bearing + 180°`.
+```
+n = 4 pairs (random access over USB is slow; this corroborates, it does not replace
+            the n=62 and n=18 JPEG runs — and the JPEG *is* that left half)
+  content moves DOWN: 4/4      median dy = +626 px,  dx = -46 px
+  ground motion 504 mm/frame   (predicted ~495 from speed x interval)
+  H1  heading = bearing        : median error 177.1 deg  (IQR 177-177)
+  H2  heading = bearing + 180  : median error   2.9 deg  (IQR 3-3)
+```
+
+Same answer, slightly sharper. **No API call is needed to decide anything.**
+
+**Conclusion.** The correct `heading_deg` is the vessel heading ≈ COG ≈ `bearing + 180°`.
 [gt/roughness_geo.py](../gt/roughness_geo.py) sends `bearing`. Positions are correct —
 which is exactly why this survived a georeferencing check that verified *position* to
 ~0.1 m and never tested *rotation*.
@@ -310,11 +317,14 @@ review, one GUI-check session.
   comments** — the issue bodies alone are misleading.
 - Read `/home/epinux/dev/stereo-roughness/INTERFACE.md` §`geo` and §`POST /mosaic`
   before Track 3.
-- **Track 3 needs exactly one live API call, as a gate** (task 13b): `include_left_preview`
-  for a single frame, to confirm the JPEG delivery and the service's rectified-left frame
-  share a vertical orientation. Everything else was settled offline. A second call to
-  render one frame before/after the fix is also authorised. No batching; the service is a
-  shared GPU.
+- **Track 3 needs no API call to decide anything** — the question, including the
+  frame-orientation gate, was settled offline during planning. One call to render a frame
+  before/after the fix is authorised for visual confirmation. No batching; the service is
+  a shared GPU.
+- **The stereo archive lives on an external drive:**
+  `/run/media/epinux/WD_BLACK/DATA/HBC/DATA/2015_stereo` (73 710 `*_orig.png`,
+  2720 × 1024 side-by-side; left half = the `imgs_jpg` delivery). Mount it before Track 3.
+  Random access over USB is slow — sample contiguous runs, not scattered rows.
 - Reference data: `/home/epinux/dev/groundtruther_test_dataset/` (`projectdata.pq`,
   `test_detector_output.csv`, `test_mosaic_real.*`).
 
@@ -394,14 +404,13 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
       ±15-frame nav baseline. Expect ~175° error for the first and ~5° for the second.
       Paste both into the Progress Log. **Do not take the fix on trust** — if this does
       not reproduce, stop and report, because everything below depends on it.
-- [ ] **13b. GATE — confirm the JPEG and the service's rectified left share a vertical
-      orientation.** See "The one gap" in Finding 3. Request `include_left_preview` for a
-      frame whose JPEG is on disk and compare the two: same orientation ⟹ proceed;
-      **vertically flipped ⟹ STOP — today's `heading_deg = bearing` is correct, close
-      [#31](https://github.com/epifanio/groundtruther/issues/31) as invalid and report.**
-      Everything from task 14 on is conditional on this. Do not skip it because the
-      evidence looks overwhelming — it is overwhelming *in the JPEG frame*, which is not
-      the frame the service works in.
+- [x] **13b. GATE (already closed during planning) — the JPEG delivery and the service's
+      rectified left share a vertical orientation.** Verified offline against the stereo
+      archive on `/run/media/epinux/WD_BLACK/…/2015_stereo`: the JPEG is the **left half,
+      unflipped** (corr +0.985 vs ≤ +0.52 for every other orientation), and the full
+      measurement re-run on the stereo left halves gives the same answer. See "The gap
+      that was open" in Finding 3. Re-confirm cheaply if you wish, but this no longer
+      blocks the fix.
 - [ ] **14. Make `Heading` and `bearing` distinct quantities** in
       [gt/roughness_geo.py](../gt/roughness_geo.py). `DEFAULT_HEADING_COLS` currently
       treats them as interchangeable spellings. A true `Heading` column is used as-is; a
@@ -516,11 +525,10 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
   previously exported rasters need regenerating.
 - **Risk: over-correcting.** If the service is fixed for mode A while the client also
   compensates, the error comes back. Fix only what GroundTruther sends; report the rest.
-- **Risk: the whole of Track 3 is inverted.** Every measurement was made on the JPEG
-  delivery, and the service works from its own stereo archive. A vertical flip between the
-  two would make today's code correct and the "fix" a regression. *Mitigation:* task 13b
-  is a hard gate — one API call, before any code changes. This is the only part of this
-  plan that could actively make things worse if it is wrong.
+- **Risk: the whole of Track 3 is inverted.** *Closed.* This was the one part of the plan
+  that could actively make things worse; the frame-orientation gate (task 13b) was
+  verified against the stereo archive before the plan was finalised. Re-read it before
+  touching `geo_from_record` anyway — it is the assumption the fix rests on.
 - **Risk: scope sprawl into `querybuilder_gui.py`.** It is ~1300 lines and untested. The
   Scope section forbids touching anything but the import lines. If a fix seems to require
   more, stop and say so.
