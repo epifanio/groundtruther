@@ -104,3 +104,18 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
 - Work on a branch off `master`; open a PR (`gh`, account `epifanio`). The user merges.
 - **Never stage `config/config.yaml`.** End commit messages with
   `Co-Authored-By: Claude <noreply@anthropic.com>`.
+
+## Planning workflow
+Non-trivial work (features, multi-file fixes, refactors, migrations) is **planned first**
+in `PLANNING/` — see [PLANNING/README.md](PLANNING/README.md) and the rules in
+[PLANNING/planning_rules.md](PLANNING/planning_rules.md).
+- **Two flows, two branches:** *authoring* a plan is a doc change on `docs/plan-<topic>`;
+  *executing* it happens later on `<type>/<topic>` with its own PR.
+- **Execution runs in a dedicated worktree** (`git worktree add ../groundtruther-<topic>
+  -b <type>/<topic> origin/master`) so parallel sessions and the live QGIS symlink (which
+  points at this main copy) never collide.
+- A plan is started by copying [PLANNING/TEMPLATE_planning.md](PLANNING/TEMPLATE_planning.md)
+  → `PLANNING/TODO_<topic>.md`; its **kickoff prompt** is pasted into a fresh agent session,
+  which reads `CLAUDE.md` + the project memory *first*.
+- **Done** = tests green, project memory updated, Progress Log filled, `TODO_` prefix
+  dropped (`Status: DONE`), work PR opened and left for the user to merge.

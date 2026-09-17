@@ -1,13 +1,13 @@
-# TODO — Planning Workflow: Rules & Bootstrap
+# Planning Workflow — Rules & Bootstrap
 
 | | |
 |---|---|
-| **Status** | `PLANNED` — awaiting kickoff in a fresh agent session |
+| **Status** | `DONE` — executed 2026-09-17 |
 | **Type** | process / bootstrap |
 | **Worktree branch** | `chore/install-planning-workflow` |
 | **Created** | 2026-06-23 |
-| **Related memory** | `project-overview`, `april-2026-refactor`, `install-and-run` |
-| **Execution PR** | _(filled in by the execution agent)_ |
+| **Related memory** | `planning-workflow`, `project-overview`, `april-2026-refactor`, `install-and-run` |
+| **Execution PR** | [#20](https://github.com/epifanio/groundtruther/pull/20) |
 
 > **About this file.** It is two things at once:
 > 1. the **canonical rules** for how we plan and execute substantial work on GroundTruther (bug fixes, features, docs, refactors), and
@@ -216,21 +216,21 @@ _(appended by the execution agent)_
 - Out: authoring any *real* feature/fix plan (those come later, each in its own `TODO_` file).
 
 **Task breakdown**
-- [ ] Create the worktree per §5 (`chore/install-planning-workflow`).
-- [ ] Add `PLANNING/README.md` — one screen: what `PLANNING/` is, the lifecycle (§3), links to this rules file and the template.
-- [ ] Add `PLANNING/TEMPLATE_planning.md` — the §8 template extracted verbatim (no `TODO_` prefix; it is not a task).
-- [ ] Wire `CLAUDE.md` — add a short **"Planning workflow"** section pointing to `PLANNING/README.md` and summarizing the two-flow + worktree + kickoff rules in 3–4 lines.
-- [ ] Add a project-memory entry (e.g. `planning-workflow` — type `project`) describing the workflow and its files, with a `MEMORY.md` pointer, so future sessions recall it automatically.
-- [ ] Fill the Progress Log below.
-- [ ] Rename this file `TODO_planning_rules.md` → `planning_rules.md`; set `Status: DONE`.
-- [ ] Open the work PR (do not merge).
+- [x] Create the worktree per §5 (`chore/install-planning-workflow`).
+- [x] Add `PLANNING/README.md` — one screen: what `PLANNING/` is, the lifecycle (§3), links to this rules file and the template.
+- [x] Add `PLANNING/TEMPLATE_planning.md` — the §8 template extracted verbatim (no `TODO_` prefix; it is not a task).
+- [x] Wire `CLAUDE.md` — add a short **"Planning workflow"** section pointing to `PLANNING/README.md` and summarizing the two-flow + worktree + kickoff rules in 3–4 lines.
+- [x] Add a project-memory entry (e.g. `planning-workflow` — type `project`) describing the workflow and its files, with a `MEMORY.md` pointer, so future sessions recall it automatically.
+- [x] Fill the Progress Log below.
+- [x] Rename this file `TODO_planning_rules.md` → `planning_rules.md`; set `Status: DONE`.
+- [x] Open the work PR (do not merge).
 
 **Acceptance criteria & verification**
-- [ ] `PLANNING/README.md` and `PLANNING/TEMPLATE_planning.md` exist and are internally consistent with this file.
-- [ ] `CLAUDE.md` references the workflow and the `PLANNING/` folder.
-- [ ] A memory entry + `MEMORY.md` pointer exist for the workflow.
-- [ ] `.venv/bin/pytest` still green (no code changed, but confirm nothing broke).
-- [ ] This file renamed, `Status: DONE`, Progress Log filled.
+- [x] `PLANNING/README.md` and `PLANNING/TEMPLATE_planning.md` exist and are internally consistent with this file.
+- [x] `CLAUDE.md` references the workflow and the `PLANNING/` folder.
+- [x] A memory entry + `MEMORY.md` pointer exist for the workflow.
+- [x] `.venv/bin/pytest` still green (no code changed, but confirm nothing broke).
+- [x] This file renamed, `Status: DONE`, Progress Log filled.
 
 **Risks & rollback.** Docs-only; risk is low. Rollback = drop the branch/worktree. Only real care point: do not touch `config/config.yaml`.
 
@@ -260,4 +260,46 @@ open a PR against master (gh, account epifanio). Do NOT merge — I will review 
 
 ## 11. Progress log
 
-_(empty — to be appended by the execution agent that runs §10)_
+**2026-09-17 — bootstrap executed** (agent session, worktree `../groundtruther-planning-workflow`,
+branch `chore/install-planning-workflow` off `origin/master`).
+
+What was done:
+- Read `CLAUDE.md` and the project memory (`MEMORY.md` index + recalled entries) first,
+  then this file in full, per §10.
+- Created the worktree per §5: `git worktree add ../groundtruther-planning-workflow -b
+  chore/install-planning-workflow origin/master`. The main working copy (and therefore the
+  QGIS profile symlink) was left untouched.
+- Added **`PLANNING/README.md`** — one-screen orientation: what `PLANNING/` is, the file
+  table, the two-flow branch model, the `PLANNED → IN PROGRESS → DONE` lifecycle, how to
+  start a plan (Flow A) and how to execute one (Flow B), and worktree cleanup. Links to
+  this rules file and to the template.
+- Added **`PLANNING/TEMPLATE_planning.md`** — the §8 template extracted **verbatim**
+  (lines 142–205 of the pre-rename file), unwrapped from its 4-backtick display fence and
+  prefixed with an HTML comment saying where to copy it and where the rules live. No
+  `TODO_` prefix: it is a template, not a task.
+- Wired **`CLAUDE.md`** — new `## Planning workflow` section (last section, after `## Git`)
+  pointing at `PLANNING/README.md` + `PLANNING/planning_rules.md` and summarising the
+  two-flow model, the worktree rule, the template→`TODO_` →kickoff path, and the
+  Definition of Done.
+- Added project memory entry **`planning-workflow`** (type `project`) with a `MEMORY.md`
+  pointer, cross-linked to `project-overview`, `install-and-run`, `april-2026-refactor`,
+  `grass-client-blast-radius`, so future sessions recall the workflow automatically.
+- Renamed `TODO_planning_rules.md` → `planning_rules.md`, `Status: DONE`, §9 checklists
+  ticked. (`§7` Definition of Done is left unticked on purpose — it is the generic rule
+  text, not this file's own checklist.)
+
+Deviations from the plan: none of substance. Two small judgement calls:
+- Worktree topic named `planning-workflow` (dir `../groundtruther-planning-workflow`),
+  matching the README/CLAUDE.md wording rather than the file slug `planning_rules`.
+- The worktree has no `.venv` of its own; tests were run with the main copy's interpreter
+  (`/home/epinux/dev/groundtruther/.venv/bin/pytest`), which §5 explicitly allows.
+
+Verification: `.venv/bin/pytest` from the worktree → **188 passed, 5 skipped**
+(gui + integration auto-skipped as expected), 1 pre-existing GDAL `FutureWarning`.
+Docs-only change, so no headless import/load check was needed and no runtime behaviour
+changed. `config/config.yaml` was never staged.
+
+PR: **[#20](https://github.com/epifanio/groundtruther/pull/20)** — opened against `master`, left unmerged for review.
+
+Follow-up for the user: review and merge the PR, then
+`git worktree remove ../groundtruther-planning-workflow && git branch -d chore/install-planning-workflow`.
