@@ -136,13 +136,29 @@ vessel — it is towed just behind it.*
 | 5 | **image bottom→top is the direction of travel** | template-matching consecutive frames: content moves **DOWN** in **62 of 62** confident pairs (median +597 px; 5th–95th pct +485…+640; never negative), ≈ 464 mm of ground motion per frame against an independent prediction of ≈ 495 mm from speed × interval; `abs(dy) > abs(dx)` in 62/62 |
 | 6 | the service rotates by `heading_deg`, bottom→top | `INTERFACE.md`: *"image bottom→top = vessel `heading_deg`, image-right = starboard"* |
 | 7 | the camera is fixed to the tow, so its azimuth is the vessel's | stated by the user; consistent with (5), where the along-track axis is the image vertical |
+| 8 | **closed loop:** rotating the measured image shift into ground coordinates under each hypothesis and comparing with the *independently measured* course over ground | **H1 (`heading = bearing`, shipped today): median error 175.2°** (IQR 173–176). **H2 (`heading = bearing + 180`): median error 4.8°** (IQR 4–7). n = 18 pairs with both a confident match and a ±15-frame nav baseline |
 
-Link 5 is the one that closes it. A ground feature ahead of the camera enters at the
-**top** of the frame and leaves at the **bottom**, so image-up points **forward**.
-Sixty-two out of sixty-two pairs, none dissenting, with the magnitude matching an
+**Link 8 is the one to trust.** It does not rely on any argument about which way is
+"forward": it takes the image displacement, converts it to a ground displacement under a
+candidate heading, and checks it against the track the vehicle actually followed
+according to the nav. Only one hypothesis reproduces the track. The residual 4.8° is the
+expected sum of camera yaw relative to the track, USBL noise and cross-track drift —
+which also tells you how accurate the corrected heading is: **good to about 5°**.
+
+Link 5 gives the direction: a ground feature ahead of the camera enters at the **top** of
+the frame and leaves at the **bottom**, so image-up points along the direction of camera
+travel. Sixty-two out of sixty-two pairs, none dissenting, with the magnitude matching an
 independent kinematic prediction to ~6 % — that is what makes it a measurement rather
 than a coin flip, and it simultaneously validates the focal length (2480.28 px), the GSD
 model (`altitude / f`) and the frame interval.
+
+Link 8 then removes the last piece of reasoning from the chain by testing the two
+candidate headings against the nav itself. Three checks that failed to discriminate are
+worth recording so they are not repeated: nearest-neighbour matching of detector boxes
+between consecutive frames (the platform moves ~600 px, so the "nearest" detection in the
+next frame is almost always a **different** fish — a 50/50 split with no signal);
+comparing `flat` and `pixel` mosaics (see below); and eyeballing a single annotated frame
+pair, which is suggestive but not conclusive on featureless mud.
 
 Rebuild this rather than trusting the paragraph — it is task 13:
 
@@ -336,12 +352,15 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
 
 ### Track 3 — the 180° heading error
 
-- [ ] **13. Reproduce the measurement before changing anything.** Rebuild the
+- [ ] **13. Reproduce both measurements before changing anything.** Rebuild the
       scroll-direction harness described in Finding 3 (flat-field → CLAHE →
       `cv2.matchTemplate` of an upper-middle patch of frame *i* against frame *i+1*, keep
-      NCC ≥ 0.4) and confirm content moves **down** by roughly `speed × interval / GSD`
-      pixels. Paste the numbers into the Progress Log. **Do not take the fix on trust** —
-      if this does not reproduce, stop and report, because everything below depends on it.
+      NCC ≥ 0.4), confirm content moves **down**, and then run the link-8 hypothesis test:
+      rotate the measured shift into ground coordinates under `heading = bearing` and
+      `heading = bearing + 180` and compare each against the course over ground from a
+      ±15-frame nav baseline. Expect ~175° error for the first and ~5° for the second.
+      Paste both into the Progress Log. **Do not take the fix on trust** — if this does
+      not reproduce, stop and report, because everything below depends on it.
 - [ ] **14. Make `Heading` and `bearing` distinct quantities** in
       [gt/roughness_geo.py](../gt/roughness_geo.py). `DEFAULT_HEADING_COLS` currently
       treats them as interchangeable spellings. A true `Heading` column is used as-is; a
