@@ -65,19 +65,49 @@ Without these the plugin cannot do its job.
 | `vessel_lon`, `vessel_lat` | float64 | ° WGS-84 | Surface-vessel position. Not read by the plugin. |
 | `Longitude`, `Latitude` | float64 | ° WGS-84 | The WGS-84 form of `Xutm`/`Yutm` (verified: they project onto each other exactly). Shown in the metadata panel and included in the report summary. |
 | `distance` | float64 | m | Length of the (`dx`, `dy`) offset vector. |
-| `bearing` | float64 | ° (−180…180) | Direction of the (`dx`, `dy`) offset vector. **GroundTruther sends this as `heading_deg`** to the roughness service when there is no `Heading` column — see the note below. |
+| `bearing` | float64 | ° (−180…180) | Direction of the (`dx`, `dy`) offset vector — ship **→** HabCam, i.e. *astern*. GroundTruther derives the roughness service's `heading_deg` from it by **reversing it** (`bearing + 180`) when there is no `Heading` column — see the note below. |
 | `location` | string | — | `Point(<habcam_lon> <habcam_lat>)`, a WKT-like restatement of the HabCam position. Not read by the plugin. |
 
-!!! note "`Heading` vs `bearing`"
-    The roughness georeferencing needs a heading. GroundTruther looks for a
-    `Heading` column first and falls back to `bearing`. The sample dataset has
-    no `Heading` column, so `bearing` is what gets sent.
+!!! note "`Heading` vs `bearing` — not two names for one thing"
+    The roughness georeferencing needs a **platform heading**. GroundTruther uses
+    a `Heading` column as it stands, and if the table has none — as the sample
+    dataset does not — derives the heading from `bearing` **reversed**.
 
-    Measured on the sample dataset, `bearing` is the direction **from the base
-    position toward the HabCam fix** — which, for a body towed astern, runs
-    roughly **opposite** to the course over ground (median separation ≈ 173°).
-    If your own table has a true vehicle heading, name the column `Heading` and
-    it will be preferred automatically.
+    `bearing` is not an attitude. It is the direction of the (`dx`, `dy`) layback
+    offset, from the ship to the body it tows ~148 m behind it, so it points
+    **astern** — roughly 180° from the course being made good (median |`bearing`
+    − course over ground| ≈ 173–178° across the survey). The service rotates each
+    frame so that image bottom→top is `heading_deg`, and the camera's image-up
+    points **forward** along the tow, so the heading is `bearing + 180`.
+
+    How that was settled: seabed content scrolls **down** between consecutive
+    frames — 60 of 60 confident template matches, by ≈ 478 mm per frame against
+    an independent prediction of ≈ 489 mm from speed × interval. Rotating that
+    measured image shift into ground coordinates and comparing it with the course
+    over ground taken independently from the nav gives a median error of
+    **175°** for `heading = bearing` and **4.9°** for `heading = bearing + 180`.
+    Only one of the two reproduces the track the vehicle actually followed.
+
+    That ~5° residual — camera yaw relative to the track, USBL noise, cross-track
+    drift — is also **how accurate the derived heading is**, so it bounds how well
+    a single frame's raster can be expected to align. Leave `heading_offset_deg`
+    at 0; it is a residual mount fine-tune, not the place for this.
+
+    If your own table has a true vehicle heading, name the column `Heading` and it
+    will be preferred automatically.
+
+!!! warning "Rasters exported before this was fixed are rotated 180°"
+    Until [#31](https://github.com/epifanio/groundtruther/issues/31) GroundTruther
+    sent `bearing` unchanged, so every georeferenced micro-DEM, orthophoto and
+    nav-placed mosaic it produced is **rotated 180° about its own centre**.
+    Positions are unaffected. Regenerate anything exported earlier.
+
+    The roughness service makes the same assumption for the mosaics where **it**
+    pulls the nav ([stereo-roughness#1](https://github.com/epifanio/stereo-roughness/issues/1)),
+    and GroundTruther deliberately does not compensate for that from the client —
+    doing so would double-correct once the service is fixed. Until then a
+    roughness raster and a service-side mosaic of the same patch disagree with
+    each other by 180°.
 
 ## Depth and altitude
 
