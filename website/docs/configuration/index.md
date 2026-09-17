@@ -96,9 +96,11 @@ does not regenerate the file from a template. Two consequences worth knowing:
 1. **A section the dialog does not know about is preserved**, not deleted. If a
    future version adds a section and you save from an older dialog, your section
    survives.
-2. **Comments and formatting are not preserved.** The file is re-serialised with
-   `yaml.safe_dump` (block style, original key order kept, no sorting), so any
-   comments you added by hand are lost on the next save. Keep notes elsewhere.
+2. **Comments are not preserved, but the file's shape is.** It is re-serialised
+   with `yaml.safe_dump`, keeping the leading `---`, four-space indentation and
+   the original key order — so a save through the dialog is not a gratuitous
+   reformat of every line. Any comments you added by hand are still lost, since
+   PyYAML does not round-trip them. Keep notes elsewhere.
 
 Hand-editing the YAML is perfectly fine — GroundTruther re-reads the file every
 time the dialog opens and every time the plugin loads. Values are read
