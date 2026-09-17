@@ -119,6 +119,8 @@ Each planning file ends with a **self-contained** kickoff prompt the user pastes
 
 Keep it terse and imperative; the details live in the plan, not the prompt.
 
+There is a **second**, Flow A counterpart: the **authoring prompt**, pasted into a fresh session together with the user's raw notes to have the agent *write* the plan from the template. Its canonical text lives in [README.md](README.md) → "Starting a plan (Flow A)".
+
 ---
 
 ## 7. Definition of Done
