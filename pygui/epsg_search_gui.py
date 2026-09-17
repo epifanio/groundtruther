@@ -5,9 +5,6 @@
 the user search for a coordinate reference system by EPSG code, parameter
 string, or title.
 
-Note: this file uses a bare ``from pygui.Ui_epsg_ui import`` path which only
-works when run standalone (not as part of the installed plugin).  Inside the
-plugin the equivalent is ``groundtruther.pygui.search_epsg``.
 """
 import sys
 
@@ -15,7 +12,7 @@ from qgis.PyQt.QtCore import *
 from qgis.PyQt.QtGui import *
 from qgis.PyQt.QtWidgets import *
 
-from pygui.Ui_epsg_ui import Ui_Form
+from groundtruther.pygui.Ui_epsg_ui import Ui_Form
 
 
 class SearchEpsg(QWidget, Ui_Form):
