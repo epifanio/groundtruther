@@ -5,7 +5,7 @@ roughness request, built from the frame's navigation:
 
     geo = {
         "easting": <Xutm + dx>, "northing": <Yutm + dy>,   # calibrated USBL fix
-        "heading_deg": <Heading|bearing>, "epsg": 32619,
+        "heading_deg": <platform heading>, "epsg": 32619,
         # mount fine-tune (server applies these):
         "heading_offset_deg": 0.0, "mirror": false,
     }
@@ -39,14 +39,27 @@ import numpy as np
 # ``Xutm + dx`` / ``Yutm + dy`` (base position + USBL offset) — the independent,
 # measured truth (matches pdal-mbio), NOT the layback model ``Xutm_adj`` nor the
 # ship GPS ``sXutm`` — so the rendered raster coincides with the substrate map
-# and the sampling point.  This dataset has no "Heading" column — it carries
-# "bearing"; try Heading first, then fall back to bearing.
+# and the sampling point.
 DEFAULT_EASTING_COL = "Xutm"
 DEFAULT_EASTING_OFFSET_COL = "dx"
 DEFAULT_NORTHING_COL = "Yutm"
 DEFAULT_NORTHING_OFFSET_COL = "dy"
-DEFAULT_HEADING_COLS = ("Heading", "bearing")
 DEFAULT_EPSG = 32619
+
+#: Nav columns that can supply the platform heading, in preference order, each
+#: flagged with whether the column points **astern** rather than forward.
+#:
+#: ``Heading`` is a vehicle attitude and is used as it stands.  ``bearing`` is
+#: **not** another spelling of it: it is the compass direction of the layback
+#: offset vector, ship -> towed body, i.e. the direction *astern*, and it has to
+#: be turned round.  Treating the two as interchangeable is what put every
+#: georeferenced roughness product 180 deg out until issue #31.
+DEFAULT_HEADING_COL = "Heading"        # a vehicle attitude — use as it stands
+DEFAULT_BEARING_COL = "bearing"        # layback geometry — points astern
+HEADING_SOURCES = (
+    (DEFAULT_HEADING_COL, False),
+    (DEFAULT_BEARING_COL, True),       # True = "this column points astern"
+)
 
 
 def _finite(v) -> float | None:
@@ -128,16 +141,29 @@ def build_geo(easting, northing, heading_deg, *, epsg: int = DEFAULT_EPSG,
     }
 
 
-def geo_from_record(record, *, epsg: int = DEFAULT_EPSG,
-                    heading_offset_deg: float = 0.0, mirror: bool = False,
-                    heading_cols=DEFAULT_HEADING_COLS) -> dict | None:
-    """Build ``geo`` from a metadata row (pandas Series or plain mapping).
+def reverse_bearing(bearing_deg: float) -> float:
+    """Turn a ship -> towed-body bearing round into the platform heading.
 
-    easting/northing are the USBL fix (``Xutm + dx`` / ``Yutm + dy`` via
-    :func:`usbl_easting_northing`).  ``heading_deg`` is looked up from the nav by
-    the frame (per-row heading); tries each name in *heading_cols* in order (so
-    "Heading" wins when present, else "bearing").  Returns ``None`` when
-    position or heading are missing.
+    ``bearing`` in the HabCam nav is the compass direction of the ``(dx, dy)``
+    layback offset — from the ship to the body it tows ~148 m behind it — so it
+    points **astern**, roughly 180 deg from the course being made good.  The
+    service rotates the frame so that image bottom->top is ``heading_deg``, and
+    the camera's image-up points **forward** along the tow (measured: seabed
+    content scrolls down between consecutive frames in 60 of 60 confident
+    template matches, by the distance the platform travels).  So the value the
+    service needs is the heading, and ``bearing`` has to be reversed to get it.
+
+    Normalised to ``[0, 360)``; the nav's own ``bearing`` is -180..180.
+    """
+    return (float(bearing_deg) + 180.0) % 360.0
+
+
+def platform_heading_from_record(record, *, heading_sources=HEADING_SOURCES):
+    """The platform heading in degrees for a metadata row, or ``None``.
+
+    Tries each of :data:`HEADING_SOURCES` in order and applies that column's own
+    convention — ``Heading`` as it stands, ``bearing`` reversed by
+    :func:`reverse_bearing`.  Returns ``None`` when the row carries neither.
     """
     def get(col):
         try:
@@ -145,12 +171,27 @@ def geo_from_record(record, *, epsg: int = DEFAULT_EPSG,
         except (KeyError, IndexError, TypeError):
             return None
 
-    heading = None
-    for col in heading_cols:
-        v = _finite(get(col))
-        if v is not None:
-            heading = v
-            break
+    for col, is_astern in heading_sources:
+        value = _finite(get(col))
+        if value is None:
+            continue
+        return reverse_bearing(value) if is_astern else value % 360.0
+    return None
+
+
+def geo_from_record(record, *, epsg: int = DEFAULT_EPSG,
+                    heading_offset_deg: float = 0.0, mirror: bool = False,
+                    heading_sources=HEADING_SOURCES) -> dict | None:
+    """Build ``geo`` from a metadata row (pandas Series or plain mapping).
+
+    easting/northing are the USBL fix (``Xutm + dx`` / ``Yutm + dy`` via
+    :func:`usbl_easting_northing`).  ``heading_deg`` is the platform heading from
+    :func:`platform_heading_from_record` — which is *not* simply whichever of
+    ``Heading`` / ``bearing`` the row happens to carry: a ``bearing`` points
+    astern and is reversed.  Returns ``None`` when position or heading are
+    missing.
+    """
+    heading = platform_heading_from_record(record, heading_sources=heading_sources)
     easting, northing = usbl_easting_northing(record)
     return build_geo(easting, northing, heading,
                      epsg=epsg, heading_offset_deg=heading_offset_deg,

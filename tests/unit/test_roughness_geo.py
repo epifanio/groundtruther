@@ -76,15 +76,8 @@ def test_geo_from_record_uses_usbl_fix():
     geo = rg.geo_from_record(rec)
     assert geo["easting"] == pytest.approx(1012.0)
     assert geo["northing"] == pytest.approx(1997.0)
-    assert geo["heading_deg"] == pytest.approx(88.3)
+    assert geo["heading_deg"] == pytest.approx(268.3)       # bearing reversed
     assert geo["layback_m"] == 0.0             # position already corrected
-
-
-def test_geo_from_record_uses_heading_then_bearing():
-    base = {"Xutm": 100.0, "Yutm": 200.0, "dx": 0.0, "dy": 0.0}
-    assert rg.geo_from_record({**base, "bearing": 88.3})["heading_deg"] == pytest.approx(88.3)
-    assert rg.geo_from_record(
-        {**base, "Heading": 90.0, "bearing": 88.3})["heading_deg"] == 90.0  # Heading wins
 
 
 def test_geo_from_record_missing_nav():
@@ -97,8 +90,82 @@ def test_geo_from_record_pandas_series():
                    "bearing": 88.0})
     geo = rg.geo_from_record(s, heading_offset_deg=2.0, mirror=True)
     assert geo["easting"] == pytest.approx(510918.7)        # Xutm + dx
+    assert geo["heading_deg"] == pytest.approx(268.0)       # bearing reversed
     assert geo["heading_offset_deg"] == 2.0
     assert geo["mirror"] is True
+
+
+# --- the heading convention (issue #31) -------------------------------------
+#
+# `Heading` and `bearing` are two different quantities, not two spellings of
+# one.  `Heading` is a vehicle attitude.  `bearing` is the compass direction of
+# the layback offset (dx, dy) — ship -> towed HabCam, ~148 m astern — so it
+# points *backwards* along the tow, roughly 180 deg from the course made good.
+#
+# The service rotates the frame so image bottom->top is `heading_deg`, and the
+# camera's image-up points forward (seabed content scrolls DOWN between
+# consecutive frames, 60 of 60 confident template matches, by the distance the
+# platform travels).  So a `bearing` must be reversed before it is sent.
+#
+# Until this was fixed the plugin sent `bearing` as `heading_deg`, which rotated
+# every georeferenced micro-DEM, orthophoto and nav-placed mosaic 180 deg about
+# its own centre.  Positions were, and are, correct.
+
+def test_a_true_heading_column_is_sent_unchanged():
+    base = {"Xutm": 100.0, "Yutm": 200.0, "dx": 0.0, "dy": 0.0}
+    assert rg.geo_from_record({**base, "Heading": 90.0})["heading_deg"] == 90.0
+
+
+def test_a_bearing_column_is_turned_round():
+    base = {"Xutm": 100.0, "Yutm": 200.0, "dx": 0.0, "dy": 0.0}
+    assert rg.geo_from_record({**base, "bearing": 88.3})["heading_deg"] == (
+        pytest.approx(268.3))
+
+
+def test_heading_wins_over_bearing_when_both_are_present():
+    """A measured attitude beats geometry inferred from the layback."""
+    rec = {"Xutm": 100.0, "Yutm": 200.0, "dx": 0.0, "dy": 0.0,
+           "Heading": 268.0, "bearing": 88.3}
+    assert rg.geo_from_record(rec)["heading_deg"] == 268.0
+
+
+@pytest.mark.parametrize("bearing, expected", [
+    (0.0, 180.0),
+    (88.3, 268.3),
+    (180.0, 0.0),           # wraps
+    (-180.0, 0.0),          # the nav's own range is -180..180
+    (-91.7, 88.3),
+    (359.0, 179.0),
+    (270.0, 90.0),
+])
+def test_reverse_bearing_normalises_to_0_360(bearing, expected):
+    assert rg.reverse_bearing(bearing) == pytest.approx(expected)
+
+
+def test_reversing_twice_is_the_identity():
+    for b in (0.0, 45.5, 88.3, 179.9, 359.0):
+        assert rg.reverse_bearing(rg.reverse_bearing(b)) == pytest.approx(b % 360.0)
+
+
+def test_platform_heading_is_none_when_the_row_has_neither_column():
+    assert rg.platform_heading_from_record({"Xutm": 1.0, "Yutm": 2.0}) is None
+
+
+def test_the_reversal_reproduces_the_course_over_ground():
+    """The sanity check that made this a measurement rather than an argument.
+
+    `bearing` is the direction of the (dx, dy) offset, so a row's own numbers
+    say which way is astern; the heading is the other way round.
+    """
+    import math
+    dx, dy = 143.56, 3.37                       # a real row from the HRS1508 nav
+    bearing = math.degrees(math.atan2(dx, dy)) % 360.0
+    rec = {"Xutm": 0.0, "Yutm": 0.0, "dx": dx, "dy": dy, "bearing": bearing}
+
+    heading = rg.geo_from_record(rec)["heading_deg"]
+    # the ship is ahead of the body, so ship-relative-to-body is the heading
+    towards_ship = math.degrees(math.atan2(-dx, -dy)) % 360.0
+    assert heading == pytest.approx(towards_ship, abs=1e-6)
 
 
 # --- extract_geo ------------------------------------------------------------
