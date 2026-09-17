@@ -11,8 +11,9 @@ and per-frame video annotations.
 [Image Browser](../tools/image-browser.md) and edited by the
 [annotation editor](../tools/annotation.md).
 
-**The file is read positionally, not by header name.** GroundTruther skips the
-first two lines and then assigns its own names to the eleven columns, in order:
+**The file is read positionally, not by header name.** GroundTruther skips any
+leading blank or comment lines, drops a header row if there is one, and then
+assigns its own names to the eleven columns, in order:
 
 | # | GroundTruther's name | Meaning |
 |---|---|---|
@@ -42,12 +43,20 @@ id,Imagename,frame_id,TL_x,TL_y,BR_x,BR_y,detection_length_confidence,target_len
 15,201503.20150619.181143331.204643.jpg,12,422.875,325.125,584.375,567.375,0.335472,0,fish,0.335472
 ```
 
-!!! warning "Two leading lines are skipped"
-    The parser is fixed at `skiprows=[0, 1]` — it was written for an export
-    format with two banner lines. A file with a **single** header row therefore
-    loses its **first detection**. In the sample dataset that is 1 row out of
-    7 278. If every detection matters, prepend a second comment line to the
-    file, or drop the header entirely and add one blank line.
+!!! info "The preamble is detected, not assumed"
+    GroundTruther accepts the file however it arrives: with a header row or
+    without, and with any number of blank or `#`-commented banner lines in front
+    of it. A header is recognised by its bounding-box columns failing to parse as
+    numbers, so a detection with one damaged coordinate is still read as a
+    detection. **Every row is kept** — the sample dataset's
+    `test_detector_output.csv` loads all 7 278 detections. Which shape was
+    detected is logged to the `GroundTruther` message-log tab.
+
+    The reader used to be fixed at `skiprows=[0, 1]`, which lost the first
+    detection of a single-header file and turned the header of GroundTruther's own
+    save into a phantom annotation
+    ([#28](https://github.com/epifanio/groundtruther/issues/28)). Files written by
+    that older version — two blank lines, then the header — still load correctly.
 
 The **confidence threshold** spin box in the Image Browser hides any box whose
 `Confidence` is below the value; the filter is inclusive (`>=`) and is shared
