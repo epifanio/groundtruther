@@ -297,10 +297,11 @@ review, one GUI-check session.
 - Renaming modules, restructuring packages, or adding `__init__.py` files beyond what the
   import conversion needs.
 - The GPU path (`pip_cuda`) beyond its import line — it is unreachable without RAPIDS.
-- Server-side (FastGIS / stereo-roughness) changes. `INTERFACE.md`'s own mosaic example
-  shows `"heading_deg": <bearing>`, so **mode-A mosaics — where the service pulls the nav
-  itself — are very likely 180° out too, and GroundTruther cannot fix that from here.**
-  Open an issue against that side and note it in the Progress Log. Do **not** add a
+- Server-side (`epifanio/stereo-roughness`) changes. Confirmed, not suspected:
+  `service/service_core.py:59` passes `bearing` as `heading_deg`, so **mode-A mosaics are
+  180° out too and GroundTruther cannot fix that from here.** Already filed as
+  [stereo-roughness#1](https://github.com/epifanio/stereo-roughness/issues/1) and
+  [#2](https://github.com/epifanio/stereo-roughness/issues/2). Do **not** add a
   client-side compensation: it would double-correct the moment the server is fixed.
 - The remaining open questions from the docs audit that are *not* defects
   (`Step`/`Position` units, the optical sensor channels, the `Beam Flag` encoding).
@@ -424,21 +425,38 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
       `bearing + 180`; a record with both prefers `Heading`; wrap-around at ±180 is
       handled. These tests are the spec — write them so a future reader learns the
       geometry from them.
-- [ ] **16. Deal with the saved calibrations.** The Georef tab persists
-      `heading_offset_deg` per dataset in `QgsSettings`
-      (`groundtruther/roughness/<md5-of-metadata-path>/…`). A user who noticed the
-      rotation may have dialled in ±180 to compensate; after the fix that double-corrects
-      back to wrong. Decide and implement: bump a stored schema version and reset the
-      offset, or detect a near-±180 offset and clear it with a message-log note. **Do not
-      silently change what a stored value means.**
+- [ ] **16. Deal with the saved calibrations — the light version.** The Georef tab
+      persists `heading_offset_deg` per dataset in `QgsSettings`
+      (`groundtruther/roughness/<md5-of-metadata-path>/…`), and a user who noticed the
+      rotation might have dialled in ±180 to compensate — which would double-correct back
+      to wrong after the fix.
+      **Answered 2026-09-17: the author has never dialled ±180 into that offset**, so no
+      rescue is needed on this machine. The plugin is published, though, so do not skip the
+      guard entirely: **bump a stored schema version and reset `heading_offset_deg` to 0
+      when the stored version is older**, with one `Qgis.Info` line saying so. Cheap, safe
+      for the one install we know about, and correct for any we do not. Detecting
+      near-±180 values and second-guessing them is now **out of scope** — it risks clearing
+      a legitimate mount calibration to solve a problem nobody has.
 - [ ] **17. Check the neighbours of the bug.** Does anything else consume `bearing` as if
       it were an attitude? (`grep -rn "bearing" --include="*.py"`.) Confirm the `mirror`
       flag is genuinely independent — a 180° rotation is not a reflection, and anyone who
       "fixed" this with `mirror` has a second, different error.
-- [ ] **18. Report it upstream.** `INTERFACE.md` mode-B shows `"heading_deg": <bearing>`,
-      so mode-A mosaics (service pulls the nav) are likely wrong the same way. Open an
-      issue on the FastGIS / stereo-roughness side with the evidence table from Finding 3.
-      Out of scope to fix here.
+- [x] **18. Report it upstream — done 2026-09-17, before execution.** Confirmed at the
+      line rather than suspected: `service/service_core.py:59` builds the mode-A nav with
+      `heading_deg=float(r.bearing)`, so the service has the identical bug. Two issues
+      filed on `epifanio/stereo-roughness`:
+      [#1](https://github.com/epifanio/stereo-roughness/issues/1) (the service code path)
+      and [#2](https://github.com/epifanio/stereo-roughness/issues/2) (`INTERFACE.md`
+      recommends `bearing` to every client — the contract is what led GroundTruther
+      astray, and its mode-B example also shows the layback model `Xutm_adj` where the
+      service itself uses the USBL fix). **`epifanio/FastGIS` needs nothing** — it is a
+      pure proxy for this route.
+
+      **Consequence to carry into task 19 and the release note:** once the client fix lands
+      and before the service issues do, `/seafloor/roughness` output is correct while
+      **mode-A mosaics are still 180° out** — so a roughness raster and a mosaic of the
+      same patch will disagree with each other. Say so in the docs. Do **not** compensate
+      client-side; it would double-correct the moment upstream lands.
 - [ ] **19. Correct the published docs.** `website/docs/data-model/image-metadata.md`'s
       "`Heading` vs `bearing`" note currently states the measurement and explicitly
       declines to draw a conclusion — replace it with the conclusion. Check
