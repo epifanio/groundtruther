@@ -7,7 +7,7 @@
 | **Worktree branch** | `chore/install-planning-workflow` |
 | **Created** | 2026-06-23 |
 | **Related memory** | `planning-workflow`, `project-overview`, `april-2026-refactor`, `install-and-run` |
-| **Execution PR** | _(filled in by the execution agent)_ |
+| **Execution PR** | [#20](https://github.com/epifanio/groundtruther/pull/20) |
 
 > **About this file.** It is two things at once:
 > 1. the **canonical rules** for how we plan and execute substantial work on GroundTruther (bug fixes, features, docs, refactors), and
@@ -298,6 +298,8 @@ Verification: `.venv/bin/pytest` from the worktree → **188 passed, 5 skipped**
 (gui + integration auto-skipped as expected), 1 pre-existing GDAL `FutureWarning`.
 Docs-only change, so no headless import/load check was needed and no runtime behaviour
 changed. `config/config.yaml` was never staged.
+
+PR: **[#20](https://github.com/epifanio/groundtruther/pull/20)** — opened against `master`, left unmerged for review.
 
 Follow-up for the user: review and merge the PR, then
 `git worktree remove ../groundtruther-planning-workflow && git branch -d chore/install-planning-workflow`.
