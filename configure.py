@@ -4,19 +4,16 @@ import traceback
 
 import yaml
 
-try:
-    from pydantic.error_wrappers import ValidationError  # pydantic v1
-except ImportError:
-    from pydantic import ValidationError  # pydantic v2
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QDialog, QFileDialog, QMessageBox,
-    QHBoxLayout, QLabel, QLineEdit, QToolButton,
+    QCheckBox, QDoubleSpinBox, QFormLayout, QGroupBox, QHBoxLayout, QLabel,
+    QLineEdit, QSpinBox, QToolButton, QVBoxLayout,
 )
 
 from groundtruther.pygui.app_settings_gui import AppSettings
-from groundtruther.config_model import HabcamSettings
-from groundtruther.gt.config_merge import merge_settings
+from groundtruther.gt import config_check
+from groundtruther.gt.config_check import merge_settings, write_settings
 from groundtruther.config.config import config as DEFAULT_CONFIG_PATH
 import groundtruther.resources_rc  # noqa: F401 – registers Qt resources
 
@@ -79,54 +76,54 @@ def load_config(config_path):
         return None
 
 
-def validate_config(settings):
-    """Validate *settings* against the Pydantic model.
+def check_config(settings):
+    """Grade every config key individually – see :mod:`gt.config_check`.
 
-    Returns a ``(is_valid: bool, error_message: str)`` tuple.
-    Never shows any dialog – the caller decides how to present errors.
+    Returns a ``ConfigReport`` whose ``errors`` block startup and whose
+    ``warnings`` disable a single feature each.  Never shows any dialog.
+    """
+    return config_check.check_settings(settings)
+
+
+def validate_config(settings):
+    """Validate *settings*, key by key.
+
+    Returns a ``(is_valid: bool, error_message: str)`` tuple, kept for the
+    callers that only need a yes/no answer (``ConfigDialog.write_config``,
+    ``validate_config2``).  "Valid" now means **no errors** – a stale optional
+    path yields a warning, not a veto, so one bad key can no longer invalidate
+    the whole file.  Use :func:`check_config` when you need the detail.
     """
     if not settings:
         return False, "No settings provided"
-    try:
-        # Video fields are all Optional[str] — nothing to validate pydantically.
-        # Passing them to HabcamSettings triggers a pydantic v1 bug where a
-        # field named "Video" with type Optional[VideoSettings] silently fails
-        # coercion and reports "value is not None".  Validate only the fields
-        # that have real constraints (paths, URLs, booleans).
-        HabcamSettings(
-            Mbes={"soundings": settings["Mbes"]["soundings"]},
-            HabCam={
-                "imagepath": settings["HabCam"]["imagepath"],
-                "imagemetadata": settings["HabCam"]["imagemetadata"],
-                "imageannotation": settings["HabCam"]["imageannotation"],
-            },
-            Export={"kmldir": settings["Export"]["kmldir"]},
-            Processing={
-                "gpu_avaibility": settings["Processing"]["gpu_avaibility"],
-                "grass_api_endpoint": settings["Processing"]["grass_api_endpoint"],
-            },
-            Filesystem={"filemanager": settings["Filesystem"].get("filemanager") or None},
-        )
+    report = check_config(settings)
+    if report.ok:
         return True, ""
-    except ValidationError as exc:
-        lines = [
-            f"  {'.'.join(str(l) for l in err['loc'])}: {err['msg']}"
-            for err in exc.errors()
-        ]
-        return False, "Invalid settings:\n" + "\n".join(lines)
-    except KeyError as exc:
-        return False, f"Missing required config key: {exc}"
+    return False, "Invalid settings:\n" + report.summary(include_warnings=False)
 
 
 def get_settings(config_path):
     """Load *and* validate the config file at *config_path*.
 
-    Returns the settings dict when valid, or ``None`` otherwise.
-    Never shows any dialog – callers are responsible for user feedback.
+    Returns the settings dict when it has no *fatal* problems, or ``None``
+    otherwise.  Never shows any dialog – callers are responsible for user
+    feedback.  Prefer :func:`get_settings_checked` when you want to degrade
+    per feature instead of all-or-nothing.
+    """
+    settings, report = get_settings_checked(config_path)
+    return settings if report.ok else None
+
+
+def get_settings_checked(config_path):
+    """Load the config at *config_path* and grade it.
+
+    Returns ``(settings, report)`` where *settings* is the raw dict as loaded
+    (``None`` when the file is missing/unparseable) and *report* is a
+    ``ConfigReport``.  Callers that want to keep running on a partly broken
+    config pass both to ``config_check.degrade``.
     """
     settings = load_config(config_path)
-    is_valid, _ = validate_config(settings)
-    return settings if is_valid else None
+    return settings, check_config(settings)
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +151,18 @@ class ConfigDialog(QDialog, AppSettings):
     settings_saved = pyqtSignal()
 
     def __init__(self, parent=None):
-        super().__init__()
+        # Initialise exactly one base, explicitly. Two traps here, both caught
+        # by tests/gui/test_config_dialog.py:
+        #   * `super().__init__()` followed by `QDialog.__init__(self, parent)`
+        #     (what this used to do) runs the sip constructor twice and orphans
+        #     the first C++ object — a segfault at teardown once several
+        #     dialogs have been built.
+        #   * `super().__init__(parent)` alone is worse: PyQt's cooperative
+        #     multiple inheritance walks on to AppSettings.__init__, which
+        #     calls setupUi() a *second* time. The attribute references then
+        #     point at the newer widget set while the older one is what's
+        #     actually shown — a dialog that looks unpopulated and is missing
+        #     every programmatically added row.
         QDialog.__init__(self, parent)
         self.setupUi(self)
 
@@ -173,6 +181,10 @@ class ConfigDialog(QDialog, AppSettings):
         self.select_kml_path.clicked.connect(self.set_kml_path)
         self.select_video_path.clicked.connect(self.set_video_path)
         self.select_video_metadata_path.clicked.connect(self.set_video_metadata_path)
+        # The remaining config keys have no widgets in the generated UI, so they
+        # are built here (same reason as the reference-surface row above).
+        self._add_video_annotation_row()
+        self._add_roughness_box()
         self.gpu_avaibility.currentIndexChanged.connect(self._on_gpu_index_changed)
         self.setOption.clicked.connect(self.write_config)
         self.quit.clicked.connect(self.close)
@@ -191,7 +203,8 @@ class ConfigDialog(QDialog, AppSettings):
         for name in ("select_image_path", "select_metadata_path",
                      "select_imageannotation_path", "select_mbes_path",
                      "select_kml_path", "select_video_path",
-                     "select_video_metadata_path", "select_vrt_path"):
+                     "select_video_metadata_path", "select_vrt_path",
+                     "select_video_annotation_path"):
             btn = getattr(self, name, None)
             if btn is not None:
                 iconize(btn, "folder-open.svg", "Browse…")
@@ -206,6 +219,11 @@ class ConfigDialog(QDialog, AppSettings):
         # GPU toggle disabled until RAPIDS detection is implemented
         self.gpu_avaibility.setEnabled(False)
 
+        # The generated UI sizes itself for the sections it knows about; the
+        # roughness box roughly doubles the content, so open a bit taller.
+        # Everything still lives in the .ui's scroll area.
+        self.resize(620, 760)
+
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
@@ -218,34 +236,67 @@ class ConfigDialog(QDialog, AppSettings):
         """
         settings = load_config(self.config) or {}
 
-        fs = settings.get("Filesystem", {})
-        hbc = settings.get("HabCam", {})
-        mbes = settings.get("Mbes", {})
-        export = settings.get("Export", {})
-        proc = settings.get("Processing", {})
+        fs = settings.get("Filesystem") or {}
+        hbc = settings.get("HabCam") or {}
+        mbes = settings.get("Mbes") or {}
+        export = settings.get("Export") or {}
+        proc = settings.get("Processing") or {}
 
         video = settings.get("Video", {}) or {}
 
-        self.filemanager.setText(fs.get("filemanager", ""))
-        self.image_path.setText(hbc.get("imagepath", ""))
-        self.metadata_path.setText(hbc.get("imagemetadata", ""))
-        self.imageannotation_path.setText(hbc.get("imageannotation", ""))
-        self.mbes_path.setText(mbes.get("soundings", ""))
-        self.reference_surface_path.setText(mbes.get("reference_surface", "") or "")
-        self.kml_path.setText(export.get("kmldir", ""))
+        # ``as_path_str`` (not ``.get(key, "")``) because a key present with an
+        # empty YAML value reads back as ``None``, and ``setText(None)`` raises.
+        _text = config_check.as_path_str
 
-        gpu = proc.get("gpu_avaibility", False)
-        self.gpu_avaibility_value = bool(gpu)
+        self.filemanager.setText(_text(fs.get("filemanager")))
+        self.image_path.setText(_text(hbc.get("imagepath")))
+        self.metadata_path.setText(_text(hbc.get("imagemetadata")))
+        self.imageannotation_path.setText(_text(hbc.get("imageannotation")))
+        self.mbes_path.setText(_text(mbes.get("soundings")))
+        self.reference_surface_path.setText(_text(mbes.get("reference_surface")))
+        self.kml_path.setText(_text(export.get("kmldir")))
+
+        gpu = config_check.as_bool(proc.get("gpu_avaibility"), False)
+        self.gpu_avaibility_value = gpu
         self.gpu_avaibility.setCurrentText("Enabled" if gpu else "Disabled")
-        self.grass_api_endpoint.setText(proc.get("grass_api_endpoint", ""))
-        self.grass_api_key.setText(proc.get("grass_api_key", "") or "")
+        self.grass_api_endpoint.setText(_text(proc.get("grass_api_endpoint")))
+        self.grass_api_key.setText(_text(proc.get("grass_api_key")))
 
         # Video fields (widgets are now always present via Ui_app_settings_ui)
-        self.video_path.setText(video.get("videofile", ""))
-        self.video_metadata_path.setText(video.get("videometadata", ""))
+        self.video_path.setText(_text(video.get("videofile")))
+        self.video_metadata_path.setText(_text(video.get("videometadata")))
+        self.video_annotation_path.setText(_text(video.get("videoannotation")))
 
         session = settings.get("Session", {}) or {}
-        self.vrt_path.setText(session.get("groundtruther_project", "") or "")
+        self.vrt_path.setText(_text(session.get("groundtruther_project")))
+
+        # Roughness — the defaults here mirror ``config_model.RoughnessSettings``;
+        # the coercion helpers mean a junk YAML value shows as the default
+        # rather than raising.
+        rough = settings.get("Roughness") or {}
+        self.roughness_base_url.setText(_text(rough.get("base_url")))
+        self.roughness_route.setText(_text(rough.get("route")))
+        self.roughness_direct_url.setText(_text(rough.get("direct_url")))
+        self.roughness_res_mm.setValue(
+            config_check.as_float(rough.get("res_mm"), 0.0))
+        self.roughness_n_water.setValue(
+            config_check.as_float(rough.get("n_water"), 0.0))
+        self.roughness_dem_max_side.setValue(
+            config_check.as_int(rough.get("dem_max_side"), 512))
+        self.roughness_georeference.setChecked(
+            config_check.as_bool(rough.get("georeference"), False))
+        self.roughness_epsg.setValue(
+            config_check.as_int(rough.get("epsg"), 32619))
+        self.roughness_heading_offset.setValue(
+            config_check.as_float(rough.get("heading_offset_deg"), 0.0))
+        self.roughness_mirror.setChecked(
+            config_check.as_bool(rough.get("mirror"), False))
+        self.roughness_dem_trim_border.setValue(
+            config_check.as_int(rough.get("dem_trim_border"), 2))
+        self.roughness_dem_clip_sigma.setValue(
+            config_check.as_float(rough.get("dem_clip_sigma"), 5.0))
+        self.roughness_dem_erode.setValue(
+            config_check.as_int(rough.get("dem_erode"), 1))
 
     def _on_gpu_index_changed(self, index):
         self.gpu_avaibility_value = self.gpu_avaibility.itemText(index) == "Enabled"
@@ -285,6 +336,188 @@ class ConfigDialog(QDialog, AppSettings):
         )
         if file_name:
             self.mbes_path.setText(file_name)
+
+    def _add_video_annotation_row(self):
+        """Append the 'Annotations' row to the Video group box.
+
+        ``Video.videoannotation`` is the last config key the generated UI never
+        got a widget for; without one it could only be hand-edited in YAML.
+        """
+        self.video_annotation_path = QLineEdit()
+        self.video_annotation_path.setToolTip(
+            "CSV mapping frame indices to bounding-box annotations "
+            "(columns: frame_index, bboxes, species, confidences).")
+        self.select_video_annotation_path = QToolButton()
+        self.select_video_annotation_path.setText("...")
+        self.select_video_annotation_path.clicked.connect(
+            self.set_video_annotation_path)
+        row = QHBoxLayout()
+        row.addWidget(QLabel("Annotations"))
+        row.addWidget(self.video_annotation_path)
+        row.addWidget(self.select_video_annotation_path)
+        self.video_config_box.layout().addLayout(row)
+
+    def _add_roughness_box(self):
+        """Build the 'Seafloor roughness' group box (all ``Roughness.*`` keys).
+
+        Inserted after the Video box, before the trailing spacer + buttons.
+        These 13 keys previously existed only in YAML — and before the
+        merge-based save they were silently deleted on every save (see
+        ``PLANNING/config-validation-hardening.md``).
+        """
+        # Imported lazily: gt.roughness_client imports configure.log_exception,
+        # so a module-level import here is a circular import.
+        from groundtruther.gt.roughness_client import DEFAULT_ROUTE
+
+        box = QGroupBox("Seafloor roughness")
+        box.setObjectName("roughness_config_box")
+        outer = QVBoxLayout(box)
+
+        # --- service / transport ---
+        service = QGroupBox("Service")
+        form = QFormLayout(service)
+        self.roughness_base_url = QLineEdit()
+        self.roughness_base_url.setPlaceholderText(
+            "(empty → use the GRASS API endpoint above)")
+        self.roughness_base_url.setToolTip(
+            "FastGIS base URL for the roughness route. Leave empty to reuse "
+            "Processing.grass_api_endpoint and its API key.")
+        form.addRow("Base URL", self.roughness_base_url)
+
+        self.roughness_route = QLineEdit()
+        self.roughness_route.setPlaceholderText(
+            f"(empty → {DEFAULT_ROUTE})")
+        self.roughness_route.setToolTip(
+            "Route path appended to the base URL.")
+        form.addRow("Route", self.roughness_route)
+
+        self.roughness_direct_url = QLineEdit()
+        self.roughness_direct_url.setPlaceholderText(
+            "(empty → go through FastGIS)")
+        self.roughness_direct_url.setToolTip(
+            "On-host GPU service URL, e.g. http://127.0.0.1:7871/roughness. "
+            "When set, GroundTruther POSTs here directly with no auth, "
+            "skipping FastGIS — only useful when running on the GPU host.")
+        form.addRow("Direct URL", self.roughness_direct_url)
+        outer.addWidget(service)
+
+        # --- computation knobs (0 = let the service decide) ---
+        compute = QGroupBox("Computation")
+        form = QFormLayout(compute)
+        self.roughness_res_mm = self._make_double_spin(
+            0.0, 100.0, 1, 0.5, " mm", special="service default",
+            tooltip="DEM resolution requested from the service.")
+        form.addRow("Resolution", self.roughness_res_mm)
+
+        self.roughness_n_water = self._make_double_spin(
+            0.0, 2.0, 3, 0.001, "", special="service default",
+            tooltip="Refractive index of water. Leave at the service default "
+                    "— the 2015 HabCam calibration is already in-water.")
+        form.addRow("n water", self.roughness_n_water)
+
+        self.roughness_dem_max_side = QSpinBox()
+        self.roughness_dem_max_side.setRange(64, 4096)
+        self.roughness_dem_max_side.setSingleStep(64)
+        self.roughness_dem_max_side.setToolTip(
+            "Cap on the longest side of the returned micro-DEM grid.")
+        form.addRow("DEM max side", self.roughness_dem_max_side)
+        outer.addWidget(compute)
+
+        # --- georeferencing ---
+        georef = QGroupBox("Georeferencing (defaults for new datasets)")
+        georef.setToolTip(
+            "The roughness panel's Georef tab saves its own calibration per "
+            "dataset (QgsSettings) and that takes precedence — these values "
+            "apply to datasets with no saved calibration yet.")
+        form = QFormLayout(georef)
+        self.roughness_georeference = QCheckBox("Write GeoTIFFs and add them to QGIS")
+        form.addRow(self.roughness_georeference)
+
+        self.roughness_epsg = QSpinBox()
+        self.roughness_epsg.setRange(1024, 999999)
+        self.roughness_epsg.setToolTip("Projected CRS EPSG (32619 = UTM 19N).")
+        form.addRow("EPSG", self.roughness_epsg)
+
+        self.roughness_heading_offset = self._make_double_spin(
+            -180.0, 180.0, 2, 0.5, " °",
+            tooltip="Residual heading fine-tune. The mount is known, so 0 is "
+                    "correct out of the box.")
+        form.addRow("Heading offset", self.roughness_heading_offset)
+
+        self.roughness_mirror = QCheckBox("Mirror")
+        self.roughness_mirror.setToolTip(
+            "Escape hatch — enable only if a mosaic comes out "
+            "port/starboard-flipped.")
+        form.addRow(self.roughness_mirror)
+        outer.addWidget(georef)
+
+        # --- 3-D mesh edge-spike mitigation ---
+        mesh = QGroupBox("3-D mesh edge-spike mitigation")
+        mesh.setToolTip(
+            "The stereo DEM is unreliable at the grid border and around "
+            "no-data holes. These are the starting values for the live "
+            "controls on the Micro-DEM 3D tab.")
+        form = QFormLayout(mesh)
+        self.roughness_dem_trim_border = QSpinBox()
+        self.roughness_dem_trim_border.setRange(0, 10)
+        self.roughness_dem_trim_border.setToolTip(
+            "Drop N outer rings of the DEM grid.")
+        form.addRow("Trim border", self.roughness_dem_trim_border)
+
+        self.roughness_dem_clip_sigma = self._make_double_spin(
+            0.0, 20.0, 1, 0.5, "", special="off",
+            tooltip="Mask height outliers beyond N robust σ from the median. "
+                    "Lower = more aggressive spike removal.")
+        form.addRow("Clip σ", self.roughness_dem_clip_sigma)
+
+        self.roughness_dem_erode = QSpinBox()
+        self.roughness_dem_erode.setRange(0, 5)
+        self.roughness_dem_erode.setToolTip(
+            "Peel N rings off every no-data / outlier boundary "
+            "(higher = fewer edge spikes, less coverage).")
+        form.addRow("Erode", self.roughness_dem_erode)
+        outer.addWidget(mesh)
+
+        # Slot it in after the Video box rather than appending, so the trailing
+        # spacer and the Save / Close buttons stay at the bottom.
+        column = self.video_config_box.parentWidget().layout()
+        column.insertWidget(column.indexOf(self.video_config_box) + 1, box)
+        self.roughness_config_box = box
+
+    @staticmethod
+    def _make_double_spin(minimum, maximum, decimals, step, suffix,
+                          special=None, tooltip=None):
+        """A configured ``QDoubleSpinBox``.
+
+        *special* labels the minimum value as "not set" (shown instead of the
+        number); :meth:`get_gui_settings` maps it back to ``None``.
+        """
+        spin = QDoubleSpinBox()
+        spin.setRange(minimum, maximum)
+        spin.setDecimals(decimals)
+        spin.setSingleStep(step)
+        if suffix:
+            spin.setSuffix(suffix)
+        if special is not None:
+            spin.setSpecialValueText(special)
+        if tooltip:
+            spin.setToolTip(tooltip)
+        return spin
+
+    @staticmethod
+    def _spin_value_or_none(spin):
+        """The spin box's value, or ``None`` when it sits on its special value."""
+        if spin.specialValueText() and spin.value() == spin.minimum():
+            return None
+        return spin.value()
+
+    def set_video_annotation_path(self):
+        file_name, _ = QFileDialog.getOpenFileName(
+            self, "Set video annotation CSV", self.video_annotation_path.text(),
+            "CSV files (*.csv);;All files (*)",
+        )
+        if file_name:
+            self.video_annotation_path.setText(file_name)
 
     def _add_reference_surface_row(self):
         """Append a 'Reference surface (GeoTIFF)' row to the MBES group box."""
@@ -357,7 +590,12 @@ class ConfigDialog(QDialog, AppSettings):
     # ------------------------------------------------------------------
 
     def get_gui_settings(self):
-        """Return a settings dict built from the current form field values."""
+        """Return a settings dict built from the current form field values.
+
+        Covers every key in ``config_model.HabcamSettings``; ``write_config``
+        still merges it into the document on disk, so an unknown section a
+        future version adds is preserved rather than dropped.
+        """
         def _opt(text):
             """Return None for empty/whitespace strings, else the stripped text."""
             return text.strip() or None
@@ -379,15 +617,29 @@ class ConfigDialog(QDialog, AppSettings):
                 "grass_api_endpoint": _opt(self.grass_api_endpoint.text()),
                 "grass_api_key": _opt(self.grass_api_key.text()),
             },
-            # ``videoannotation`` is deliberately absent: the dialog has no
-            # widget for it, so it must be left to the merge in write_config()
-            # rather than be overwritten with an empty value on every save.
             "Video": {
                 "videofile": _opt(self.video_path.text()),
                 "videometadata": _opt(self.video_metadata_path.text()),
+                "videoannotation": _opt(self.video_annotation_path.text()),
             },
             "Session": {
                 "groundtruther_project": _opt(self.vrt_path.text()),
+            },
+            "Roughness": {
+                "base_url": _opt(self.roughness_base_url.text()),
+                "route": _opt(self.roughness_route.text()),
+                "direct_url": _opt(self.roughness_direct_url.text()),
+                # None = "let the service decide" (the spin box's special value)
+                "res_mm": self._spin_value_or_none(self.roughness_res_mm),
+                "n_water": self._spin_value_or_none(self.roughness_n_water),
+                "dem_max_side": self.roughness_dem_max_side.value(),
+                "georeference": self.roughness_georeference.isChecked(),
+                "epsg": self.roughness_epsg.value(),
+                "heading_offset_deg": self.roughness_heading_offset.value(),
+                "mirror": self.roughness_mirror.isChecked(),
+                "dem_trim_border": self.roughness_dem_trim_border.value(),
+                "dem_clip_sigma": self.roughness_dem_clip_sigma.value(),
+                "dem_erode": self.roughness_dem_erode.value(),
             },
         }
 
@@ -401,10 +653,11 @@ class ConfigDialog(QDialog, AppSettings):
         Shows an error dialog if validation fails.  On success writes the
         YAML file, emits ``settings_saved``, and closes the dialog.
 
-        The form values are **merged over the document already on disk** rather
-        than used to re-render the whole file: the dialog has no widgets for the
-        ``Roughness:`` section or ``Video.videoannotation``, and rebuilding the
-        file from the form alone deleted them on every save.
+        The dialog only knows a subset of the config, so the new values are
+        **merged into the document on disk** rather than re-rendered from a
+        fixed template — that is what keeps hand-edited sections the dialog has
+        no widgets for (``Roughness``, and any future section) from being
+        silently deleted on every save.
         """
         gui_settings = self.get_gui_settings()
         is_valid, err_msg = validate_config(gui_settings)
@@ -412,17 +665,13 @@ class ConfigDialog(QDialog, AppSettings):
             error_message(f"Cannot save – please fix the following:\n\n{err_msg}")
             return
 
-        merged = merge_settings(load_config(self.config) or {}, gui_settings)
-        hbc_config = yaml.safe_dump(
-            merged,
-            sort_keys=False,        # keep the file's existing key order
-            default_flow_style=False,
-            explicit_start=True,    # leading '---', as the file has always had
-            indent=4,
-            allow_unicode=True,
-        )
-        with open(self.config, "w", encoding="utf8") as yaml_file:
-            yaml_file.write(hbc_config)
+        merged = merge_settings(load_config(self.config), gui_settings)
+        try:
+            write_settings(self.config, merged)
+        except OSError as exc:
+            log_exception(f"write_config: writing {self.config}", exc)
+            error_message(f"Could not write {self.config}:\n{exc}")
+            return
 
         self.settings_saved.emit()
         self.close()

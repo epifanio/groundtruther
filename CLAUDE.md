@@ -19,8 +19,9 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
 - **Launch with `QT_QPA_PLATFORM=xcb qgis`** on Wayland, otherwise floating dock
   widgets can't be dragged/repositioned. After code changes, reload via the
   **Plugin Reloader** plugin (or restart QGIS).
-- Config is `config/config.yaml` (validated by pydantic v2 model in
-  [config_model.py](config_model.py)); test data = Zenodo `groundtruther test dataset`
+- Config is `config/config.yaml`, validated **per key** by
+  [gt/config_check.py](gt/config_check.py) (`config_model.py` is the schema of
+  record); test data = Zenodo `groundtruther test dataset`
   (CC-BY-4.0, https://zenodo.org/records/7995674).
 
 ## Architecture
@@ -45,7 +46,8 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
   widget classes that subclass them (`*_gui.py`), plus `grass_module_form.py` /
   `grass_module_runner.py` (schema-driven GRASS module dialogs).
 - **`config/`** + `config_model.py` + [configure.py](configure.py) — YAML config,
-  pydantic v2 model, and the settings dialog (`ConfigDialog`).
+  pydantic v2 schema, and the settings dialog (`ConfigDialog`). Validation itself
+  lives in `gt/config_check.py` (see the config rules below).
 - The three `run_*_mdi.py` are thin presets of the generic module runner.
 
 ## Conventions (match these)
@@ -58,11 +60,38 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
   Hand-written code may use scoped enums, but matching the int form is safest in UI files.
 - All GRASS HTTP goes through `gt/grass_api.py` (raises `GrassApiError`); **no inline
   `requests`** in mixins/dialogs.
+- **Config values are untrusted.** Never do `int(settings[...])`, `Path(settings[...])`,
+  `read_parquet(settings[...])` or f-string a settings value into a path directly — a
+  key can be absent, `None`, or junk. Use `gt/config_check.py`'s `as_int` / `as_float` /
+  `as_bool` / `as_path_str`, and check `os.path.isfile/isdir` before reading.
 
 ## CRITICAL gotchas (these will bite)
 - **`config/config.yaml` is tracked but holds machine-specific paths AND the GRASS API
   key (a secret).** NEVER `git add`/commit your local `config.yaml`. Keep it as an
   uncommitted working-tree edit; the committed version has an empty `grass_api_key`.
+- **Config validation is per key and severity-aware** ([gt/config_check.py](gt/config_check.py)).
+  Only `HabCam.imagepath` + `HabCam.imagemetadata` are *errors* (they block startup);
+  every other key is a *warning* when set-but-invalid and silent when unset, so one
+  stale path can only disable its own feature. `configure.get_settings_checked()` returns
+  `(settings, report)`; `config_check.degrade()` blanks **only** the failed keys. Adding a
+  config key means adding it to both `config_model.py` and `config_check.SPEC` — a unit
+  test asserts the two match.
+- **The Settings dialog saves by *merging* into the file on disk** (`config_check.merge_settings`
+  + `yaml.safe_dump`), not by re-rendering a template. Do not reintroduce a fixed template:
+  the old `config/templates/config_template.yaml` had no `Roughness:` block, so every save
+  silently deleted that section. A dialog field you do not add to `get_gui_settings()` is
+  simply preserved.
+- **`ConfigDialog` must init exactly one base: `QDialog.__init__(self, parent)` — never
+  `super()`.** `ConfigDialog(QDialog, AppSettings)` inherits two `QWidget`s, so PyQt's
+  cooperative init walks on to `AppSettings.__init__`, which calls `setupUi()` a *second*
+  time; the attribute references then point at the newer widget set while the older one is
+  what's shown, so the dialog looks unpopulated and is missing every programmatic row —
+  and **the tests still pass**. `tests/gui/test_config_dialog.py::test_the_ui_is_built_exactly_once`
+  counts the widgets to catch it.
+- **New settings widgets are added programmatically in `ConfigDialog`, not to the `.ui`**
+  (`_add_reference_surface_row`, `_add_video_annotation_row`, `_add_roughness_box`) —
+  `qtui/app_settings.ui` is stale, so regenerating it would drop them. The dialog now has a
+  widget for every key in `config_model.py`; a coverage test enforces that.
 - **`qtui/*.ui` files are STALE vs the generated `pygui/Ui_*.py`.** Video widgets and
   others were hand-added directly to the generated `.py`; the `.ui` was never updated.
   **Do NOT run `compile_ui.sh` wholesale** — it regenerates from stale `.ui` and silently

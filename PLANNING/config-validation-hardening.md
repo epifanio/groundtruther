@@ -1,14 +1,13 @@
-# TODO — Config validation hardening: no key may crash the plugin
+# Config validation hardening: no key may crash the plugin
 
 | | |
 |---|---|
-| **Status** | `PLANNED` |
+| **Status** | `DONE` — executed 2026-09-17 |
 | **Type** | fix |
 | **Worktree branch** | `fix/config-validation-hardening` |
 | **Created** | 2026-09-17 |
-| **Related memory** | `project-overview`, `install-and-run`, `april-2026-refactor`, `roughness-integration`, `fastgis-grass-api` |
-| **Execution PR** | _(filled in by the execution agent)_ |
-| **Partial** | task 8 done early in [#23](https://github.com/epifanio/groundtruther/pull/23) — see the Progress log |
+| **Related memory** | `config-validation`, `project-overview`, `install-and-run`, `april-2026-refactor`, `roughness-integration`, `fastgis-grass-api` |
+| **Execution PR** | [#24](https://github.com/epifanio/groundtruther/pull/24) |
 
 ## Objective
 
@@ -19,9 +18,8 @@ empty strings dies with an opaque traceback — taking the whole plugin down bef
 exists. When done: every config key is validated individually; an invalid **optional**
 key degrades only the feature that uses it; an invalid **required** key produces a
 message that *names the offending key and its value* instead of a traceback; every
-consumer guards the empty/missing case. (The last part of the original objective —
-saving from the Settings dialog no longer destroying sections it has no widgets for —
-was split out and fixed early in [#23](https://github.com/epifanio/groundtruther/pull/23).)
+consumer guards the empty/missing case; and saving from the Settings dialog no longer
+silently destroys config sections it does not know about.
 
 ## Context & background
 
@@ -69,34 +67,23 @@ Model: [config_model.py](../config_model.py). Validator:
 | `Filesystem.filemanager` | `Optional[FilePath]` | yes | [kmlsave_gui:486](../pygui/kmlsave_gui.py#L486) | Consumer guarded (error dialog), but a stale path invalidates the **whole** config |
 | `Video.videofile` / `.videometadata` / `.videoannotation` | `Optional[str]` | **no** | [video_browser_mixin:178](../mixins/video_browser_mixin.py#L178), [594](../mixins/video_browser_mixin.py#L594); [video_annotation_mixin:145](../mixins/video_annotation_mixin.py#L145), [261](../mixins/video_annotation_mixin.py#L261) | Guarded — empty paths skipped, unreadable file logs a warning |
 | `Session.groundtruther_project` | `Optional[str]` | **no** | [session_mixin:76](../mixins/session_mixin.py#L76) | Guarded — `None` → prompts for a path |
-| `Roughness.*` | mixed | **no** | [roughness_mixin:276/372/531/1190](../mixins/roughness_mixin.py#L276), [image_browser_mixin:289](../mixins/image_browser_mixin.py#L289), [settings_mixin:118](../mixins/settings_mixin.py#L118) | Mostly guarded, but `int(... .get("epsg") or 32619)` raises `ValueError` on a non-numeric string. (Worse: the whole section used to be destroyed on save — **fixed in #23**, see below) |
+| `Roughness.*` | mixed | **no** | [roughness_mixin:276/372/531/1190](../mixins/roughness_mixin.py#L276), [image_browser_mixin:289](../mixins/image_browser_mixin.py#L289), [settings_mixin:118](../mixins/settings_mixin.py#L118) | Mostly guarded, but `int(... .get("epsg") or 32619)` raises `ValueError` on a non-numeric string. **Worse: the whole section is silently destroyed on save — see below** |
 
 Non-config but the same crash class: [querybuilder_gui.py:555](../pygui/querybuilder_gui.py#L555)
 `self.utmzone_string = int(self.utmzone.text())` sits **outside** the `try` and raises
 `ValueError` if the UTM-zone field is blanked — again during dock construction.
 
-### Second defect found during the audit — the Settings dialog ate `Roughness` ✅ FIXED
+### Second defect found during the audit — the Settings dialog eats `Roughness`
 
-> **Already fixed, out of band, in PR [#23](https://github.com/epifanio/groundtruther/pull/23)**
-> (branch `fix/settings-save-drops-sections`) — it was small and self-contained, and the
-> data loss was ongoing. Kept here for the record; **task 8 below is done**. Verify it is
-> merged before starting, and do not redo it.
-
-`get_gui_settings()` and `config/templates/config_template.yaml` both enumerated a
-**fixed** set of sections, and neither included `Roughness`. Saving from the Settings
-dialog re-rendered the whole file from that template, so every `Roughness:` key
-(`georeference`, `epsg`, `direct_url`, `dem_*`, `res_mm`, `n_water` — see
-[config_model.py:74-132](../config_model.py#L74-L132) and the `roughness-integration`
-memory) was **silently deleted**, as was `Video.videoannotation`. The same mechanism would
-have dropped any future section. The template also interpolated raw values
-(`key: {{value}}`), so a path containing `:` or `#` emitted invalid YAML.
-
-Saving is now a merge over the document on disk: the new Qt-free
-[gt/config_merge.py](../gt/config_merge.py) `merge_settings()` plus `yaml.safe_dump` in
-`write_config()`; the template and its `Jinja2Templates` wiring are gone. Covered by
-[tests/unit/test_config_merge.py](../tests/unit/test_config_merge.py) (9 tests).
-**Note for the execution agent: `gt/config_merge.py` already exists** — reuse it if a
-settings merge is useful elsewhere rather than writing a second one.
+[configure.py:363-394](../configure.py#L363-L394) `get_gui_settings()` and
+[config/templates/config_template.yaml](../config/templates/config_template.yaml)
+both enumerate a **fixed** set of sections, and neither includes `Roughness`. Saving
+from the Settings dialog re-renders the whole file from that template, so every
+`Roughness:` key (`georeference`, `epsg`, `direct_url`, `dem_*`, `res_mm`, `n_water` —
+see [config_model.py:74-132](../config_model.py#L74-L132) and the `roughness-integration`
+memory) is **silently deleted**. The same mechanism would drop any future section. The
+template also interpolates raw values (`key: {{value}}`), so a path containing `:` or `#`
+would emit invalid YAML.
 
 ### Design direction
 
@@ -129,9 +116,8 @@ settings merge is useful elsewhere rather than writing a second one.
   `querybuilder_gui.py`, and the `int(epsg)` calls in `image_browser_mixin` /
   `settings_mixin`.
 - Widen `except ArrowInvalid` to also catch `FileNotFoundError` / `OSError` / `ValueError`.
-- ~~Fix the `Roughness` section loss: save the config by merging into the loaded document
-  and dumping with `yaml.safe_dump`, instead of re-rendering the fixed Jinja template.~~
-  **Done ahead of this plan in [#23](https://github.com/epifanio/groundtruther/pull/23).**
+- Fix the `Roughness` section loss: save the config by merging into the loaded document
+  and dumping with `yaml.safe_dump`, instead of re-rendering the fixed Jinja template.
 - Unit tests for all of the above in `tests/unit/`.
 
 **Out of scope:**
@@ -161,79 +147,75 @@ cd ../groundtruther-config-validation-hardening
 
 ## Task breakdown
 
-- [ ] **1. `gt/config_check.py`** — Qt-free module. `check_settings(settings: dict) -> ConfigReport`
+- [x] **1. `gt/config_check.py`** — Qt-free module. `check_settings(settings: dict) -> ConfigReport`
       where `ConfigReport` carries `errors: list[Finding]`, `warnings: list[Finding]`,
       `Finding(key, value, reason, severity)` and a `.summary()` that renders
       `HabCam.imagepath: directory does not exist: '/run/media/...' (the drive may not be
       mounted)`. Required keys = `HabCam.imagepath`, `HabCam.imagemetadata`; everything
       else is a warning when set-but-invalid, and silent when unset. Include the
       removable-media hint for missing paths under `/run/media`, `/media`, `/mnt`.
-- [ ] **2. Validate the previously-unchecked sections** — feed `Video`, `Session`,
+- [x] **2. Validate the previously-unchecked sections** — feed `Video`, `Session`,
       `Roughness`, `Mbes.reference_surface`, `Processing.grass_api_key` through the full
       `HabcamSettings` model (or per-key checks) so bad values are *reported*; they stay
       warnings and never block startup. Include numeric sanity for `Roughness.epsg`,
       `res_mm`, `n_water`, `dem_*`.
-- [ ] **3. `configure.py` wiring** — `validate_config()` delegates to `check_settings()`
+- [x] **3. `configure.py` wiring** — `validate_config()` delegates to `check_settings()`
       (keeping its `(bool, str)` signature for `write_config` / `validate_config2`);
       add `get_settings_checked(path)` returning `(settings, report)` so callers can
       degrade per-key. Keep `get_settings()` behaviour for callers that only want a dict,
       but base "valid" on `report.errors` only — a stale optional path must no longer
       return `None`.
-- [ ] **4. Dock startup path** — in [groundtruther_dockwidget.py:94-109](../groundtruther_dockwidget.py#L94-L109),
+- [x] **4. Dock startup path** — in [groundtruther_dockwidget.py:94-109](../groundtruther_dockwidget.py#L94-L109),
       load + check, log every finding to `QgsMessageLog` (`'GroundTruther'`), and when
       there are errors show a dialog listing the offending keys/values (not the current
       bare "No valid configuration found"). Build the fallback by blanking **only** the
       failed keys over the loaded dict, and give it the full section set
       (`Video`, `Session`, `Roughness`, `Mbes.reference_surface`) so `settings[...]`
       lookups elsewhere cannot `KeyError`.
-- [ ] **5. `querybuilder_gui.refresh_settings()`** — skip the parquet loads when
+- [x] **5. `querybuilder_gui.refresh_settings()`** — skip the parquet loads when
       `soundings` / `imagemetadata` is empty or not an existing file; disable
       `query_builder_tools` + `draw_graph` and log/report instead of raising; widen
       `except ArrowInvalid` → `(ArrowInvalid, FileNotFoundError, OSError, ValueError)`;
       move `int(self.utmzone.text())` into a guarded parse with the documented default
       (`19`, per the UI default at [Ui_query_builder_ui.py:449](../pygui/Ui_query_builder_ui.py#L449)).
-- [ ] **6. `Export.kmldir` guards** — add one helper (e.g. `_export_dir()` mirroring
+- [x] **6. `Export.kmldir` guards** — add one helper (e.g. `_export_dir()` mirroring
       [kmlsave_gui.py:341-344](../pygui/kmlsave_gui.py#L341-L344)'s tempdir fallback) and
       use it at [querybuilder_gui.py:730](../pygui/querybuilder_gui.py#L730),
       [1075-1081](../pygui/querybuilder_gui.py#L1075-L1081) and
       [1106](../pygui/querybuilder_gui.py#L1106) so `None` can never reach `pathlib.Path`
       or an f-string path.
-- [ ] **7. `int(epsg)` guards** — [image_browser_mixin.py:289](../mixins/image_browser_mixin.py#L289)
+- [x] **7. `int(epsg)` guards** — [image_browser_mixin.py:289](../mixins/image_browser_mixin.py#L289)
       and [settings_mixin.py:118](../mixins/settings_mixin.py#L118): wrap in a safe int
       parse falling back to `32619`.
-- [x] **8. Lossless config save** — ✅ **done out of band in
-      [#23](https://github.com/epifanio/groundtruther/pull/23); do not redo.**
-      `ConfigDialog.write_config()` now merges the dialog's values over `load_config()`
-      via `gt/config_merge.py` and writes with `yaml.safe_dump` (key order preserved,
-      values quoted); `config_template.yaml` was **retired** (deleted) along with its
-      `Jinja2Templates` wiring, and `get_gui_settings()` no longer emits
-      `videoannotation: None`. Confirm the PR is merged into your worktree's base before
-      assuming it; if it is not yet merged, rebase rather than reimplementing.
-- [ ] **9. Tests** — `tests/unit/test_config_check.py`: every key empty / missing /
+- [x] **8. Lossless config save** — rewrite `ConfigDialog.write_config()`
+      ([configure.py:400-432](../configure.py#L400-L432)) to `load_config()` the existing
+      document, deep-merge the dialog's values over it, and write with `yaml.safe_dump`
+      (preserving `Roughness` and any unknown section, and quoting values correctly).
+      Retire or keep `config_template.yaml` only for creating a config from scratch —
+      state which in the progress log.
+- [x] **9. Tests** — `tests/unit/test_config_check.py`: every key empty / missing /
       wrong-type; an invalid optional key yields a warning and a *usable* settings dict;
       an invalid required key yields an error naming the key; the removable-media hint
       fires for `/run/media/...`; regression test reproducing the reported chain (a
-      missing `imagepath` must NOT blank `Mbes.soundings`). Extend
-      `tests/unit/test_config_model.py` if model coverage gaps appear. The save-round-trip
-      cover already exists in `tests/unit/test_config_merge.py` (from #23) — do not
-      duplicate it.
-- [ ] **10. Docs + memory** — note the new validation behaviour in `CLAUDE.md`'s gotchas
+      missing `imagepath` must NOT blank `Mbes.soundings`). Plus a test that a
+      save-round-trip through the new `write_config` merge preserves a `Roughness`
+      section. Extend `tests/unit/test_config_model.py` if model coverage gaps appear.
+- [x] **10. Docs + memory** — note the new validation behaviour in `CLAUDE.md`'s gotchas
       if it changes an agent-visible rule; add/update a project-memory entry
       (`config-validation`) describing per-key severity, the `Roughness`-on-save fix and
       the removable-media failure mode, with a `MEMORY.md` pointer.
 
 ## Acceptance criteria & verification
 
-- [ ] `.venv/bin/pytest` green (unit; gui/integration auto-skip) — currently 188 passed,
+- [x] `.venv/bin/pytest` green (unit; gui/integration auto-skip) — currently 188 passed,
       5 skipped; new tests add to that.
-- [ ] Headless import/construct check per `CLAUDE.md` passes.
-- [ ] Headless regression for the reported bug: build a settings dict with a nonexistent
+- [x] Headless import/construct check per `CLAUDE.md` passes.
+- [x] Headless regression for the reported bug: build a settings dict with a nonexistent
       `HabCam.imagepath` **and a valid `Mbes.soundings`**, run it through the new check —
       one error for `imagepath`, `soundings` untouched, no exception.
-- [ ] No consumer in the audit table can raise on an empty/`None` value: grep shows every
+- [x] No consumer in the audit table can raise on an empty/`None` value: grep shows every
       `read_parquet`, `pathlib.Path(...)`, `int(...)` fed from settings is guarded.
-- [x] `write_config` round-trip preserves a hand-added `Roughness:` section — covered by
-      `tests/unit/test_config_merge.py` (#23); just confirm it still passes.
+- [x] `write_config` round-trip preserves a hand-added `Roughness:` section (unit test).
 - [ ] **Manual GUI check by the user** (agents cannot drive the QGIS GUI):
       1. Temporarily point `HabCam.imagepath` at a nonexistent directory (simulating the
          unmounted drive), restart/reload the plugin → the dock **opens**, with a message
@@ -255,10 +237,10 @@ cd ../groundtruther-config-validation-hardening
   `grassconfig._load_conn`) treat a falsy return as "keep the old settings". Returning a
   dict where they previously got `None` changes that path — review each of those call
   sites rather than assuming.
-- **Risk: YAML save rewrite** — *already realised in #23.* Switching from the Jinja
-  template to `safe_dump` changed the file's formatting: empty values now serialise as
-  explicit `null` rather than a blank key (both load as `None`, so no consumer sees a
-  difference). Still back up `config/config.yaml` before any manual GUI check.
+- **Risk: YAML save rewrite.** Switching from the Jinja template to `safe_dump` changes
+  the file's formatting (key order, quoting). Harmless to the loader, but the user's file
+  will look different after the first save; mention it in the PR description. Back up
+  `config/config.yaml` before any manual GUI check.
 - **Never stage `config/config.yaml`** — machine-specific and holds the GRASS API key.
 - **Rollback:** the work lives in a worktree on `fix/config-validation-hardening`; drop
   the branch/worktree and nothing in the main copy (or the live QGIS symlink) is affected.
@@ -287,24 +269,122 @@ Acceptance Criteria.
 
 ## Progress log
 
-**2026-09-17 — task 8 executed early, out of band** (branch
-`fix/settings-save-drops-sections`, PR
-[#23](https://github.com/epifanio/groundtruther/pull/23), **not** a worktree — a small
-self-contained change made directly from the session that authored this plan, because the
-data loss was ongoing on every settings save).
+**2026-09-17 — executed in worktree `../groundtruther-config-validation-hardening`
+(branch `fix/config-validation-hardening`), PR
+[#24](https://github.com/epifanio/groundtruther/pull/24).**
 
-Done: `ConfigDialog.write_config()` now merges the form values over the document already
-on disk (new Qt-free `gt/config_merge.py` → `merge_settings()`) and writes with
-`yaml.safe_dump(sort_keys=False, explicit_start=True, indent=4)`;
-`get_gui_settings()` no longer emits `videoannotation: None` (no widget for it, so the
-merge preserves it); `config/templates/config_template.yaml` and the `Jinja2Templates`
-wiring were **retired** — the "retire or keep" question in task 8 is answered: retired.
+### What was built
 
-Verification: `.venv/bin/pytest` → 197 passed, 5 skipped (was 188/5; +9 in
-`tests/unit/test_config_merge.py`), plus an offscreen run of the real
-`ConfigDialog.write_config()` against a throwaway config confirming `Roughness`,
-`Video.videoannotation` and `grass_api_key` all survive a save with section order intact.
-Behaviour change to note: empty values now serialise as explicit `null` instead of a blank
-key — both load as `None`. `config/config.yaml` was never staged.
+**1. `gt/config_check.py` (new, 500 lines, Qt-free).** A declarative `SPEC` of 26
+`KeySpec` entries — one per config key — each with a `kind` (`dir`, `file`,
+`parent_dir`, `url`, `bool`, `int`, `float`, `str`), a `required` flag, optional numeric
+bounds, and the `blank` value it degrades to. `check_settings()` walks it and returns a
+`ConfigReport(errors, warnings)` of `Finding(key, value, reason, severity)`; `.summary()`
+renders `HabCam.imagepath: directory does not exist: '/run/media/…' (the drive may not be
+mounted)` and `.message()` builds the user-facing dialog text. `degrade(settings, report)`
+returns a **usable** dict: only failed keys blanked, every section present.
+Also exports the coercion helpers the consumers now use — `as_int`, `as_float`,
+`as_bool`, `as_path_str` — and the document helpers `merge_settings` / `write_settings`.
 
-_(remainder appended by the execution agent)_
+**2. Coverage extended to the never-validated sections.** `Video`, `Session`,
+`Roughness`, `Mbes.reference_surface` and `Processing.grass_api_key` are now checked
+(all as warnings), including numeric sanity for `Roughness.epsg` (EPSG range),
+`res_mm`, `n_water`, `dem_max_side`, `dem_trim_border`, `dem_clip_sigma`, `dem_erode`.
+`Session.groundtruther_project` is validated as `parent_dir` — the file itself is
+created on first save, so only its directory has to exist.
+
+**3. `configure.py`.** `validate_config()` keeps its `(bool, str)` signature but
+delegates to `check_settings()`, and "valid" now means *no errors*. New
+`get_settings_checked(path) -> (settings, report)`; `check_config(settings) -> report`.
+`get_settings()` still returns `None` on a fatal problem — but a stale **optional** path
+no longer vetoes the file.
+
+**4. Dock startup.** `GroundTrutherDockWidget._load_settings()` loads, logs every
+finding to `QgsMessageLog` (`Critical` for errors, `Warning` for warnings), opens the
+Settings dialog once on a fatal finding, and — if still fatal — shows a dialog naming the
+offending keys and their values. The result is `degrade()`d, so the old
+"dict of empty strings" fallback is gone. The report is kept on `self.config_report`.
+
+**5–7. Consumers guarded.** `querybuilder_gui.refresh_settings()` pre-checks both
+parquet paths with `os.path.isfile` and disables the tools with a message instead of
+raising; `except ArrowInvalid` widened to `(ArrowInvalid, FileNotFoundError, OSError,
+ValueError)`; `int(self.utmzone.text())` → `as_int(..., DEFAULT_UTM_ZONE=19)`. A new
+`_export_dir()` (tempdir fallback, mirroring `kmlsave_gui`) replaced all three raw
+`Export.kmldir` uses. `int(epsg)` in `image_browser_mixin` / `settings_mixin` and every
+`int()`/`float()` over `Roughness.*` in `roughness_mixin` now go through the coercion
+helpers.
+
+**8. Lossless save.** `ConfigDialog.write_config()` now `load_config()`s the existing
+document, deep-merges the dialog's values over it (`merge_settings`) and writes with
+`yaml.safe_dump` (`write_settings`). `Roughness` — and any future/unknown section —
+survives a save.
+
+**9. Tests.** `tests/unit/test_config_check.py`, 100 tests. Suite: **282 passed,
+5 skipped** (was 188/5).
+
+### Decisions / deviations from the plan
+
+- **`config/templates/config_template.yaml` was deleted, not kept.** With the merge-based
+  save it is dead code, and leaving a template that silently eats `Roughness` is a trap.
+  A missing config file merges into `{}` and produces a complete document, so
+  create-from-scratch still works. `config/templates/` itself stays — `kmlsave_gui` uses
+  `report.html.j2` from it. The now-unused `starlette`/`Jinja2Templates` import was
+  dropped from `configure.py` (the package is left in `requirements.txt`).
+- **Validation is per-key stdlib checks, not per-key pydantic.** Feeding keys through
+  `HabcamSettings` one at a time gave worse messages and no real gain. `config_model.py`
+  stays the **schema of record**, and `test_spec_covers_exactly_the_pydantic_model`
+  asserts `SPEC` covers exactly its fields, so the two cannot silently drift. As a
+  consequence `configure.py` no longer imports `HabcamSettings` (or pydantic) at all.
+- **Two items in the plan's audit table were already guarded.** `settings_mixin:118` and
+  `image_browser_mixin:289` sat inside `try: … except Exception` blocks, so they could not
+  actually raise. They were still converted to `as_int` — it removes a blanket
+  `except Exception` and centralises the default. The *genuinely* unguarded `int()`/
+  `float()` calls were in `roughness_mixin` (lines 281/291/300, 375–381, 534–537,
+  1204–1206), which the table did not break out.
+- **Three defects found beyond the audit, all fixed:**
+  1. `settings_mixin` did `Path(self.imageannotationfile).is_file()` — `Path(None)`
+     raises `TypeError`, so a config with an *empty* `imageannotation:` broke image
+     metadata loading entirely (swallowed by the broad `except Exception` into an
+     "Error reading …" dialog).
+  2. `ConfigDialog._populate_fields()` did `setText(hbc.get("imagepath", ""))` — a key
+     present with an empty YAML value reads back as `None`, and `QLineEdit.setText(None)`
+     raises. Opening Settings on a half-empty config crashed.
+  3. `get_gui_settings()` returned `"videoannotation": None`; under the new merge that
+     would overwrite a hand-edited value, so the key is now simply omitted.
+- **`refresh_settings(quiet=…)`.** It runs from `QueryBuilder.__init__`, so an
+  unconfigured `Mbes.soundings` would have greeted the user with a modal before the UI
+  existed. `__init__` passes `quiet=True` (log only); explicit reloads and
+  `settings_saved` still show the dialog. `*_args` swallows the `checked` flag Qt passes
+  from the button connection.
+- **`get_images` / `get_point`** (wired to a combo-box change, re-reading parquet long
+  after startup) were not in the plan but had the same unguarded `read_parquet`; both now
+  go through a `_read_parquet()` helper that logs and returns `None`.
+
+### Verification
+
+- `.venv/bin/pytest` → **282 passed, 5 skipped** (gui + integration auto-skip).
+- Headless import of all 9 touched modules under `QT_QPA_PLATFORM=offscreen` → ok.
+- `qgis.utils.loadPlugin("groundtruther")` against the worktree → `True`.
+- Headless end-to-end script (scratchpad): the reported chain reproduces as
+  **one error for `HabCam.imagepath` with the removable-media hint, `Mbes.soundings`
+  untouched**; a stale `Export.kmldir` is a warning and `get_settings()` no longer
+  returns `None`; a real offscreen `ConfigDialog.write_config()` round trip preserves the
+  `Roughness` section.
+- `config/config.yaml` was **not** touched or staged.
+
+### Note for the reviewer
+
+The first Settings save after this change **rewrites `config/config.yaml` with
+`yaml.safe_dump` formatting** (2-space indent, explicit `null`, quoted values where
+needed, `---` header gone). The content is equivalent and the loader is unaffected, but
+the file will look different — back it up before the manual GUI checks.
+
+### Follow-ups (not done, out of scope)
+
+- The Settings dialog still has no `Roughness` widgets; the section is preserved but
+  hand-edited in YAML.
+- `starlette` is now unused by the plugin and could be dropped from
+  `dependencies/requirements.txt` / `environment.yml`.
+- Worktree cleanup after merge: `git worktree remove ../groundtruther-config-validation-hardening`
+  and `git branch -d fix/config-validation-hardening`.
+
