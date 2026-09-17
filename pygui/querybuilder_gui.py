@@ -46,8 +46,8 @@ from groundtruther.configure import (
 from groundtruther.gt import config_check
 from groundtruther.gt.mbes_fields import detect_backscatter_fields
 from groundtruther.pygui.reference_3d_view import Reference3DView
-from ellipse import getEllipseCoords
-from rectangle import getRectangleCoords
+from groundtruther.ellipse import getEllipseCoords
+from groundtruther.rectangle import getRectangleCoords
 from pyproj import Proj
 from scipy.spatial import ConvexHull
 from scipy import stats
@@ -60,7 +60,7 @@ except ImportError:
 import pandas as pd
 from pyarrow.lib import ArrowInvalid
 
-from qtpandas import pandasModel
+from groundtruther.qtpandas import pandasModel
 
 # from qtpanel import QtVoila
 import time
@@ -87,10 +87,10 @@ from plotnine import (
 )
 
 try:
-    from pip_cuda import get_spatial_selection_gpu
+    from groundtruther.pip_cuda import get_spatial_selection_gpu
 except ImportError:
     pass  # cuspatial not available – GPU spatial selection disabled
-from pip_cpu import get_spatial_selection_cpu
+from groundtruther.pip_cpu import get_spatial_selection_cpu
 # self.send_image_path.connect(self.savekml.from_main_signal)
 
 from qgis.core import (Qgis, QgsApplication, QgsMessageLog, QgsTask, QgsRasterLayer, QgsVectorLayer)
