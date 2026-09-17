@@ -8,6 +8,7 @@
 | **Created** | 2026-09-17 |
 | **Related memory** | `project-overview`, `install-and-run`, `april-2026-refactor`, `roughness-integration`, `fastgis-grass-api` |
 | **Execution PR** | _(filled in by the execution agent)_ |
+| **Partial** | task 8 done early in [#23](https://github.com/epifanio/groundtruther/pull/23) — see the Progress log |
 
 ## Objective
 
@@ -18,8 +19,9 @@ empty strings dies with an opaque traceback — taking the whole plugin down bef
 exists. When done: every config key is validated individually; an invalid **optional**
 key degrades only the feature that uses it; an invalid **required** key produces a
 message that *names the offending key and its value* instead of a traceback; every
-consumer guards the empty/missing case; and saving from the Settings dialog no longer
-silently destroys config sections it does not know about.
+consumer guards the empty/missing case. (The last part of the original objective —
+saving from the Settings dialog no longer destroying sections it has no widgets for —
+was split out and fixed early in [#23](https://github.com/epifanio/groundtruther/pull/23).)
 
 ## Context & background
 
@@ -67,23 +69,34 @@ Model: [config_model.py](../config_model.py). Validator:
 | `Filesystem.filemanager` | `Optional[FilePath]` | yes | [kmlsave_gui:486](../pygui/kmlsave_gui.py#L486) | Consumer guarded (error dialog), but a stale path invalidates the **whole** config |
 | `Video.videofile` / `.videometadata` / `.videoannotation` | `Optional[str]` | **no** | [video_browser_mixin:178](../mixins/video_browser_mixin.py#L178), [594](../mixins/video_browser_mixin.py#L594); [video_annotation_mixin:145](../mixins/video_annotation_mixin.py#L145), [261](../mixins/video_annotation_mixin.py#L261) | Guarded — empty paths skipped, unreadable file logs a warning |
 | `Session.groundtruther_project` | `Optional[str]` | **no** | [session_mixin:76](../mixins/session_mixin.py#L76) | Guarded — `None` → prompts for a path |
-| `Roughness.*` | mixed | **no** | [roughness_mixin:276/372/531/1190](../mixins/roughness_mixin.py#L276), [image_browser_mixin:289](../mixins/image_browser_mixin.py#L289), [settings_mixin:118](../mixins/settings_mixin.py#L118) | Mostly guarded, but `int(... .get("epsg") or 32619)` raises `ValueError` on a non-numeric string. **Worse: the whole section is silently destroyed on save — see below** |
+| `Roughness.*` | mixed | **no** | [roughness_mixin:276/372/531/1190](../mixins/roughness_mixin.py#L276), [image_browser_mixin:289](../mixins/image_browser_mixin.py#L289), [settings_mixin:118](../mixins/settings_mixin.py#L118) | Mostly guarded, but `int(... .get("epsg") or 32619)` raises `ValueError` on a non-numeric string. (Worse: the whole section used to be destroyed on save — **fixed in #23**, see below) |
 
 Non-config but the same crash class: [querybuilder_gui.py:555](../pygui/querybuilder_gui.py#L555)
 `self.utmzone_string = int(self.utmzone.text())` sits **outside** the `try` and raises
 `ValueError` if the UTM-zone field is blanked — again during dock construction.
 
-### Second defect found during the audit — the Settings dialog eats `Roughness`
+### Second defect found during the audit — the Settings dialog ate `Roughness` ✅ FIXED
 
-[configure.py:363-394](../configure.py#L363-L394) `get_gui_settings()` and
-[config/templates/config_template.yaml](../config/templates/config_template.yaml)
-both enumerate a **fixed** set of sections, and neither includes `Roughness`. Saving
-from the Settings dialog re-renders the whole file from that template, so every
-`Roughness:` key (`georeference`, `epsg`, `direct_url`, `dem_*`, `res_mm`, `n_water` —
-see [config_model.py:74-132](../config_model.py#L74-L132) and the `roughness-integration`
-memory) is **silently deleted**. The same mechanism would drop any future section. The
-template also interpolates raw values (`key: {{value}}`), so a path containing `:` or `#`
-would emit invalid YAML.
+> **Already fixed, out of band, in PR [#23](https://github.com/epifanio/groundtruther/pull/23)**
+> (branch `fix/settings-save-drops-sections`) — it was small and self-contained, and the
+> data loss was ongoing. Kept here for the record; **task 8 below is done**. Verify it is
+> merged before starting, and do not redo it.
+
+`get_gui_settings()` and `config/templates/config_template.yaml` both enumerated a
+**fixed** set of sections, and neither included `Roughness`. Saving from the Settings
+dialog re-rendered the whole file from that template, so every `Roughness:` key
+(`georeference`, `epsg`, `direct_url`, `dem_*`, `res_mm`, `n_water` — see
+[config_model.py:74-132](../config_model.py#L74-L132) and the `roughness-integration`
+memory) was **silently deleted**, as was `Video.videoannotation`. The same mechanism would
+have dropped any future section. The template also interpolated raw values
+(`key: {{value}}`), so a path containing `:` or `#` emitted invalid YAML.
+
+Saving is now a merge over the document on disk: the new Qt-free
+[gt/config_merge.py](../gt/config_merge.py) `merge_settings()` plus `yaml.safe_dump` in
+`write_config()`; the template and its `Jinja2Templates` wiring are gone. Covered by
+[tests/unit/test_config_merge.py](../tests/unit/test_config_merge.py) (9 tests).
+**Note for the execution agent: `gt/config_merge.py` already exists** — reuse it if a
+settings merge is useful elsewhere rather than writing a second one.
 
 ### Design direction
 
@@ -116,8 +129,9 @@ would emit invalid YAML.
   `querybuilder_gui.py`, and the `int(epsg)` calls in `image_browser_mixin` /
   `settings_mixin`.
 - Widen `except ArrowInvalid` to also catch `FileNotFoundError` / `OSError` / `ValueError`.
-- Fix the `Roughness` section loss: save the config by merging into the loaded document
-  and dumping with `yaml.safe_dump`, instead of re-rendering the fixed Jinja template.
+- ~~Fix the `Roughness` section loss: save the config by merging into the loaded document
+  and dumping with `yaml.safe_dump`, instead of re-rendering the fixed Jinja template.~~
+  **Done ahead of this plan in [#23](https://github.com/epifanio/groundtruther/pull/23).**
 - Unit tests for all of the above in `tests/unit/`.
 
 **Out of scope:**
@@ -187,19 +201,22 @@ cd ../groundtruther-config-validation-hardening
 - [ ] **7. `int(epsg)` guards** — [image_browser_mixin.py:289](../mixins/image_browser_mixin.py#L289)
       and [settings_mixin.py:118](../mixins/settings_mixin.py#L118): wrap in a safe int
       parse falling back to `32619`.
-- [ ] **8. Lossless config save** — rewrite `ConfigDialog.write_config()`
-      ([configure.py:400-432](../configure.py#L400-L432)) to `load_config()` the existing
-      document, deep-merge the dialog's values over it, and write with `yaml.safe_dump`
-      (preserving `Roughness` and any unknown section, and quoting values correctly).
-      Retire or keep `config_template.yaml` only for creating a config from scratch —
-      state which in the progress log.
+- [x] **8. Lossless config save** — ✅ **done out of band in
+      [#23](https://github.com/epifanio/groundtruther/pull/23); do not redo.**
+      `ConfigDialog.write_config()` now merges the dialog's values over `load_config()`
+      via `gt/config_merge.py` and writes with `yaml.safe_dump` (key order preserved,
+      values quoted); `config_template.yaml` was **retired** (deleted) along with its
+      `Jinja2Templates` wiring, and `get_gui_settings()` no longer emits
+      `videoannotation: None`. Confirm the PR is merged into your worktree's base before
+      assuming it; if it is not yet merged, rebase rather than reimplementing.
 - [ ] **9. Tests** — `tests/unit/test_config_check.py`: every key empty / missing /
       wrong-type; an invalid optional key yields a warning and a *usable* settings dict;
       an invalid required key yields an error naming the key; the removable-media hint
       fires for `/run/media/...`; regression test reproducing the reported chain (a
-      missing `imagepath` must NOT blank `Mbes.soundings`). Plus a test that a
-      save-round-trip through the new `write_config` merge preserves a `Roughness`
-      section. Extend `tests/unit/test_config_model.py` if model coverage gaps appear.
+      missing `imagepath` must NOT blank `Mbes.soundings`). Extend
+      `tests/unit/test_config_model.py` if model coverage gaps appear. The save-round-trip
+      cover already exists in `tests/unit/test_config_merge.py` (from #23) — do not
+      duplicate it.
 - [ ] **10. Docs + memory** — note the new validation behaviour in `CLAUDE.md`'s gotchas
       if it changes an agent-visible rule; add/update a project-memory entry
       (`config-validation`) describing per-key severity, the `Roughness`-on-save fix and
@@ -215,7 +232,8 @@ cd ../groundtruther-config-validation-hardening
       one error for `imagepath`, `soundings` untouched, no exception.
 - [ ] No consumer in the audit table can raise on an empty/`None` value: grep shows every
       `read_parquet`, `pathlib.Path(...)`, `int(...)` fed from settings is guarded.
-- [ ] `write_config` round-trip preserves a hand-added `Roughness:` section (unit test).
+- [x] `write_config` round-trip preserves a hand-added `Roughness:` section — covered by
+      `tests/unit/test_config_merge.py` (#23); just confirm it still passes.
 - [ ] **Manual GUI check by the user** (agents cannot drive the QGIS GUI):
       1. Temporarily point `HabCam.imagepath` at a nonexistent directory (simulating the
          unmounted drive), restart/reload the plugin → the dock **opens**, with a message
@@ -237,10 +255,10 @@ cd ../groundtruther-config-validation-hardening
   `grassconfig._load_conn`) treat a falsy return as "keep the old settings". Returning a
   dict where they previously got `None` changes that path — review each of those call
   sites rather than assuming.
-- **Risk: YAML save rewrite.** Switching from the Jinja template to `safe_dump` changes
-  the file's formatting (key order, quoting). Harmless to the loader, but the user's file
-  will look different after the first save; mention it in the PR description. Back up
-  `config/config.yaml` before any manual GUI check.
+- **Risk: YAML save rewrite** — *already realised in #23.* Switching from the Jinja
+  template to `safe_dump` changed the file's formatting: empty values now serialise as
+  explicit `null` rather than a blank key (both load as `None`, so no consumer sees a
+  difference). Still back up `config/config.yaml` before any manual GUI check.
 - **Never stage `config/config.yaml`** — machine-specific and holds the GRASS API key.
 - **Rollback:** the work lives in a worktree on `fix/config-validation-hardening`; drop
   the branch/worktree and nothing in the main copy (or the live QGIS symlink) is affected.
@@ -268,4 +286,25 @@ Acceptance Criteria.
 ```
 
 ## Progress log
-_(appended by the execution agent)_
+
+**2026-09-17 — task 8 executed early, out of band** (branch
+`fix/settings-save-drops-sections`, PR
+[#23](https://github.com/epifanio/groundtruther/pull/23), **not** a worktree — a small
+self-contained change made directly from the session that authored this plan, because the
+data loss was ongoing on every settings save).
+
+Done: `ConfigDialog.write_config()` now merges the form values over the document already
+on disk (new Qt-free `gt/config_merge.py` → `merge_settings()`) and writes with
+`yaml.safe_dump(sort_keys=False, explicit_start=True, indent=4)`;
+`get_gui_settings()` no longer emits `videoannotation: None` (no widget for it, so the
+merge preserves it); `config/templates/config_template.yaml` and the `Jinja2Templates`
+wiring were **retired** — the "retire or keep" question in task 8 is answered: retired.
+
+Verification: `.venv/bin/pytest` → 197 passed, 5 skipped (was 188/5; +9 in
+`tests/unit/test_config_merge.py`), plus an offscreen run of the real
+`ConfigDialog.write_config()` against a throwaway config confirming `Roughness`,
+`Video.videoannotation` and `grass_api_key` all survive a save with section order intact.
+Behaviour change to note: empty values now serialise as explicit `null` instead of a blank
+key — both load as `None`. `config/config.yaml` was never staged.
+
+_(remainder appended by the execution agent)_
