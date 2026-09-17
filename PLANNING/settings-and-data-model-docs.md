@@ -363,14 +363,33 @@ left undocumented.**
 ### Code bugs found — recorded, not fixed (docs-only plan)
 
 - **[#27](https://github.com/epifanio/groundtruther/issues/27)** — seven imports in the
-  video subsystem use bare `gt.…` instead of `groundtruther.gt.…`. Reproduced: `gt` is
-  not importable under a representative QGIS path set-up, and every call site swallows
-  the `ImportError`, so video metadata/annotations **silently never load** in a real
-  install. Needs a live-GUI check.
+  video subsystem use bare `gt.…` instead of `groundtruther.gt.…`.
+
+  > **Correction, 2026-09-17 (same day).** The effect claimed here is **wrong**. It was
+  > reproduced with a hand-built `PYTHONPATH`, which is not representative. Re-tested
+  > against a real `QgsApplication` + plugin load: `groundtruther.py:46` runs
+  > `sys.path.append(os.path.dirname(__file__))`, and `classFactory()` imports that
+  > module — so the plugin's own directory *is* on `sys.path` before any mixin runs and
+  > bare `gt.…` resolves. **The video subsystem is not dead.** The real defect is that
+  > `gt.video_manager` and `groundtruther.gt.video_manager` are two distinct module
+  > objects (split module state, broken exception identity) and that the path append
+  > publishes 19 modules + 2 packages under bare names into the QGIS-wide namespace. The
+  > issue has been retitled and corrected; scope is 14 bare imports, not 7. See
+  > `PLANNING/TODO_docs-audit-code-findings.md`.
+  >
+  > **Lesson:** verify an import failure in the offscreen QGIS harness `CLAUDE.md`
+  > describes, not in an ad-hoc `PYTHONPATH`.
 - **[#28](https://github.com/epifanio/groundtruther/issues/28)** — `ioutils.parse_annotation`
   hard-codes `skiprows=[0, 1]`, so a CSV with a single header row loses its **first
   detection** (verified: 7 278 rows in, 7 277 out on the sample file). The behaviour and
   its workaround are documented on the annotations page with a warning box.
+
+  > **Follow-up, 2026-09-17.** The `[0, 1]` is not arbitrary:
+  > `pygui/annotation_editor_gui.py:473` writes `"\n\n"` before the header, so it
+  > matches GroundTruther's *own* save format. The parser is therefore wrong for both of
+  > its inputs, in opposite directions — an own-saved file reads back **N+1** records
+  > (the header survives as a phantom row) and a detector export reads back **N−1**.
+  > Details on the issue; fix planned in `PLANNING/TODO_docs-audit-code-findings.md`.
 
 ### Deviations from the plan
 
