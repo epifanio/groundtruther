@@ -338,7 +338,19 @@ left undocumented.**
 
 ### Questions for the user (physical meaning not derivable from code or data)
 
-1. **`bearing` as `heading_deg` — is the georeference 180° out?** `bearing` is
+1. **`bearing` as `heading_deg` — is the georeference 180° out?**
+   > **ANSWERED, 2026-09-17: yes.** The user supplied the missing fact — the camera's
+   > orientation follows the vessel, which tows it just astern — and a template-matching
+   > measurement on the imagery closed it: seabed content scrolls **downward** in 62 of 62
+   > confident consecutive-frame pairs (median +597 px ≈ 464 mm, against ≈ 495 mm predicted
+   > from speed × interval), so image bottom→top points **forward**. The service rotates by
+   > `heading_deg` bottom→top, so the correct value is the vessel heading ≈ `bearing + 180`.
+   > The plugin sends `bearing`. Every georeferenced micro-DEM, orthophoto and nav-placed
+   > mosaic is rotated 180° about its own centre; positions are unaffected, which is why a
+   > check that verified position never caught it. Fix planned as Track 3 of
+   > `PLANNING/TODO_docs-audit-code-findings.md`.
+
+   Original wording: `bearing` is
    verifiably the direction of the (`dx`,`dy`) offset vector (base → HabCam), which
    sits **~173° (median) from the course over ground** — as expected for a body towed
    astern. `gt/roughness_geo.py` sends it as `heading_deg` when there is no `Heading`

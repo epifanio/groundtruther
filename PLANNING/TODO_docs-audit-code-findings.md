@@ -24,13 +24,16 @@ them. When done:
    exactly *N*, for GroundTruther's own writer and for a detector export alike; no
    silent row loss, no phantom header record
    ([#28](https://github.com/epifanio/groundtruther/issues/28)).
-3. **The `bearing` → `heading_deg` question is answered** with evidence, not opinion:
-   either the roughness georeference is confirmed correct and the reasoning is written
-   down where the next person will find it, or a 180° error is demonstrated and fixed.
+3. **The roughness georeference points the right way.** `bearing` is the direction
+   *astern*, not the vehicle heading, and the plugin sends it as `heading_deg` — so every
+   georeferenced micro-DEM, orthophoto and nav-placed mosaic is rotated **180° about its
+   own centre**. This is now **confirmed, not suspected** (evidence below). Fix it, deal
+   with the saved calibrations that may already compensate for it, correct the docs, and
+   report the same assumption to the service side.
 
-Tracks 1 and 2 are code fixes with a known shape. Track 3 is an **investigation with a
-decision gate** — it may end in a one-line fix, or in a documented "no, it's correct,
-here is why".
+All three tracks are code fixes with a known shape. Track 3 was written as an open
+investigation; it was **resolved before this plan was finalised**, so what remains is the
+fix and its fallout.
 
 ## Context & background
 
@@ -116,42 +119,97 @@ detection is not benign: it is silent data loss with no way for a user to notice
 new Qt/QGIS-free `gt/annotations.py`** and leave a re-export in `ioutils` for the two
 call sites (`mixins/settings_mixin.py:9`, `mixins/annotation_editor_mixin.py:141`).
 
-### Finding 3 — is `bearing` the wrong heading?
+### Finding 3 — CONFIRMED: the roughness georeference is 180° out
 
-Measured on `projectdata.pq` (see the `data-model-facts` memory):
+This started as an open question and was **resolved during planning**, entirely offline,
+after the user supplied the missing domain fact: *the camera's orientation follows the
+vessel — it is towed just behind it.*
 
-- `hypot(dx, dy) == distance` and `atan2(dx, dy) == bearing` — so **`bearing` is the
-  direction of the base→HabCam offset vector**, not a vehicle attitude.
-- That direction sits **~173° (median) from the course over ground** — exactly as
-  expected for a body towed astern.
-- [gt/roughness_geo.py:48](../gt/roughness_geo.py) `DEFAULT_HEADING_COLS = ("Heading", "bearing")`
-  and this dataset has **no** `Heading` column, so `bearing` is what is sent as
-  `heading_deg`.
-- The service's convention (`/home/epinux/dev/stereo-roughness/INTERFACE.md`) is
-  *"image bottom→top = vessel `heading_deg`, image-right = starboard"*.
+**The evidence chain**, every link measured on this machine:
 
-So the value sent is ≈ course + 180°. Either the mount convention absorbs that, or every
-georeferenced frame and mosaic is rotated 180° about its own centre.
+| # | Claim | How it was verified |
+|---|---|---|
+| 1 | `Xutm`/`Yutm` is the **ship**, not the camera | `== proj(Longitude, Latitude)` exactly (0.0 m); 0.72 m median from `sXutm` |
+| 2 | `Xutm + dx`, `Yutm + dy` is the **HabCam**, ~148 m astern | median ship→fix separation 147.7 m; 3.6 m from `Xutm_adj` (= `proj(habcam_lon/lat)`) |
+| 3 | `bearing` is the compass direction **ship → HabCam**, i.e. *astern* | `atan2(dx, dy) == bearing` to 0.06°; `hypot(dx, dy) == distance` to 0.06 m |
+| 4 | therefore `bearing ≈ course over ground + 180°` | median abs(COG − bearing) = **173.4°** over the survey |
+| 5 | **image bottom→top is the direction of travel** | template-matching consecutive frames: content moves **DOWN** in **62 of 62** confident pairs (median +597 px; 5th–95th pct +485…+640; never negative), ≈ 464 mm of ground motion per frame against an independent prediction of ≈ 495 mm from speed × interval; `abs(dy) > abs(dx)` in 62/62 |
+| 6 | the service rotates by `heading_deg`, bottom→top | `INTERFACE.md`: *"image bottom→top = vessel `heading_deg`, image-right = starboard"* |
+| 7 | the camera is fixed to the tow, so its azimuth is the vessel's | stated by the user; consistent with (5), where the along-track axis is the image vertical |
 
-**What could not settle it offline:** `groundtruther_test_dataset/test_mosaic_real.pgw`
-is a *north-up* world file for a 4.96 m × 2.45 m patch. A 180° rotation about the centre
-leaves that axis-aligned bounding box essentially unchanged, so the file proves only that
-the mosaic is placed at the HabCam (≈3.6 m from the USBL fix) and not at the ship
-(≈148 m away). It cannot distinguish the two orientations.
+Link 5 is the one that closes it. A ground feature ahead of the camera enters at the
+**top** of the frame and leaves at the **bottom**, so image-up points **forward**.
+Sixty-two out of sixty-two pairs, none dissenting, with the magnitude matching an
+independent kinematic prediction to ~6 % — that is what makes it a measurement rather
+than a coin flip, and it simultaneously validates the focal length (2480.28 px), the GSD
+model (`altitude / f`) and the frame interval.
 
-*(Aside, worth one minute during the investigation: that `.prj` declares **NAD83 / UTM 19N
-(EPSG:26919)**, while the plugin writes **EPSG:32619**. The parquet's `Xutm` is verified
-WGS-84-consistent (`Xutm == proj(Longitude, Latitude)` under 32619, 0.0 m residual), so
-the plugin looks right and that stray `.prj` was probably produced elsewhere — but
-confirm rather than assume.)*
+Rebuild this rather than trusting the paragraph — it is task 13:
 
-**The decisive experiment** is available and self-contained: the mosaic route offers
-`mode:"flat"` (placed purely by nav heading) and `mode:"pixel"` (registered by **image
-content**, georeferenced only through the reference frame's nav). Build the same window
-both ways over a textured stretch. If the nav heading is 180° out, the two mosaics
-disagree by a 180° rotation; if it is right, they agree up to registration noise. This
-requires **one live API call sequence** — which this plan explicitly authorises (the
-docs plan did not).
+```python
+# flat-field the strobe vignette, CLAHE, then template-match an upper-middle
+# patch of frame i against the whole of frame i+1.  Most frames are too turbid
+# to match; that is expected and is why n is small relative to frames tried.
+import cv2, numpy as np, pandas as pd, os
+IMG = "<test dataset>/imgs_jpg"
+df = pd.read_parquet("<test dataset>/projectdata.pq").sort_index()
+names, alt = df.Imagename.values, df.Altimeter.values
+t = df.index.values.astype("datetime64[ms]").astype(np.int64) / 1000.0
+F = 2480.28                                    # rectified-left focal length, px
+clahe = cv2.createCLAHE(3.0, (8, 8))
+
+def load(i):
+    a = cv2.imread(f"{IMG}/{names[i]}.jpg", cv2.IMREAD_GRAYSCALE)
+    if a is None or a.shape != (1024, 1360):
+        return None
+    a = a.astype(np.float32)
+    a = a / np.maximum(cv2.GaussianBlur(a, (0, 0), 80), 1e-3)     # flat-field
+    a = cv2.normalize(a, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    return clahe.apply(a)
+
+PH, PW, TY, TX = 260, 420, 120, 470            # patch size and origin in frame i
+for i in candidate_rows:                       # consecutive pairs, t[i+1]-t[i] < 0.5 s
+    A, B = load(i), load(i + 1)
+    tpl = A[TY:TY + PH, TX:TX + PW]
+    if tpl.std() < 10:                         # skip featureless frames
+        continue
+    _, score, _, loc = cv2.minMaxLoc(cv2.matchTemplate(B, tpl, cv2.TM_CCOEFF_NORMED))
+    if score < 0.40:
+        continue
+    dx, dy = loc[0] - TX, loc[1] - TY          # displacement of the CONTENT
+    gsd_mm = alt[i] * 1000.0 / F               # ground sample distance, mm/px
+# expect: dy > 0 (content moves DOWN) and hypot(dx,dy)*gsd ~= speed * interval
+```
+
+Two traps worth knowing if you re-derive this independently:
+
+* **Plain phase correlation returns ~0.** The static strobe vignette is identical
+  between frames and pins the correlation peak at zero displacement. Flat-fielding
+  first is not optional.
+* **Only a gap of one frame works.** At ~3 m/s and 0.167 s the vehicle moves ~495 mm
+  per frame ≈ 571 px, against a 1024 px frame height — so consecutive frames overlap
+  ~44 % and a gap of 2 has no overlap at all.
+
+**Conclusion.** The correct `heading_deg` is the vessel heading ≈ COG ≈ `bearing + 180°`.
+[gt/roughness_geo.py](../gt/roughness_geo.py) sends `bearing`. Positions are correct —
+which is exactly why this survived a georeferencing check that verified *position* to
+~0.1 m and never tested *rotation*.
+
+**`Heading` and `bearing` are not interchangeable.**
+`DEFAULT_HEADING_COLS = ("Heading", "bearing")` treats them as two spellings of one
+quantity. `Heading` is a vehicle attitude; `bearing` is layback geometry that happens to
+be roughly anti-parallel to it. The fix is a per-column rule, not a new constant.
+
+**Why the experiment this plan originally proposed would have failed.** The `flat` vs
+`pixel` mosaic comparison is **not** decisive: `pixel` registers frames to each other by
+content but takes its absolute orientation from the *reference frame's nav*. A global
+heading error rotates both modes equally, so they would have agreed and the test would
+have returned a false negative. Recorded because it is a tempting experiment.
+
+*(Aside, still open: `groundtruther_test_dataset/test_mosaic_real.prj` declares
+**EPSG:26919** (NAD83) while the plugin writes **32619** (WGS-84). The parquet's `Xutm` is
+verified WGS-84-consistent, so the plugin looks right and that stray `.prj` probably came
+from elsewhere — confirm rather than assume.)*
 
 ### Why these three are one plan
 
@@ -171,8 +229,9 @@ review, one GUI-check session.
 - Moving `parse_annotation` into a Qt-free `gt/` module so it can be unit-tested.
 - Verifying the bbox save → reload round trip (`_rect_to_bbox` / `_bbox_to_rect` /
   `parse_annotation`'s 8-value corner ring) while that code is open.
-- The `flat` vs `pixel` mosaic experiment, and whatever it implies: a fix, or a
-  documented explanation of why the current behaviour is right.
+- Correcting the heading GroundTruther sends, and its fallout: the per-dataset
+  `QgsSettings` calibrations that may already compensate with a 180° `heading_offset_deg`,
+  and the two published pages that describe the current behaviour.
 - New unit tests for each fix; updating the published docs where behaviour changes.
 - Updating the two GitHub issues and closing them from the PR.
 
@@ -183,8 +242,11 @@ review, one GUI-check session.
 - Renaming modules, restructuring packages, or adding `__init__.py` files beyond what the
   import conversion needs.
 - The GPU path (`pip_cuda`) beyond its import line — it is unreachable without RAPIDS.
-- Server-side (FastGIS / stereo-roughness) changes. If Track 3 finds the bug is on the
-  service side, **stop and report** — that is a different repo and a different plan.
+- Server-side (FastGIS / stereo-roughness) changes. `INTERFACE.md`'s own mosaic example
+  shows `"heading_deg": <bearing>`, so **mode-A mosaics — where the service pulls the nav
+  itself — are very likely 180° out too, and GroundTruther cannot fix that from here.**
+  Open an issue against that side and note it in the Progress Log. Do **not** add a
+  client-side compensation: it would double-correct the moment the server is fixed.
 - The remaining open questions from the docs audit that are *not* defects
   (`Step`/`Position` units, the optical sensor channels, the `Beam Flag` encoding).
   Those need the user's knowledge, not an investigation.
@@ -200,10 +262,10 @@ review, one GUI-check session.
   comments** — the issue bodies alone are misleading.
 - Read `/home/epinux/dev/stereo-roughness/INTERFACE.md` §`geo` and §`POST /mosaic`
   before Track 3.
-- **Track 3 needs live API credentials** (`Processing.grass_api_key` in the local
-  `config/config.yaml`, which is gitignored and already present on this machine). Calling
-  the API **is** authorised for this plan — one mosaic window, two modes. Do not batch
-  large windows; the service is a shared GPU.
+- **Track 3 no longer needs the API to decide anything** — the question was settled
+  offline during planning. A live call is authorised only to *confirm the fix*: render one
+  frame before and after and check the raster's orientation against the bathymetry. One
+  window, no batching; the service is a shared GPU.
 - Reference data: `/home/epinux/dev/groundtruther_test_dataset/` (`projectdata.pq`,
   `test_detector_output.csv`, `test_mosaic_real.*`).
 
@@ -272,41 +334,60 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
       new behaviour, and drop the workaround. **Remember this republishes the site on
       merge.**
 
-### Track 3 — `bearing` as `heading_deg` (investigation)
+### Track 3 — the 180° heading error
 
-- [ ] **13. Restate the question precisely** from the code, not from memory: what
-      `geo_from_record` sends, what `INTERFACE.md` says the server does with it, and what
-      a 180° error would look like in the output. Write this into the Progress Log
-      *before* running anything, so the experiment has a falsifiable prediction.
-- [ ] **14. Run the flat-vs-pixel experiment.** One window (±5 frames) over a **textured**
-      stretch — check `register.quality` comes back `ok`, i.e. ≥30 % of pairs registered
-      by content; a featureless window proves nothing because it falls back to nav.
-      Build `mode:"flat"` and `mode:"pixel"`, write both GeoTIFFs, compare orientation.
-- [ ] **15. Cross-check against the bathymetry.** Load a georeferenced orthophoto for a
-      frame over recognisable relief and compare against `bathy_2015.tif` / the
-      backscatter. Independent of the mosaic experiment and cheap.
-- [ ] **16. Check the stray CRS** — why `test_mosaic_real.prj` says EPSG:26919 when the
-      plugin writes 32619, and whether anything in the plugin can produce that.
-- [ ] **17. Decide, and act on the decision.**
-      - *Correct as-is* → write the reasoning into `gt/roughness_geo.py`'s module
-        docstring and into `website/docs/data-model/image-metadata.md`'s "`Heading` vs
-        `bearing`" note, replacing the current "measured fact, no claim" wording.
-      - *180° out* → fix it in `geo_from_record` (**not** by changing the config default
-        `heading_offset_deg`, which is a user-facing calibration knob, not a place to
-        hide a sign error), add a unit test pinning the convention, and check whether
-        already-saved per-dataset `QgsSettings` calibrations need invalidating.
-      - *Server-side* → stop, write it up, open an issue on the FastGIS side.
+- [ ] **13. Reproduce the measurement before changing anything.** Rebuild the
+      scroll-direction harness described in Finding 3 (flat-field → CLAHE →
+      `cv2.matchTemplate` of an upper-middle patch of frame *i* against frame *i+1*, keep
+      NCC ≥ 0.4) and confirm content moves **down** by roughly `speed × interval / GSD`
+      pixels. Paste the numbers into the Progress Log. **Do not take the fix on trust** —
+      if this does not reproduce, stop and report, because everything below depends on it.
+- [ ] **14. Make `Heading` and `bearing` distinct quantities** in
+      [gt/roughness_geo.py](../gt/roughness_geo.py). `DEFAULT_HEADING_COLS` currently
+      treats them as interchangeable spellings. A true `Heading` column is used as-is; a
+      `bearing` column is the ship→body direction and must be turned round
+      (`(bearing + 180) % 360`, normalised to whatever range the service expects — check
+      `INTERFACE.md`; the dataset's own `bearing` is −180…180). Name the helper so the
+      distinction is obvious at the call site, and put the *reason* in the docstring, not
+      just the formula.
+- [ ] **15. Unit-test the convention** in `tests/unit/test_roughness_geo.py`: a record
+      with `Heading` sends that value unchanged; a record with only `bearing` sends
+      `bearing + 180`; a record with both prefers `Heading`; wrap-around at ±180 is
+      handled. These tests are the spec — write them so a future reader learns the
+      geometry from them.
+- [ ] **16. Deal with the saved calibrations.** The Georef tab persists
+      `heading_offset_deg` per dataset in `QgsSettings`
+      (`groundtruther/roughness/<md5-of-metadata-path>/…`). A user who noticed the
+      rotation may have dialled in ±180 to compensate; after the fix that double-corrects
+      back to wrong. Decide and implement: bump a stored schema version and reset the
+      offset, or detect a near-±180 offset and clear it with a message-log note. **Do not
+      silently change what a stored value means.**
+- [ ] **17. Check the neighbours of the bug.** Does anything else consume `bearing` as if
+      it were an attitude? (`grep -rn "bearing" --include="*.py"`.) Confirm the `mirror`
+      flag is genuinely independent — a 180° rotation is not a reflection, and anyone who
+      "fixed" this with `mirror` has a second, different error.
+- [ ] **18. Report it upstream.** `INTERFACE.md` mode-B shows `"heading_deg": <bearing>`,
+      so mode-A mosaics (service pulls the nav) are likely wrong the same way. Open an
+      issue on the FastGIS / stereo-roughness side with the evidence table from Finding 3.
+      Out of scope to fix here.
+- [ ] **19. Correct the published docs.** `website/docs/data-model/image-metadata.md`'s
+      "`Heading` vs `bearing`" note currently states the measurement and explicitly
+      declines to draw a conclusion — replace it with the conclusion. Check
+      `website/docs/tools/seafloor-roughness.md`'s heading-offset/mirror section still
+      reads correctly afterwards. **Merging republishes the site.**
+- [ ] **20. Confirm live** (needs the user, or an authorised single API call): render a
+      georeferenced frame over recognisable relief and check it against `bathy_2015.tif`
+      and the backscatter. Before/after screenshots into the PR.
 
 ### Closing
 
-- [ ] **18. Full verification** (see below), Progress Log, memory update
-      (`data-model-facts` gets the Track 3 answer; a new or extended entry records the
-      import convention).
-- [ ] **19. Rename** `TODO_docs-audit-code-findings.md` → `docs-audit-code-findings.md`,
+- [ ] **21. Full verification** (see below), Progress Log, memory update: `data-model-facts`
+      gets the confirmed heading conclusion (it currently records it as an open question),
+      and the import convention is recorded for future sessions.
+- [ ] **22. Rename** `TODO_docs-audit-code-findings.md` → `docs-audit-code-findings.md`,
       `Status: DONE`; **amend** `PLANNING/settings-and-data-model-docs.md`'s Progress Log
-      with a dated one-liner correcting its Finding-1 claim (it is a durable record that
-      future agents read, and it currently says the video subsystem is dead).
-- [ ] **20. Open the PR** with `Closes #27` / `Closes #28`, leave unmerged.
+      to note that its open question #1 is now answered.
+- [ ] **23. Open the PR** with `Closes #27` / `Closes #28`, leave unmerged.
 
 ## Acceptance criteria & verification
 
@@ -326,9 +407,13 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
 - [ ] Annotation round trip: *N* in, *N* out, for all four fixture shapes, with the
       sample `test_detector_output.csv` keeping all **7 278** rows.
 - [ ] `mkdocs build --strict -f website/mkdocs.yml` clean if any page changed.
-- [ ] Track 3 reaches a **stated conclusion with evidence** — "inconclusive" is an
-      acceptable outcome only if the Progress Log says exactly what was tried and what
-      would settle it.
+- [ ] The scroll-direction measurement **reproduces** (content moves down by roughly
+      `speed × interval / GSD` px), with the numbers in the Progress Log.
+- [ ] A record carrying only `bearing` sends `heading_deg = bearing + 180`; a record
+      carrying `Heading` sends it unchanged; unit-tested both ways.
+- [ ] Saved per-dataset `heading_offset_deg` calibrations near ±180 are handled
+      explicitly, not left to double-correct.
+- [ ] An issue exists on the FastGIS / stereo-roughness side for mode-A mosaics.
 - [ ] `config/config.yaml` never staged (gitignored, holds the API key);
       `website/site/` not committed.
 
@@ -343,8 +428,11 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
       crash — check the `GroundTruther` message-log tab for `ImportError`.
 - [ ] Annotate an image, save, reload the plugin, confirm the count is unchanged and no
       phantom entry appears in the metadata panel's species tally.
-- [ ] Look at the Track 3 mosaics in QGIS and say whether the orientation is right — you
-      know what that seabed should look like; the agent does not.
+- [ ] **Track 3 is the one with a visible before/after.** Render a georeferenced frame
+      over recognisable relief and compare it to `bathy_2015.tif` / the backscatter,
+      before and after the fix. You know what that seabed should look like; the agent does
+      not. Also say whether you had ever dialled a heading offset into the Georef tab for
+      a dataset — that determines how aggressive task 16 needs to be.
 
 ## Risks & rollback
 
@@ -360,11 +448,14 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
   data row happens to have non-numeric coordinates would be read as a header.
   *Mitigation:* require *all* of `TL_x, TL_y, BR_x, BR_y` to fail numeric parsing before
   calling a line a header, and log at `Qgis.Info` which shape was detected.
-- **Risk: Track 3 turns out to be a real 180° error.** Then every georeferenced roughness
-  raster and mosaic produced so far is wrong, and saved per-dataset calibrations may
-  encode a compensating `heading_offset_deg`. *Mitigation:* the decision gate in task 17
-  explicitly covers invalidating saved calibrations; do not silently change the meaning
-  of a stored value.
+- **Risk: every georeferenced product made so far is wrong.** It is — that is the
+  finding, not a risk. The risk is the *fallout*: saved calibrations that compensate for
+  it (task 16), downstream GeoTIFFs already exported and possibly used, and the service
+  side making the same assumption for mode-A mosaics (task 18, out of scope to fix).
+  *Mitigation:* handle the stored values explicitly and say plainly in the PR that
+  previously exported rasters need regenerating.
+- **Risk: over-correcting.** If the service is fixed for mode A while the client also
+  compensates, the error comes back. Fix only what GroundTruther sends; report the rest.
 - **Risk: scope sprawl into `querybuilder_gui.py`.** It is ~1300 lines and untested. The
   Scope section forbids touching anything but the import lines. If a fix seems to require
   more, stop and say so.
@@ -383,25 +474,27 @@ MEMORY.md index). Then create the dedicated worktree exactly as the plan's "Work
 setup" section specifies (branch: fix/docs-audit-code-findings).
 
 Then complete the Task Breakdown and meet the Acceptance Criteria. Three independent
-tracks: import hygiene (#27), the annotation CSV parser (#28), and the bearing →
-heading_deg investigation. Read BOTH issues including their correction comments before
-starting — the issue bodies alone are misleading, and #27 in particular describes an
-effect that was disproved.
+tracks: import hygiene (#27), the annotation CSV parser (#28), and a confirmed 180° error
+in the heading sent to the roughness service. Read BOTH issues including their correction
+comments before starting — the issue bodies alone are misleading, and #27 in particular
+describes an effect that was disproved.
 
-Track 3 is an investigation with a decision gate, not a predetermined fix: it may end in
-a code change or in a written explanation of why the current behaviour is correct.
-Reaching a conclusion with evidence is the deliverable. This plan authorises live calls
-to the FastGIS API for that experiment — one mosaic window, two modes, no batching.
+Track 3's conclusion was reached during planning, not assumed: `bearing` is the ship→body
+direction (astern), the camera's image-up points forward along the tow, and the service
+rotates by `heading_deg` bottom→top — so the plugin has been sending heading + 180°. The
+plan's "Finding 3" section carries the full evidence chain. **Reproduce the
+scroll-direction measurement yourself (task 13) before changing any code**; if it does not
+reproduce, stop and report rather than applying the fix on trust.
 
-Verify what you claim: before asserting that an import fails or a value is wrong,
-reproduce it in the offscreen QGIS harness described in CLAUDE.md, not in a hand-built
-PYTHONPATH. That distinction is what made the original #27 report wrong.
+Verify what you claim generally: before asserting that an import fails or a value is
+wrong, reproduce it in the offscreen QGIS harness described in CLAUDE.md, not in a
+hand-built PYTHONPATH. That distinction is what made the original #27 report wrong.
 
 When done: run .venv/bin/pytest (and mkdocs build --strict if any page changed), update
 the project memory with your findings, fill the Progress Log, rename
 PLANNING/TODO_docs-audit-code-findings.md → PLANNING/docs-audit-code-findings.md
-(Status: DONE), append the dated Finding-1 correction to
-PLANNING/settings-and-data-model-docs.md's Progress Log, and open a PR against master
+(Status: DONE), note in PLANNING/settings-and-data-model-docs.md's Progress Log that its
+open question #1 is now answered, and open a PR against master
 (gh, account epifanio) with "Closes #27" and "Closes #28". Do NOT merge — I will review
 and merge, and the import change needs my hands-on GUI check first.
 ```
