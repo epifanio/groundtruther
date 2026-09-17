@@ -28,9 +28,9 @@ import json
 from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QButtonGroup
 from qgis.core import Qgis, QgsMessageLog
 
-from pygui.grass_settings_gui import GrassSettings
-from epsg_list import codelist
-from search_epsg import SearchEpsgDialog
+from groundtruther.pygui.grass_settings_gui import GrassSettings
+from groundtruther.epsg_list import codelist
+from groundtruther.search_epsg import SearchEpsgDialog
 
 from groundtruther.config.config import config
 from groundtruther.configure import load_config, log_exception

@@ -1,5 +1,5 @@
 from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QMessageBox
-from pygui.epsg_search_gui import SearchEpsg
+from groundtruther.pygui.epsg_search_gui import SearchEpsg
 
 import os
 from groundtruther.episg import *
