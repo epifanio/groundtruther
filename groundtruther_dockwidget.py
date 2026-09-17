@@ -33,7 +33,8 @@ from qgis.PyQt.QtCore import Qt
 
 import pyqtgraph as pg
 
-from groundtruther.configure import get_settings
+from groundtruther.configure import get_settings_checked, error_message
+from groundtruther.gt import config_check
 from groundtruther.pygui.Ui_groundtruther_dockwidget_base import Ui_GroundTrutherDockWidgetBase
 from groundtruther.pygui.hbc_browser_gui import HBCBrowserGui
 from groundtruther.pygui.image_metadata_gui import ImageMetadata
@@ -92,29 +93,18 @@ class GroundTrutherDockWidget(
 
         self.config = os.path.join(
             os.path.dirname(__file__), 'config/config.yaml')
-        self.settings = get_settings(self.config)
-        if not self.settings:
-            self._open_config_dialog()
-            self.settings = get_settings(self.config)
-        # Safe defaults so the rest of __init__ never crashes on missing config
-        if not self.settings:
-            self.settings = {
-                "HabCam": {
-                    "imagepath": "", "imagemetadata": "", "imageannotation": ""},
-                "Mbes": {"soundings": ""},
-                "Export": {"kmldir": ""},
-                "Processing": {
-                    "gpu_avaibility": False, "grass_api_endpoint": ""},
-                "Filesystem": {"filemanager": ""},
-            }
+        self.settings, self.config_report = self._load_settings()
 
         self.grass_dialog = GrassConfigDialog(self)
         self.imagelist = []
         self.imageindex = 0
         self.rangevalue = self.w.range.value()
-        self.dirname = self.settings["HabCam"]["imagepath"]
-        self.metadatafile = self.settings["HabCam"]["imagemetadata"]
-        self.imageannotationfile = self.settings["HabCam"]["imageannotation"]
+        self.dirname = config_check.as_path_str(
+            self.settings["HabCam"]["imagepath"])
+        self.metadatafile = config_check.as_path_str(
+            self.settings["HabCam"]["imagemetadata"])
+        self.imageannotationfile = config_check.as_path_str(
+            self.settings["HabCam"]["imageannotation"])
         self.grass_api_endpoint = self.settings["Processing"]["grass_api_endpoint"]
         self.annotation_confidence_treshold = (
             self.w.annotation_confidence_spinBox.value()
@@ -143,6 +133,47 @@ class GroundTrutherDockWidget(
         QgsMessageLog.logMessage(
             f"GroundTruther dock widget initialised (iface: {iface})",
             'GroundTruther', Qgis.Info)
+
+    # ------------------------------------------------------------------ #
+    # Configuration                                                        #
+    # ------------------------------------------------------------------ #
+
+    def _load_settings(self):
+        """Load the config and degrade it per key — never all-or-nothing.
+
+        Every finding is logged to the ``GroundTruther`` message log.  Fatal
+        findings (``HabCam.imagepath`` / ``imagemetadata``) open the Settings
+        dialog once and, if they survive that, raise a dialog *naming the
+        offending keys and their values* instead of the old bare "No valid
+        configuration found".  Whatever the outcome, the returned dict has every
+        section present and only the **failed** keys blanked, so one stale path
+        can no longer take an unrelated feature (or the whole plugin) down.
+
+        Returns ``(settings, report)``.
+        """
+        settings, report = get_settings_checked(self.config)
+        if report.errors:
+            QgsMessageLog.logMessage(
+                "config: fatal problems found, opening Settings:\n"
+                + report.summary(include_warnings=False),
+                'GroundTruther', Qgis.Critical)
+            self._open_config_dialog()
+            settings, report = get_settings_checked(self.config)
+            if report.errors:
+                error_message(report.message())
+        self._log_config_report(report)
+        return config_check.degrade(settings, report), report
+
+    @staticmethod
+    def _log_config_report(report):
+        """Log one message-log line per config finding."""
+        for finding in report.errors:
+            QgsMessageLog.logMessage(
+                f"config: {finding}", 'GroundTruther', Qgis.Critical)
+        for finding in report.warnings:
+            QgsMessageLog.logMessage(
+                f"config: {finding} — the feature using it is disabled",
+                'GroundTruther', Qgis.Warning)
 
     # ------------------------------------------------------------------ #
     # UI construction                                                      #

@@ -4,8 +4,10 @@ from pathlib import Path
 
 from qgis.core import Qgis, QgsMessageLog
 
-from groundtruther.configure import get_settings, ConfigDialog, error_message, log_exception
+from groundtruther.configure import (
+    get_settings_checked, ConfigDialog, error_message, log_exception)
 from groundtruther.ioutils import parse_annotation
+from groundtruther.gt import config_check
 from groundtruther.gt import image_manager as img_mgr
 
 
@@ -20,23 +22,33 @@ class SettingsMixin:
         warning and shows a status-bar hint — no modal dialog is shown.
         The dialog is only ever opened explicitly by the user via the gear icon.
         """
-        fresh = get_settings(self.config)
-        if fresh:
-            self.settings = fresh
+        fresh, report = get_settings_checked(self.config)
+        if fresh is not None:
+            # Keep every key the user got right; blank only the ones that
+            # failed, so a stale image path cannot disable unrelated features.
+            self.settings = config_check.degrade(fresh, report)
+            for finding in report.findings:
+                QgsMessageLog.logMessage(
+                    f"config: {finding}", 'GroundTruther',
+                    Qgis.Critical if finding.severity == config_check.ERROR
+                    else Qgis.Warning)
 
         if not self.settings:
             return
 
-        new_dirname = self.settings["HabCam"]["imagepath"]
+        new_dirname = config_check.as_path_str(
+            self.settings["HabCam"]["imagepath"])
         if new_dirname != self.dirname:
             # Image directory changed — discard cached decoded arrays.
             self._clear_image_cache()
         self.dirname = new_dirname
-        self.metadatafile = self.settings["HabCam"]["imagemetadata"]
-        self.imageannotationfile = self.settings["HabCam"]["imageannotation"]
+        self.metadatafile = config_check.as_path_str(
+            self.settings["HabCam"]["imagemetadata"])
+        self.imageannotationfile = config_check.as_path_str(
+            self.settings["HabCam"]["imageannotation"])
         self.grass_api_endpoint = self.settings["Processing"]["grass_api_endpoint"]
 
-        if not Path(self.metadatafile).is_file():
+        if not self.metadatafile or not Path(self.metadatafile).is_file():
             QgsMessageLog.logMessage(
                 f"_apply_settings: metadata file not found: {self.metadatafile!r} "
                 "— open Settings to configure the correct path.",
@@ -64,7 +76,7 @@ class SettingsMixin:
 
             self.imagemetadata_gui.metadata_scroll_area.setEnabled(True)
 
-            if Path(self.imageannotationfile).is_file():
+            if self.imageannotationfile and Path(self.imageannotationfile).is_file():
                 QgsMessageLog.logMessage(
                     "Annotation file loaded", 'GroundTruther', Qgis.Info)
                 self.w.actionAnnotation.setEnabled(True)
@@ -114,11 +126,8 @@ class SettingsMixin:
             east, north = roughness_geo.usbl_xy(self.imageMetadata)
             if east is None:
                 return
-            try:
-                epsg = int(((self.settings.get("Roughness") or {}).get("epsg"))
-                           or 32619)
-            except Exception:  # noqa: BLE001
-                epsg = 32619
+            epsg = config_check.as_int(
+                (self.settings.get("Roughness") or {}).get("epsg"), 32619)
             # Batched transform (one C++ call) — avoids a per-row Python loop.
             src = osr.SpatialReference()
             src.ImportFromEPSG(epsg)

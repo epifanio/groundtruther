@@ -1,15 +1,9 @@
 """ Configuration loading, validation, and settings dialog for GroundTruther. """
 import os
 import traceback
-from pathlib import Path
 
 import yaml
-from starlette.templating import Jinja2Templates
 
-try:
-    from pydantic.error_wrappers import ValidationError  # pydantic v1
-except ImportError:
-    from pydantic import ValidationError  # pydantic v2
 from qgis.PyQt.QtCore import pyqtSignal
 from qgis.PyQt.QtWidgets import (
     QDialog, QFileDialog, QMessageBox,
@@ -17,7 +11,8 @@ from qgis.PyQt.QtWidgets import (
 )
 
 from groundtruther.pygui.app_settings_gui import AppSettings
-from groundtruther.config_model import HabcamSettings
+from groundtruther.gt import config_check
+from groundtruther.gt.config_check import merge_settings, write_settings
 from groundtruther.config.config import config as DEFAULT_CONFIG_PATH
 import groundtruther.resources_rc  # noqa: F401 – registers Qt resources
 
@@ -80,54 +75,54 @@ def load_config(config_path):
         return None
 
 
-def validate_config(settings):
-    """Validate *settings* against the Pydantic model.
+def check_config(settings):
+    """Grade every config key individually – see :mod:`gt.config_check`.
 
-    Returns a ``(is_valid: bool, error_message: str)`` tuple.
-    Never shows any dialog – the caller decides how to present errors.
+    Returns a ``ConfigReport`` whose ``errors`` block startup and whose
+    ``warnings`` disable a single feature each.  Never shows any dialog.
+    """
+    return config_check.check_settings(settings)
+
+
+def validate_config(settings):
+    """Validate *settings*, key by key.
+
+    Returns a ``(is_valid: bool, error_message: str)`` tuple, kept for the
+    callers that only need a yes/no answer (``ConfigDialog.write_config``,
+    ``validate_config2``).  "Valid" now means **no errors** – a stale optional
+    path yields a warning, not a veto, so one bad key can no longer invalidate
+    the whole file.  Use :func:`check_config` when you need the detail.
     """
     if not settings:
         return False, "No settings provided"
-    try:
-        # Video fields are all Optional[str] — nothing to validate pydantically.
-        # Passing them to HabcamSettings triggers a pydantic v1 bug where a
-        # field named "Video" with type Optional[VideoSettings] silently fails
-        # coercion and reports "value is not None".  Validate only the fields
-        # that have real constraints (paths, URLs, booleans).
-        HabcamSettings(
-            Mbes={"soundings": settings["Mbes"]["soundings"]},
-            HabCam={
-                "imagepath": settings["HabCam"]["imagepath"],
-                "imagemetadata": settings["HabCam"]["imagemetadata"],
-                "imageannotation": settings["HabCam"]["imageannotation"],
-            },
-            Export={"kmldir": settings["Export"]["kmldir"]},
-            Processing={
-                "gpu_avaibility": settings["Processing"]["gpu_avaibility"],
-                "grass_api_endpoint": settings["Processing"]["grass_api_endpoint"],
-            },
-            Filesystem={"filemanager": settings["Filesystem"].get("filemanager") or None},
-        )
+    report = check_config(settings)
+    if report.ok:
         return True, ""
-    except ValidationError as exc:
-        lines = [
-            f"  {'.'.join(str(l) for l in err['loc'])}: {err['msg']}"
-            for err in exc.errors()
-        ]
-        return False, "Invalid settings:\n" + "\n".join(lines)
-    except KeyError as exc:
-        return False, f"Missing required config key: {exc}"
+    return False, "Invalid settings:\n" + report.summary(include_warnings=False)
 
 
 def get_settings(config_path):
     """Load *and* validate the config file at *config_path*.
 
-    Returns the settings dict when valid, or ``None`` otherwise.
-    Never shows any dialog – callers are responsible for user feedback.
+    Returns the settings dict when it has no *fatal* problems, or ``None``
+    otherwise.  Never shows any dialog – callers are responsible for user
+    feedback.  Prefer :func:`get_settings_checked` when you want to degrade
+    per feature instead of all-or-nothing.
+    """
+    settings, report = get_settings_checked(config_path)
+    return settings if report.ok else None
+
+
+def get_settings_checked(config_path):
+    """Load the config at *config_path* and grade it.
+
+    Returns ``(settings, report)`` where *settings* is the raw dict as loaded
+    (``None`` when the file is missing/unparseable) and *report* is a
+    ``ConfigReport``.  Callers that want to keep running on a partly broken
+    config pass both to ``config_check.degrade``.
     """
     settings = load_config(config_path)
-    is_valid, _ = validate_config(settings)
-    return settings if is_valid else None
+    return settings, check_config(settings)
 
 
 # ---------------------------------------------------------------------------
@@ -162,9 +157,6 @@ class ConfigDialog(QDialog, AppSettings):
         self.root_dir = os.path.dirname(__file__)
         self.config = DEFAULT_CONFIG_PATH
         self.gpu_avaibility_value = False
-
-        templates_path = Path(self.root_dir) / "config" / "templates"
-        self.templates = Jinja2Templates(directory=str(templates_path))
 
         # Wire buttons
         self.select_image_path.clicked.connect(self.set_image_path)
@@ -222,34 +214,38 @@ class ConfigDialog(QDialog, AppSettings):
         """
         settings = load_config(self.config) or {}
 
-        fs = settings.get("Filesystem", {})
-        hbc = settings.get("HabCam", {})
-        mbes = settings.get("Mbes", {})
-        export = settings.get("Export", {})
-        proc = settings.get("Processing", {})
+        fs = settings.get("Filesystem") or {}
+        hbc = settings.get("HabCam") or {}
+        mbes = settings.get("Mbes") or {}
+        export = settings.get("Export") or {}
+        proc = settings.get("Processing") or {}
 
         video = settings.get("Video", {}) or {}
 
-        self.filemanager.setText(fs.get("filemanager", ""))
-        self.image_path.setText(hbc.get("imagepath", ""))
-        self.metadata_path.setText(hbc.get("imagemetadata", ""))
-        self.imageannotation_path.setText(hbc.get("imageannotation", ""))
-        self.mbes_path.setText(mbes.get("soundings", ""))
-        self.reference_surface_path.setText(mbes.get("reference_surface", "") or "")
-        self.kml_path.setText(export.get("kmldir", ""))
+        # ``as_path_str`` (not ``.get(key, "")``) because a key present with an
+        # empty YAML value reads back as ``None``, and ``setText(None)`` raises.
+        _text = config_check.as_path_str
 
-        gpu = proc.get("gpu_avaibility", False)
-        self.gpu_avaibility_value = bool(gpu)
+        self.filemanager.setText(_text(fs.get("filemanager")))
+        self.image_path.setText(_text(hbc.get("imagepath")))
+        self.metadata_path.setText(_text(hbc.get("imagemetadata")))
+        self.imageannotation_path.setText(_text(hbc.get("imageannotation")))
+        self.mbes_path.setText(_text(mbes.get("soundings")))
+        self.reference_surface_path.setText(_text(mbes.get("reference_surface")))
+        self.kml_path.setText(_text(export.get("kmldir")))
+
+        gpu = config_check.as_bool(proc.get("gpu_avaibility"), False)
+        self.gpu_avaibility_value = gpu
         self.gpu_avaibility.setCurrentText("Enabled" if gpu else "Disabled")
-        self.grass_api_endpoint.setText(proc.get("grass_api_endpoint", ""))
-        self.grass_api_key.setText(proc.get("grass_api_key", "") or "")
+        self.grass_api_endpoint.setText(_text(proc.get("grass_api_endpoint")))
+        self.grass_api_key.setText(_text(proc.get("grass_api_key")))
 
         # Video fields (widgets are now always present via Ui_app_settings_ui)
-        self.video_path.setText(video.get("videofile", ""))
-        self.video_metadata_path.setText(video.get("videometadata", ""))
+        self.video_path.setText(_text(video.get("videofile")))
+        self.video_metadata_path.setText(_text(video.get("videometadata")))
 
         session = settings.get("Session", {}) or {}
-        self.vrt_path.setText(session.get("groundtruther_project", "") or "")
+        self.vrt_path.setText(_text(session.get("groundtruther_project")))
 
     def _on_gpu_index_changed(self, index):
         self.gpu_avaibility_value = self.gpu_avaibility.itemText(index) == "Enabled"
@@ -383,10 +379,12 @@ class ConfigDialog(QDialog, AppSettings):
                 "grass_api_endpoint": _opt(self.grass_api_endpoint.text()),
                 "grass_api_key": _opt(self.grass_api_key.text()),
             },
+            # No "videoannotation" key — the dialog has no widget for it, and
+            # write_config merges this dict into the file on disk, so omitting
+            # it preserves whatever the user hand-edited there.
             "Video": {
                 "videofile": _opt(self.video_path.text()),
                 "videometadata": _opt(self.video_metadata_path.text()),
-                "videoannotation": None,
             },
             "Session": {
                 "groundtruther_project": _opt(self.vrt_path.text()),
@@ -402,6 +400,12 @@ class ConfigDialog(QDialog, AppSettings):
 
         Shows an error dialog if validation fails.  On success writes the
         YAML file, emits ``settings_saved``, and closes the dialog.
+
+        The dialog only knows a subset of the config, so the new values are
+        **merged into the document on disk** rather than re-rendered from a
+        fixed template — that is what keeps hand-edited sections the dialog has
+        no widgets for (``Roughness``, and any future section) from being
+        silently deleted on every save.
         """
         gui_settings = self.get_gui_settings()
         is_valid, err_msg = validate_config(gui_settings)
@@ -409,24 +413,13 @@ class ConfigDialog(QDialog, AppSettings):
             error_message(f"Cannot save – please fix the following:\n\n{err_msg}")
             return
 
-        hbc_config = self.templates.get_template("config_template.yaml").render({
-            "filemanager": self.filemanager.text(),
-            "imagepath": self.image_path.text(),
-            "imagemetadata": self.metadata_path.text(),
-            "imageannotation": self.imageannotation_path.text(),
-            "soundings": self.mbes_path.text(),
-            "reference_surface": self.reference_surface_path.text(),
-            "kmldir": self.kml_path.text(),
-            "gpu_avaibility": self.gpu_avaibility_value,
-            "grass_api_endpoint": self.grass_api_endpoint.text(),
-            "grass_api_key": self.grass_api_key.text(),
-            "videofile": self.video_path.text(),
-            "videometadata": self.video_metadata_path.text(),
-            "videoannotation": "",
-            "groundtruther_project": self.vrt_path.text(),
-        })
-        with open(self.config, "w+", encoding="utf8") as yaml_file:
-            yaml_file.write(hbc_config)
+        merged = merge_settings(load_config(self.config), gui_settings)
+        try:
+            write_settings(self.config, merged)
+        except OSError as exc:
+            log_exception(f"write_config: writing {self.config}", exc)
+            error_message(f"Could not write {self.config}:\n{exc}")
+            return
 
         self.settings_saved.emit()
         self.close()

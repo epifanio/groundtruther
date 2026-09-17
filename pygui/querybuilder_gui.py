@@ -13,7 +13,7 @@ the code falls back to CPU (scipy / pandas) otherwise.
 """
 import sys
 import os
-# import tempfile
+import tempfile
 import pathlib
 
 # getting the name of the directory
@@ -41,7 +41,9 @@ from qgis.PyQt.QtWidgets import (
 
 from groundtruther.pygui.Ui_query_builder_ui import Ui_Form
 from groundtruther.config.config import config
-from groundtruther.configure import get_settings, error_message, log_exception
+from groundtruther.configure import (
+    get_settings_checked, error_message, log_exception)
+from groundtruther.gt import config_check
 from groundtruther.gt.mbes_fields import detect_backscatter_fields
 from groundtruther.pygui.reference_3d_view import Reference3DView
 from ellipse import getEllipseCoords
@@ -254,7 +256,7 @@ class QueryBuilder(QWidget, Ui_Form):
                 "Backscatter processing — formulae"))
         except Exception as exc:  # noqa: BLE001 — info button must never block init
             log_exception("query builder cheat-sheet button", exc, warn=True)
-        self.refresh_settings()
+        self.refresh_settings(quiet=True)
         self.qb_ellipsemajoraxis.hide()
         self.qb_ellipseminoraxis.hide()
         self.qb_ellipseorientation.hide()
@@ -524,27 +526,63 @@ class QueryBuilder(QWidget, Ui_Form):
             f"backscatter fields: {fields} (selected '{self.backscatter_field}')",
             'GroundTruther', Qgis.Info)
 
-    def refresh_settings(self):
+    #: UTM zone assumed when the (free-text) zone field is blank or unparseable.
+    #: Matches the UI default in ``pygui/Ui_query_builder_ui.py``.
+    DEFAULT_UTM_ZONE = 19
+
+    def _disable_query_tools(self):
+        """Turn off the widgets that need loaded MBES / image data."""
+        self.query_builder_tools.setEnabled(False)
+        self.draw_graph.setEnabled(False)
+
+    def _export_dir(self):
+        """Directory for query-builder exports — ``Export.kmldir``, else temp.
+
+        Mirrors ``kmlsave_gui.SaveKml.kmldirectory``'s fallback so an unset or
+        stale export directory degrades to the system temp dir instead of
+        building a path from ``None``.
+        """
+        kmldir = config_check.as_path_str(
+            (self.settings or {}).get("Export", {}).get("kmldir"))
+        if kmldir and os.path.isdir(kmldir):
+            return kmldir
+        fallback = tempfile.gettempdir()
+        QgsMessageLog.logMessage(
+            f"Export.kmldir is not a usable directory ({kmldir!r}) — "
+            f"writing to {fallback} instead", 'GroundTruther', Qgis.Warning)
+        return fallback
+
+    def refresh_settings(self, *_args, quiet: bool = False):
         """Reload settings from disk and re-initialise data sources.
 
-        Falls back to the parent dockwidget's already-validated settings when
-        the config file cannot be read or fails validation.  Disables the
-        query tools if no usable settings are available.
+        Falls back to the parent dockwidget's already-degraded settings when the
+        config file cannot be read.  A missing or stale data path disables the
+        query tools instead of raising — this runs during ``__init__``, so an
+        exception here takes the whole dock down with it.
+
+        *quiet* suppresses the modal dialogs (the ``__init__`` call passes it:
+        a half-configured install should not greet the user with a modal before
+        the UI even exists); everything is logged either way.  ``*_args`` swallows
+        the ``checked`` flag Qt passes when this is wired straight to a button.
         """
-        fresh = get_settings(self.config)
-        if fresh:
-            self.settings = fresh
+        def _report(message):
+            QgsMessageLog.logMessage(
+                f"refresh_settings: {message}", 'GroundTruther', Qgis.Warning)
+            if not quiet:
+                error_message(message)
+
+        fresh, report = get_settings_checked(self.config)
+        if fresh is not None:
+            # Keep the keys that validated; blank only the ones that failed.
+            self.settings = config_check.degrade(fresh, report)
         elif self.parent is not None and getattr(self.parent, "settings", None):
-            # Parent (dockwidget) already has valid settings – reuse them
+            # Parent (dockwidget) already has usable settings – reuse them
             self.settings = self.parent.settings
 
         if not self.settings:
-            error_message(
-                "No valid configuration found.\n"
-                "Open Settings (wizard icon) to set the required paths."
-            )
-            self.query_builder_tools.setEnabled(False)
-            self.draw_graph.setEnabled(False)
+            _report("No valid configuration found.\n"
+                    "Open Settings (wizard icon) to set the required paths.")
+            self._disable_query_tools()
             return
 
         self.logitude_field = self.logitude.text()
@@ -552,15 +590,39 @@ class QueryBuilder(QWidget, Ui_Form):
         self.xutm_field = self.xutm.text()
         self.yutm_field = self.yutm.text()
         self.backscatter_field = self.set_backscatter_field.currentText()
-        self.utmzone_string = int(self.utmzone.text())
-        self.dirname = self.settings["HabCam"]["imagepath"]
+        # The UTM-zone field is free text and may be blanked by the user; the
+        # UI default (19) stands in rather than raising during construction.
+        self.utmzone_string = config_check.as_int(
+            self.utmzone.text(), self.DEFAULT_UTM_ZONE)
+        self.dirname = config_check.as_path_str(
+            self.settings["HabCam"]["imagepath"])
+
+        # Both data sources are optional at startup — a missing or stale path
+        # disables the query tools with a message instead of raising out of
+        # __init__ and taking the whole dock down with it (see PLANNING/
+        # config-validation-hardening.md).
+        self.image_metadata = config_check.as_path_str(
+            self.settings["HabCam"]["imagemetadata"])
+        self.pointdatasource = config_check.as_path_str(
+            self.settings["Mbes"]["soundings"])
+        self.reference_surface = (self.settings.get("Mbes") or {}).get("reference_surface")
+        missing = [label for label, path in
+                   (("MBES soundings (Mbes.soundings)", self.pointdatasource),
+                    ("image metadata (HabCam.imagemetadata)", self.image_metadata))
+                   if not path or not os.path.isfile(path)]
+        if missing:
+            _report("Cannot load the query-builder data:\n"
+                    + "\n".join(f"  • {label}" for label in missing)
+                    + "\n\nOpen Settings (wizard icon) to set the correct paths.\n"
+                      "Disabling query widget.")
+            self._disable_query_tools()
+            self.point_df = None
+            self.image_df = None
+            return
 
         try:
-            self.image_metadata = self.settings["HabCam"]["imagemetadata"]
             if self.image_df is not None:
                 del self.image_df
-            self.pointdatasource = self.settings["Mbes"]["soundings"]
-            self.reference_surface = (self.settings.get("Mbes") or {}).get("reference_surface")
             if self.point_df is not None:
                 del self.point_df
 
@@ -581,19 +643,19 @@ class QueryBuilder(QWidget, Ui_Form):
                 self.draw_graph.setEnabled(True)
             else:
                 self.draw_graph.setEnabled(False)
-                error_message(
-                    "MBES data fields do not match the configured field names.\n"
-                    f"Available fields: {list(self.point_df.keys())}\n"
-                    "Disabling plot widget."
-                )
+                _report("MBES data fields do not match the configured field "
+                        "names.\n"
+                        f"Available fields: {list(self.point_df.keys())}\n"
+                        "Disabling plot widget.")
 
-        except ArrowInvalid:
-            error_message(
-                "MBES data is not a valid Parquet file.\n"
-                "Disabling query widget."
-            )
+        except (ArrowInvalid, FileNotFoundError, OSError, ValueError) as exc:
+            log_exception("refresh_settings: reading the query-builder data",
+                          exc, warn=True)
+            _report("MBES data could not be read as a Parquet file:\n"
+                    f"  {type(exc).__name__}: {exc}\n"
+                    "Disabling query widget.")
             self.pointdatasource = None
-            self.query_builder_tools.setEnabled(False)
+            self._disable_query_tools()
             self.point_df = None
             self.image_df = None
 
@@ -658,21 +720,38 @@ class QueryBuilder(QWidget, Ui_Form):
             widget.setVisible(rect)
 
 
+    def _read_parquet(self, path, label):
+        """Read *path* as a dataframe, or ``None`` when it is unusable.
+
+        A configured path can be empty, stale, or not a parquet file at all;
+        these are re-read on user actions long after startup, so they log and
+        degrade rather than raise.
+        """
+        if not path or not os.path.isfile(path):
+            QgsMessageLog.logMessage(
+                f"{label} is not a readable file ({path!r}) — "
+                "open Settings (wizard icon) to configure it.",
+                'GroundTruther', Qgis.Warning)
+            return None
+        try:
+            if self.settings['Processing']['gpu_avaibility']:
+                return cudf.read_parquet(path)
+            return pd.read_parquet(path)
+        except (ArrowInvalid, FileNotFoundError, OSError, ValueError) as exc:
+            log_exception(f"reading {label} ({path})", exc, warn=True)
+            return None
+
     def get_images(self, index):
         if self.image_df is not None:
             del self.image_df
-        if self.settings['Processing']['gpu_avaibility']:
-            self.image_df = cudf.read_parquet(self.image_metadata)
-        else:
-            self.image_df = pd.read_parquet(self.image_metadata)
+        self.image_df = self._read_parquet(
+            self.image_metadata, "image metadata (HabCam.imagemetadata)")
 
     def get_point(self, index):
         if self.point_df is not None:
             del self.point_df
-        if self.settings['Processing']['gpu_avaibility']:
-            self.point_df = cudf.read_parquet(self.pointdatasource)
-        else:
-            self.point_df = pd.read_parquet(self.pointdatasource)
+        self.point_df = self._read_parquet(
+            self.pointdatasource, "MBES soundings (Mbes.soundings)")
 
     def get_backscatter_field(self, index):
         self.backscatter_field = self.set_backscatter_field.itemText(index)
@@ -727,7 +806,7 @@ class QueryBuilder(QWidget, Ui_Form):
         feature_collection = geojson.FeatureCollection([feature])
         # Write the GeoJSON to a file
         
-        geojson_file_path = str(pathlib.Path(self.settings["Export"]["kmldir"]) / 'sampling_ellipse.geojson')
+        geojson_file_path = str(pathlib.Path(self._export_dir()) / 'sampling_ellipse.geojson')
         QgsMessageLog.logMessage(f"writing sampling shape to: {geojson_file_path}", 'GroundTruther', Qgis.Info)
         # geojson_file_path = pathlib.Path(__file__).parent / 'tmp' / 'sampling_ellipse.geojson'
         with open(f"{geojson_file_path}", "w") as geojson_file:
@@ -1072,13 +1151,13 @@ class QueryBuilder(QWidget, Ui_Form):
         # and use some logic to save the 2d or 3d plot
         # if self.tabWidget.currentIndex() == 1:
         exporter = pg.exporters.ImageExporter(self.graphicsView.plotItem)
-        self.settings['Export']['kmldir']
-        scatter_graph_path = f"{self.settings['Export']['kmldir']}/{uuid.uuid1()}.png"
+        export_dir = self._export_dir()
+        scatter_graph_path = f"{export_dir}/{uuid.uuid1()}.png"
 
-        surface_graph_path = f"{self.settings['Export']['kmldir']}/{uuid.uuid1()}.png"
+        surface_graph_path = f"{export_dir}/{uuid.uuid1()}.png"
 
         exporter.export(f"{scatter_graph_path}")
-        selected_points_path = f"{self.settings['Export']['kmldir']}/{uuid.uuid1()}.csv"
+        selected_points_path = f"{export_dir}/{uuid.uuid1()}.csv"
         self.point_selection_pd.to_csv(selected_points_path)
         
         # else:
@@ -1103,7 +1182,7 @@ class QueryBuilder(QWidget, Ui_Form):
         # Statistics and the sampling unit are sent as HTML tables (no file);
         # the histogram is saved to the export dir so it can be embedded.
         # A failure in one product must not block the others.
-        kmldir = self.settings['Export']['kmldir']
+        kmldir = export_dir
 
         try:
             self.send_sampling_html.emit(self._sampling_unit_html())
