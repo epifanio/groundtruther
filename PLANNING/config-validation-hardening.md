@@ -7,7 +7,7 @@
 | **Worktree branch** | `fix/config-validation-hardening` |
 | **Created** | 2026-09-17 |
 | **Related memory** | `config-validation`, `project-overview`, `install-and-run`, `april-2026-refactor`, `roughness-integration`, `fastgis-grass-api` |
-| **Execution PR** | [#23](https://github.com/epifanio/groundtruther/pull/23) |
+| **Execution PR** | [#24](https://github.com/epifanio/groundtruther/pull/24) |
 
 ## Objective
 
@@ -271,7 +271,7 @@ Acceptance Criteria.
 
 **2026-09-17 — executed in worktree `../groundtruther-config-validation-hardening`
 (branch `fix/config-validation-hardening`), PR
-[#23](https://github.com/epifanio/groundtruther/pull/23).**
+[#24](https://github.com/epifanio/groundtruther/pull/24).**
 
 ### What was built
 
