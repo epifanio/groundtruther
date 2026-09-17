@@ -1,10 +1,8 @@
 """ Configuration loading, validation, and settings dialog for GroundTruther. """
 import os
 import traceback
-from pathlib import Path
 
 import yaml
-from starlette.templating import Jinja2Templates
 
 try:
     from pydantic.error_wrappers import ValidationError  # pydantic v1
@@ -18,6 +16,7 @@ from qgis.PyQt.QtWidgets import (
 
 from groundtruther.pygui.app_settings_gui import AppSettings
 from groundtruther.config_model import HabcamSettings
+from groundtruther.gt.config_merge import merge_settings
 from groundtruther.config.config import config as DEFAULT_CONFIG_PATH
 import groundtruther.resources_rc  # noqa: F401 – registers Qt resources
 
@@ -162,9 +161,6 @@ class ConfigDialog(QDialog, AppSettings):
         self.root_dir = os.path.dirname(__file__)
         self.config = DEFAULT_CONFIG_PATH
         self.gpu_avaibility_value = False
-
-        templates_path = Path(self.root_dir) / "config" / "templates"
-        self.templates = Jinja2Templates(directory=str(templates_path))
 
         # Wire buttons
         self.select_image_path.clicked.connect(self.set_image_path)
@@ -383,10 +379,12 @@ class ConfigDialog(QDialog, AppSettings):
                 "grass_api_endpoint": _opt(self.grass_api_endpoint.text()),
                 "grass_api_key": _opt(self.grass_api_key.text()),
             },
+            # ``videoannotation`` is deliberately absent: the dialog has no
+            # widget for it, so it must be left to the merge in write_config()
+            # rather than be overwritten with an empty value on every save.
             "Video": {
                 "videofile": _opt(self.video_path.text()),
                 "videometadata": _opt(self.video_metadata_path.text()),
-                "videoannotation": None,
             },
             "Session": {
                 "groundtruther_project": _opt(self.vrt_path.text()),
@@ -402,6 +400,11 @@ class ConfigDialog(QDialog, AppSettings):
 
         Shows an error dialog if validation fails.  On success writes the
         YAML file, emits ``settings_saved``, and closes the dialog.
+
+        The form values are **merged over the document already on disk** rather
+        than used to re-render the whole file: the dialog has no widgets for the
+        ``Roughness:`` section or ``Video.videoannotation``, and rebuilding the
+        file from the form alone deleted them on every save.
         """
         gui_settings = self.get_gui_settings()
         is_valid, err_msg = validate_config(gui_settings)
@@ -409,23 +412,16 @@ class ConfigDialog(QDialog, AppSettings):
             error_message(f"Cannot save – please fix the following:\n\n{err_msg}")
             return
 
-        hbc_config = self.templates.get_template("config_template.yaml").render({
-            "filemanager": self.filemanager.text(),
-            "imagepath": self.image_path.text(),
-            "imagemetadata": self.metadata_path.text(),
-            "imageannotation": self.imageannotation_path.text(),
-            "soundings": self.mbes_path.text(),
-            "reference_surface": self.reference_surface_path.text(),
-            "kmldir": self.kml_path.text(),
-            "gpu_avaibility": self.gpu_avaibility_value,
-            "grass_api_endpoint": self.grass_api_endpoint.text(),
-            "grass_api_key": self.grass_api_key.text(),
-            "videofile": self.video_path.text(),
-            "videometadata": self.video_metadata_path.text(),
-            "videoannotation": "",
-            "groundtruther_project": self.vrt_path.text(),
-        })
-        with open(self.config, "w+", encoding="utf8") as yaml_file:
+        merged = merge_settings(load_config(self.config) or {}, gui_settings)
+        hbc_config = yaml.safe_dump(
+            merged,
+            sort_keys=False,        # keep the file's existing key order
+            default_flow_style=False,
+            explicit_start=True,    # leading '---', as the file has always had
+            indent=4,
+            allow_unicode=True,
+        )
+        with open(self.config, "w", encoding="utf8") as yaml_file:
             yaml_file.write(hbc_config)
 
         self.settings_saved.emit()
