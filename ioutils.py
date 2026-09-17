@@ -10,44 +10,13 @@ import os
 from osgeo import ogr, osr
 import uuid
 
+# parse_annotation lives in the Qt-free gt/ package so it can be unit-tested
+# (this module imports qgis.core at module scope).  Re-exported here because
+# mixins/settings_mixin.py and mixins/annotation_editor_mixin.py import it from
+# `groundtruther.ioutils`.
+from groundtruther.gt.annotations import parse_annotation  # noqa: F401
 
 
-
-def bbox_parser(row, columns, name):
-    return {name: [row[i] for i in columns]}
-
-
-def parse_annotation(annotation_file):
-    names = [
-        "Detection",
-        "Imagename",
-        "Frame_Identifier",
-        "TL_x",
-        "TL_y",
-        "BR_x",
-        "BR_y",
-        "detection_Confidence",
-        "Target_Length",
-        "Species",
-        "Confidence",
-    ]
-    imageannotation = pd.read_csv(annotation_file, skiprows=[0, 1], names=names)
-    imageannotation["Imagename"] = imageannotation["Imagename"].str.replace(
-        ".jpg", "", regex=False
-    )
-    # Ensure numeric columns are actually numeric (CSV may leave them as strings)
-    for col in ("TL_x", "TL_y", "BR_x", "BR_y", "Confidence"):
-        imageannotation[col] = pd.to_numeric(imageannotation[col], errors="coerce")
-    columns = ["TL_x", "BR_y", "BR_x", "BR_y", "BR_x", "TL_y", "TL_x", "TL_y"]
-    imageannotation["bbox"] = imageannotation.apply(
-        bbox_parser, columns=columns, name="bbox", axis=1
-    )
-    annotations_by_image = (
-        imageannotation.groupby("Imagename")
-        .agg({"bbox": list, "Species": list, "Confidence": list})
-        .to_dict("index")
-    )
-    return annotations_by_image
 
 
 def get_layer_info(layer):
