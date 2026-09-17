@@ -1,13 +1,13 @@
-# TODO — Investigate and fix the three code findings from the documentation audit
+# Investigate and fix the three code findings from the documentation audit
 
 | | |
 |---|---|
-| **Status** | `PLANNED` |
+| **Status** | `DONE` |
 | **Type** | fix |
 | **Worktree branch** | `fix/docs-audit-code-findings` |
 | **Created** | 2026-09-17 |
 | **Related memory** | `data-model-facts`, `documentation`, `roughness-integration`, `config-validation`, `project-overview`, `april-2026-refactor` |
-| **Execution PR** | _(filled in by the execution agent)_ |
+| **Execution PR** | [#35](https://github.com/epifanio/groundtruther/pull/35) |
 
 ## Objective
 
@@ -343,60 +343,60 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
 
 ### Track 1 — import hygiene (#27)
 
-- [ ] **1. Baseline the namespace.** Write a throwaway script that loads the plugin
+- [x] **1. Baseline the namespace.** Write a throwaway script that loads the plugin
       offscreen (`QgsApplication` + `qgis.utils.loadPlugin` + import
       `groundtruther.groundtruther`) and records: whether the plugin dir is on `sys.path`,
       and which bare top-level names resolve to files under the plugin dir. Save the
       "before" list — it is the acceptance evidence for task 4.
-- [ ] **2. Convert the 14 bare imports** to `groundtruther.*`, one commit per file so a
+- [x] **2. Convert the 14 bare imports** to `groundtruther.*`, one commit per file so a
       bisect is cheap. `pygui/epsg.py:51`'s `from episg import *` needs care: enumerate
       what it actually binds before replacing the star.
-- [ ] **3. Delete the three `sys.path.append` calls** (`groundtruther.py:46`,
+- [x] **3. Delete the three `sys.path.append` calls** (`groundtruther.py:46`,
       `pygui/querybuilder_gui.py:29`, `pygui/kmlsave_gui.py:43`) and the now-dead
       `current`/`parent` locals. This is the step that makes task 2 load-bearing — do it
       **after** the conversions, as its own commit.
-- [ ] **4. Re-run the task-1 script.** Expect: plugin dir **not** on `sys.path`, and the
+- [x] **4. Re-run the task-1 script.** Expect: plugin dir **not** on `sys.path`, and the
       bare-name list **empty**. Diff against the baseline and paste both into the
       Progress Log.
-- [ ] **5. Add a regression test** (`tests/gui/`, since it needs a QGIS load) asserting
+- [x] **5. Add a regression test** (`tests/gui/`, since it needs a QGIS load) asserting
       that after a plugin load no plugin-local module is importable under a bare name.
       Keep it skip-if-no-QGIS like the other gui tests.
-- [ ] **6. Grep for anything that re-introduces the hack** — `sys.path` mutation, bare
+- [x] **6. Grep for anything that re-introduces the hack** — `sys.path` mutation, bare
       imports of plugin-local names — and add a note to `CLAUDE.md`'s Conventions:
       intra-plugin imports are always `from groundtruther… import …`; never append the
       plugin directory to `sys.path`.
 
 ### Track 2 — annotation CSV (#28)
 
-- [ ] **7. Write the failing tests first.** New `tests/unit/test_annotations.py`:
+- [x] **7. Write the failing tests first.** New `tests/unit/test_annotations.py`:
       round-trip *N* annotations through the writer and reader and assert *N* back;
       a detector-export fixture (1 header) keeping every row; a 2-blank-line fixture;
       a 2-banner-line fixture; a file with neither. Confirm they fail against the current
       code in the documented way (4-from-3, 2-from-3).
-- [ ] **8. Move `parse_annotation` to a new Qt-free `gt/annotations.py`**, re-exported
+- [x] **8. Move `parse_annotation` to a new Qt-free `gt/annotations.py`**, re-exported
       from `ioutils` so `mixins/settings_mixin.py:9` and
       `mixins/annotation_editor_mixin.py:141` keep working. `conftest.py` already stubs
       `groundtruther.configure`, so the new module must not import Qt/QGIS.
-- [ ] **9. Replace `skiprows=[0, 1]` with a sniff:** drop leading blank/comment lines,
+- [x] **9. Replace `skiprows=[0, 1]` with a sniff:** drop leading blank/comment lines,
       then decide whether the first remaining line is a header (its numeric columns do
       not parse as numbers) or data. Keep the positional column mapping — the detector
       export's own header names differ from GroundTruther's internal names and the
       **order** is what matches.
-- [ ] **10. Fix the writer**: drop `fh.write("\n\n")` from
+- [x] **10. Fix the writer**: drop `fh.write("\n\n")` from
       `pygui/annotation_editor_gui.py:473` so GroundTruther emits an ordinary CSV. The
       reader from task 9 still accepts the old shape, so existing files keep loading.
-- [ ] **11. Verify the bbox round trip** — `_rect_to_bbox` → CSV → `parse_annotation`'s
+- [x] **11. Verify the bbox round trip** — `_rect_to_bbox` → CSV → `parse_annotation`'s
       8-value ring → `_bbox_to_rect` must return the original rectangle. Add it to the
       test file. Fix if it does not; report if the ring ordering turns out to be
       load-bearing somewhere else.
-- [ ] **12. Update the docs.** `website/docs/data-model/annotations-and-video.md` carries
+- [x] **12. Update the docs.** `website/docs/data-model/annotations-and-video.md` carries
       a warning box about the two-line skip and a workaround. Rewrite it to describe the
       new behaviour, and drop the workaround. **Remember this republishes the site on
       merge.**
 
 ### Track 3 — the 180° heading error
 
-- [ ] **13. Reproduce both measurements before changing anything.** Rebuild the
+- [x] **13. Reproduce both measurements before changing anything.** Rebuild the
       scroll-direction harness described in Finding 3 (flat-field → CLAHE →
       `cv2.matchTemplate` of an upper-middle patch of frame *i* against frame *i+1*, keep
       NCC ≥ 0.4), confirm content moves **down**, and then run the link-8 hypothesis test:
@@ -412,7 +412,7 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
       measurement re-run on the stereo left halves gives the same answer. See "The gap
       that was open" in Finding 3. Re-confirm cheaply if you wish, but this no longer
       blocks the fix.
-- [ ] **14. Make `Heading` and `bearing` distinct quantities** in
+- [x] **14. Make `Heading` and `bearing` distinct quantities** in
       [gt/roughness_geo.py](../gt/roughness_geo.py). `DEFAULT_HEADING_COLS` currently
       treats them as interchangeable spellings. A true `Heading` column is used as-is; a
       `bearing` column is the ship→body direction and must be turned round
@@ -420,12 +420,12 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
       `INTERFACE.md`; the dataset's own `bearing` is −180…180). Name the helper so the
       distinction is obvious at the call site, and put the *reason* in the docstring, not
       just the formula.
-- [ ] **15. Unit-test the convention** in `tests/unit/test_roughness_geo.py`: a record
+- [x] **15. Unit-test the convention** in `tests/unit/test_roughness_geo.py`: a record
       with `Heading` sends that value unchanged; a record with only `bearing` sends
       `bearing + 180`; a record with both prefers `Heading`; wrap-around at ±180 is
       handled. These tests are the spec — write them so a future reader learns the
       geometry from them.
-- [ ] **16. Deal with the saved calibrations — the light version.** The Georef tab
+- [x] **16. Deal with the saved calibrations — the light version.** The Georef tab
       persists `heading_offset_deg` per dataset in `QgsSettings`
       (`groundtruther/roughness/<md5-of-metadata-path>/…`), and a user who noticed the
       rotation might have dialled in ±180 to compensate — which would double-correct back
@@ -437,7 +437,7 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
       for the one install we know about, and correct for any we do not. Detecting
       near-±180 values and second-guessing them is now **out of scope** — it risks clearing
       a legitimate mount calibration to solve a problem nobody has.
-- [ ] **17. Check the neighbours of the bug.** Does anything else consume `bearing` as if
+- [x] **17. Check the neighbours of the bug.** Does anything else consume `bearing` as if
       it were an attitude? (`grep -rn "bearing" --include="*.py"`.) Confirm the `mirror`
       flag is genuinely independent — a 180° rotation is not a reflection, and anyone who
       "fixed" this with `mirror` has a second, different error.
@@ -457,7 +457,7 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
       **mode-A mosaics are still 180° out** — so a roughness raster and a mosaic of the
       same patch will disagree with each other. Say so in the docs. Do **not** compensate
       client-side; it would double-correct the moment upstream lands.
-- [ ] **19. Correct the published docs.** `website/docs/data-model/image-metadata.md`'s
+- [x] **19. Correct the published docs.** `website/docs/data-model/image-metadata.md`'s
       "`Heading` vs `bearing`" note currently states the measurement and explicitly
       declines to draw a conclusion — replace it with the conclusion. Check
       `website/docs/tools/seafloor-roughness.md`'s heading-offset/mirror section still
@@ -468,40 +468,40 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
 
 ### Closing
 
-- [ ] **21. Full verification** (see below), Progress Log, memory update: `data-model-facts`
+- [x] **21. Full verification** (see below), Progress Log, memory update: `data-model-facts`
       gets the confirmed heading conclusion (it currently records it as an open question),
       and the import convention is recorded for future sessions.
-- [ ] **22. Rename** `TODO_docs-audit-code-findings.md` → `docs-audit-code-findings.md`,
+- [x] **22. Rename** `TODO_docs-audit-code-findings.md` → `docs-audit-code-findings.md`,
       `Status: DONE`; **amend** `PLANNING/settings-and-data-model-docs.md`'s Progress Log
       to note that its open question #1 is now answered.
-- [ ] **23. Open the PR** with `Closes #27` / `Closes #28` / `Closes #31`, leave unmerged.
+- [x] **23. Open the PR** with `Closes #27` / `Closes #28` / `Closes #31`, leave unmerged.
 
 ## Acceptance criteria & verification
 
-- [ ] `.venv/bin/pytest` green, plus the new tests. Baseline at `5d74466` is
+- [x] `.venv/bin/pytest` green, plus the new tests. Baseline at `5d74466` is
       **286 passed / 6 skipped** without QGIS and **303 / 4** with
       `/usr/share/qgis/python` on `PYTHONPATH`; state both new numbers.
-- [ ] Headless load check per `CLAUDE.md` passes (`QgsApplication` offscreen +
+- [x] Headless load check per `CLAUDE.md` passes (`QgsApplication` offscreen +
       `qgis.utils.loadPlugin("groundtruther")` → True, then all plugin modules import).
-- [ ] **After a plugin load, no plugin-local module resolves under a bare top-level
+- [x] **After a plugin load, no plugin-local module resolves under a bare top-level
       name**, and the plugin directory is not on `sys.path`. Before/after lists in the
       Progress Log.
-- [ ] `grep -rnE "^ *(from|import) (gt|mixins|configure|ioutils|config_model|pip_cpu|pip_cuda|qtpandas|rectangle|ellipse|episg|epsg_list|grassconfig|search_epsg|resources_rc|groundtruther_dockwidget)\b" --include="*.py" .`
+- [x] `grep -rnE "^ *(from|import) (gt|mixins|configure|ioutils|config_model|pip_cpu|pip_cuda|qtpandas|rectangle|ellipse|episg|epsg_list|grassconfig|search_epsg|resources_rc|groundtruther_dockwidget)\b" --include="*.py" .`
       returns nothing outside `.venv/` and `tests/`.
-- [ ] `grep -rn "sys.path.append" --include="*.py" .` returns only
+- [x] `grep -rn "sys.path.append" --include="*.py" .` returns only
       `__init__.py`'s `_bootstrap_venv` (that one is legitimate — it adds the venv, not
       the plugin).
-- [ ] Annotation round trip: *N* in, *N* out, for all four fixture shapes, with the
+- [x] Annotation round trip: *N* in, *N* out, for all four fixture shapes, with the
       sample `test_detector_output.csv` keeping all **7 278** rows.
-- [ ] `mkdocs build --strict -f website/mkdocs.yml` clean if any page changed.
-- [ ] The scroll-direction measurement **reproduces** (content moves down by roughly
+- [x] `mkdocs build --strict -f website/mkdocs.yml` clean if any page changed.
+- [x] The scroll-direction measurement **reproduces** (content moves down by roughly
       `speed × interval / GSD` px), with the numbers in the Progress Log.
-- [ ] A record carrying only `bearing` sends `heading_deg = bearing + 180`; a record
+- [x] A record carrying only `bearing` sends `heading_deg = bearing + 180`; a record
       carrying `Heading` sends it unchanged; unit-tested both ways.
-- [ ] Saved per-dataset `heading_offset_deg` calibrations near ±180 are handled
+- [x] Saved per-dataset `heading_offset_deg` calibrations near ±180 are handled
       explicitly, not left to double-correct.
-- [ ] An issue exists on the FastGIS / stereo-roughness side for mode-A mosaics.
-- [ ] `config/config.yaml` never staged (gitignored, holds the API key);
+- [x] An issue exists on the FastGIS / stereo-roughness side for mode-A mosaics.
+- [x] `config/config.yaml` never staged (gitignored, holds the API key);
       `website/site/` not committed.
 
 ### Manual checks by the user (agents cannot drive the QGIS GUI)
@@ -592,4 +592,261 @@ and merge, and the import change needs my hands-on GUI check first.
 
 ## Progress log
 
-_(appended by the execution agent)_
+Executed 2026-09-17 in worktree `../groundtruther-docs-audit-code-findings` on branch
+`fix/docs-audit-code-findings`, rebased onto `origin/master` `52333ae` after PR #34 landed
+the answers to tasks 16 and 18 mid-execution.
+
+### Track 1 — import hygiene (#27)
+
+**Task 1 / 4 — namespace before and after.** Probe: `QgsApplication` offscreen →
+`qgis.utils.loadPlugin("groundtruther")` → `import groundtruther.groundtruther`, then
+`importlib.util.find_spec` for every top-level name in the plugin directory.
+
+```
+                                    BEFORE            AFTER
+loadPlugin                          True              True
+after loadPlugin only:
+  plugin dir on sys.path            False             False
+  bare names resolving into plugin  1 (groundtruther)  1 (groundtruther)
+after importing the plugin module:
+  plugin dir on sys.path            True              False
+  bare names resolving into plugin  34                1 (groundtruther)
+  gt.video_manager is
+    groundtruther.gt.video_manager  False             n/a (no bare `gt`)
+```
+
+The 33 names that leaked, all now gone: `PLANNING`, `config`, `config_model`, `configure`,
+`dependencies`, `docs`, `ellipse`, `episg`, `epsg_list`, `grassconfig`,
+`groundtruther_dockwidget`, `gt`, `help`, `ioutils`, `maptools`, `mixins`, `pip_cpu`,
+`pip_cuda`, `plugin_upload`, `pygui`, `qtpandas`, `qtui`, `rectangle`, `resources`,
+`resources_rc`, `run_geomorphon_mdi`, `run_grm_lsi_mdi`, `run_paramscale_mdi`, `scripts`,
+`search_epsg`, `tests`, `tmp`, `website`. (More than the 19 modules + 2 packages the plan
+predicted — every *directory* leaked too, as a PEP-420 namespace package. `tests` and
+`website` becoming importable top-level names for every other QGIS plugin in the process
+is the most striking of them.)
+
+**Task 2 — 17 bare imports converted, not 14.** The plan's table listed 14; the task-1
+baseline turned up three more that a `gt|mixins|configure|…` grep missed because they are
+spelled `pygui.…`:
+
+| Site | Bare import |
+|---|---|
+| `grassconfig.py:31` | `from pygui.grass_settings_gui import GrassSettings` |
+| `search_epsg.py:2` | `from pygui.epsg_search_gui import SearchEpsg` |
+| `pygui/epsg_search_gui.py:18` | `from pygui.Ui_epsg_ui import Ui_Form` |
+
+One commit per file, as planned.
+
+`pygui/epsg.py:51`'s star import: the module body uses exactly two `episg` names,
+`guioption` and `rep3`, so the star was replaced by that explicit pair rather than a
+guess. Worth recording that **`pygui/epsg.py` is dead code** — nothing imports it, and its
+own `from Ui_epsg_ui import Ui_Form` never resolved under any path (`Ui_epsg_ui` lives
+*inside* `pygui/`, so it was never a top-level name). It is a superseded twin of
+`pygui/epsg_search_gui.py`. Its imports were qualified anyway, because the acceptance
+criterion is about reachability, not about whether anyone calls it. Deleting it was out of
+scope; it is a candidate for a later cleanup.
+
+**Task 3 — the three `sys.path.append` calls removed** (`groundtruther.py:46`,
+`pygui/querybuilder_gui.py:29`, `pygui/kmlsave_gui.py:43`) plus the dead `current`/`parent`
+locals and the `import sys` lines that became unused. Own commit, after the conversions,
+so `git revert` of one commit restores the old behaviour.
+
+`grep -rn "sys.path.append" --include="*.py"` now returns only `__init__.py:47`
+(`_bootstrap_venv`, which adds the venv — legitimate).
+
+**Every plugin module still imports under a real QGIS load** — 80 tried, 3 failed, and all
+three fail identically on `origin/master`:
+
+| Module | Why | Pre-existing? |
+|---|---|---|
+| `groundtruther.pip_cuda` | `No module named 'cuspatial'` (GPU path, unreachable without RAPIDS) | yes |
+| `groundtruther.plugin_upload` | `name 'standard_library' is not defined` (Plugin Builder stub) | yes |
+| `groundtruther.scripts.smoke_mosaic` | `RoughnessError: No mosaic endpoint configured` (a script, runs work at import) | yes |
+
+`groundtruther.pygui.epsg` failed on master (`No module named 'Ui_epsg_ui'`) and now
+imports — one fewer failure than before.
+
+**Task 5 — `tests/gui/test_import_hygiene.py`.** Four assertions, run in a subprocess
+because they are about `sys.path` / `sys.modules` after a real load and `tests/conftest.py`
+wires `groundtruther` up differently inside pytest. **Confirmed to fail on the pre-fix
+tree** (3 of 4) before being trusted.
+
+Two ways the test was quietly vacuous on the first attempt, both now handled and
+commented, and both worth knowing for any future check of this kind:
+
+* the subprocess inherited the parent's `PYTHONPATH`, which under pytest contains the repo
+  root — so every plugin module resolved bare and the "after" looked like the "before";
+* `python -c` prepends the cwd, so running the probe from the repo root put the plugin
+  directory back on the path. `cwd` is now the *plugins* directory, which is what QGIS
+  itself has there.
+
+Recorded as the memory `verifying-plugin-imports`.
+
+**Task 6 — the convention is in `CLAUDE.md`'s Conventions section** rather than only in
+project memory: it is loaded every session, which is the stronger guarantee. The
+grep in the acceptance criteria returns nothing outside `.venv/`.
+
+### Track 2 — annotation CSV (#28)
+
+**Task 7 — both failure modes reproduced first**, against the current parser verbatim:
+
+| Input | Wrote | Read back |
+|---|---|---|
+| two blank lines + header (GroundTruther's own save) | 3 | **4** — phantom `Imagename="Imagename"` |
+| one header line (detector export) | 3 | **2** — header *and* first detection gone |
+| sample `test_detector_output.csv` | 7 278 rows | **7 277** |
+
+**Tasks 8–10 — new `gt/annotations.py`**, Qt/QGIS-free, with `parse_annotation` re-exported
+from `ioutils` so `mixins/settings_mixin.py:9` and `mixins/annotation_editor_mixin.py:141`
+are untouched. `split_preamble` drops leading blank and `#`/`//` comment lines, then calls
+the first remaining line a header only if **all four** bbox columns fail to parse as
+numbers — so a detection with one damaged coordinate is still data, which is the risk the
+plan flagged. Which shape was detected is logged at `Qgis.Info`.
+
+The preamble is cut with `str.splitlines()` rather than pandas' `skiprows`: whether that
+counts blank lines depends on `skip_blank_lines`, and getting that interaction wrong in
+either direction *is* the bug.
+
+`save_all_to_csv` no longer writes `"\n\n"`; it calls `write_annotation_rows`, which
+shares `ANNOTATION_COLUMNS` with the reader. Legacy two-blank-line files still load.
+
+**Task 11 — the bbox round trip holds**, and the two helpers moved into `gt/annotations.py`
+as `rect_to_bbox_ring` / `bbox_ring_to_rect` (they were pure and three lines each), so the
+round trip they form with the reader's 8-value ring is unit-tested rather than duplicated
+in a test. `pygui/annotation_editor_gui.py` imports them; the four call sites were renamed.
+The ring order the reader builds is identical to the one the writer derives, so no
+compatibility break.
+
+28 new tests in `tests/unit/test_annotations.py` — six preamble shapes, the sniff itself,
+writer→reader counts at N = 0/1/3/50, four bbox rectangles including two real rows from the
+sample file, and the 7 278-row file.
+
+**Task 12 — `website/docs/data-model/annotations-and-video.md`**: the warning box that
+documented `skiprows=[0, 1]` and its workaround (prepend a second comment line) is replaced
+by what the reader now does. Dropped an incorrect "before v0.3" version claim when
+`metadata.txt` said `version=0.4`.
+
+### Track 3 — the 180° heading error (#31)
+
+**Task 13 — reproduced from scratch before any code changed**, harness rebuilt from the
+plan's description rather than copied: flat-field ÷ Gaussian σ=80 → CLAHE(3.0, 8×8) →
+`cv2.matchTemplate` (`TM_CCOEFF_NORMED`) of a 420×260 patch at (470, 120) of frame *i*
+against the whole of frame *i+1*; NCC ≥ 0.40, patch σ ≥ 10, consecutive pairs with
+Δt < 0.5 s. 58 163 of 123 394 frames are on disk; 938 textured pairs tried, 60 confident
+matches.
+
+```
+(a) scroll direction
+    content moves DOWN in 60 of 60 pairs
+    median dy = +558 px   (5th-95th pct +485 ... +632)
+    median dx =  -24 px   |dy| > |dx| in 60 of 60
+    measured ground motion   478 mm/frame
+    predicted (speed x dt)   489 mm/frame   (n=59, median speed 2.98 m/s)
+
+(b) hypothesis test vs course over ground (+/-15-frame nav baseline)
+    H1  heading = bearing         median error  175.1 deg   IQR 174-177   n=59
+    H2  heading = bearing + 180   median error    4.9 deg   IQR   3-6     n=59
+    median |bearing - COG| = 178.0 deg
+```
+
+Against the plan's 62/62, +597 px, 464 vs 495 mm, 175.2° / 4.8°: **it reproduces.** The
+2 % agreement between measured and predicted ground motion simultaneously validates
+`f = 2480.28 px`, the `altitude / f` GSD model and the frame interval. Only H2 reproduces
+the track the vehicle actually followed.
+
+**Task 14 — `DEFAULT_HEADING_COLS` replaced by `HEADING_SOURCES`**, a per-column rule that
+pairs each column with whether it points astern:
+
+```python
+HEADING_SOURCES = (("Heading", False), ("bearing", True))
+```
+
+plus `reverse_bearing()` and `platform_heading_from_record()`. The *reason* is in the
+docstrings, not just the formula. Normalised to `[0, 360)`; the nav's own `bearing` is
+−180…180, and `INTERFACE.md` states no range requirement.
+
+**Task 15 — `tests/unit/test_roughness_geo.py`** gained the convention as a spec: a
+`Heading` row unchanged, a `bearing` row reversed, `Heading` winning when both are present,
+wrap-around at ±180 both ways, double reversal as identity, and a check that the reversal
+reproduces the ship direction from a real row's own `dx`/`dy`. Two pre-existing tests
+asserted the old behaviour (`bearing` 88.3 → 88.3) and were updated — they encoded the bug.
+
+**Task 16 — the light version, as PR #34 specified.** `RoughnessMixin.GEOREF_CAL_VERSION`
+= 2; on load, a dataset that has a stored `heading_offset_deg` written under an older
+version has it reset to the config default and gets one `Qgis.Info` line saying why.
+`epsg` / `mirror` / `georeference` are untouched, and `_save_georef_calibration` now stamps
+the version. No near-±180 detection — out of scope per the plan, and it would risk clearing
+a legitimate mount calibration.
+
+**Task 17 — the neighbours are clean.** `grep -rn "bearing" --include="*.py"` finds
+`bearing` consumed **only** by `gt/roughness_geo.py`; the positions use `dx`/`dy` directly
+and never the bearing/distance polar form. `mirror` is genuinely independent — it is
+forwarded verbatim to the service as a port/starboard reflection and is never combined with
+the heading client-side; a 180° rotation is not a reflection. The Georef tab's and the
+Settings dialog's tooltips already describe it that way and needed no change.
+
+Fixed a stale comment in `config_model.py:104-116` while there: it claimed
+`Xutm_adj → easting` (the code uses `Xutm + dx`) and `Heading/bearing → heading_deg`.
+
+**Task 18 — already done before execution**, verified:
+[stereo-roughness#1](https://github.com/epifanio/stereo-roughness/issues/1) and
+[#2](https://github.com/epifanio/stereo-roughness/issues/2) are both open.
+
+**Task 19 — docs corrected.** `image-metadata.md`'s "`Heading` vs `bearing`" note now draws
+the conclusion instead of declining to, quotes the measurement and states the ~5° accuracy
+bound; a second box says previously exported rasters are rotated and that the service side
+is still wrong for mode-A mosaics. `seafloor-roughness.md`'s "Heading offset vs Mirror"
+section still reads correctly and was left alone apart from a new box explaining the
+calibration reset. `mkdocs build --strict` clean.
+
+**Task 20 — not done here; it is the user's.** There is **no `Roughness` section in this
+machine's `config/config.yaml`**, so the roughness service is not configured and the single
+authorised API call was not available. Nothing depended on it: the question was settled
+offline, and the visual before/after needs someone who knows what that seabed looks like.
+
+### Verification
+
+| Check | Result |
+|---|---|
+| `.venv/bin/pytest` (no QGIS) | **331 passed, 7 skipped** (baseline 286 / 6) |
+| `PYTHONPATH=/usr/share/qgis/python .venv/bin/pytest` | **352 passed, 4 skipped** (baseline 303 / 4) |
+| offscreen `loadPlugin("groundtruther")` | `True`; 80 modules imported, 3 pre-existing failures |
+| plugin dir on `sys.path` after load | **False** (was `True`) |
+| bare plugin-local names resolving | **none** (was 33) |
+| bare-import grep | nothing outside `.venv/` |
+| `sys.path.append` grep | only `__init__.py`'s `_bootstrap_venv` |
+| annotation round trip | N in / N out for six shapes; sample file keeps all **7 278** rows |
+| `mkdocs build --strict -f website/mkdocs.yml` | clean |
+| scroll-direction measurement | reproduces (60/60 down, 478 vs 489 mm) |
+| `bearing`-only record | sends `heading_deg = bearing + 180`; `Heading` sent unchanged |
+| saved `heading_offset_deg` | schema-versioned and reset, with a message-log note |
+| upstream issue for mode-A mosaics | stereo-roughness#1 and #2, both open |
+| `config/config.yaml` staged | never; `website/site/` not committed |
+
+### Deviations from the plan
+
+1. **17 bare imports, not 14** — three `pygui.…` spellings the plan's grep pattern missed.
+2. **33 leaked names, not 21** — every plugin *directory* leaked as a namespace package too.
+3. **The bbox helpers moved** into `gt/annotations.py` alongside the reader. The plan only
+   asked to verify the round trip; moving the two pure three-line helpers made the round
+   trip testable without duplicating them in the test file. Four call sites renamed in
+   `pygui/annotation_editor_gui.py`.
+4. **Task 6's convention went to `CLAUDE.md`** rather than only project memory.
+5. **Task 20 not attempted** — the service is not configured on this machine.
+6. `pygui/epsg.py` was found to be **dead code**; its imports were qualified but it was not
+   deleted (out of scope).
+
+### Follow-up for the user
+
+1. **The GUI check in "Manual checks" is not optional** — the import change alters how every
+   module resolves, and a broken import shows up as a feature that silently does nothing.
+   Exercise each subsystem once and watch the `GroundTruther` message-log tab for
+   `ImportError`. Query builder and `pygui/epsg*` have no test coverage at all.
+2. Annotate an image, save, reload: the count should be unchanged and no phantom entry
+   should appear in the species tally.
+3. **Track 3 has the visible before/after.** Render a georeferenced frame over recognisable
+   relief and compare with `bathy_2015.tif` / the backscatter. Regenerate anything exported
+   earlier — it is rotated 180°.
+4. Merging republishes the site (three `website/` pages changed).
+5. Then: `git worktree remove ../groundtruther-docs-audit-code-findings &&
+   git branch -d fix/docs-audit-code-findings`.

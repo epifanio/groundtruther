@@ -541,6 +541,18 @@ class RoughnessMixin:
             "mirror": config_check.as_bool(cfg.get("mirror"), False),
         }
 
+    #: Schema version of a per-dataset calibration stored in QgsSettings.  Bump
+    #: it when the *meaning* of a stored value changes, and handle the migration
+    #: in :meth:`_load_georef_calibration`.
+    #:
+    #: 2 — the heading derivation was corrected (#31).  ``bearing`` is the
+    #:     direction astern and is now reversed before it is sent, so anyone who
+    #:     had dialled a ~180 deg ``heading_offset_deg`` in to compensate for the
+    #:     old rotation would double-correct straight back to wrong.  A stored
+    #:     offset written before the fix is reset to the config default rather
+    #:     than silently reinterpreted.
+    GEOREF_CAL_VERSION = 2
+
     def _georef_settings_prefix(self) -> str:
         """QgsSettings key prefix, scoped to the current dataset (metadata file)."""
         dataset = str(getattr(self, "metadatafile", "") or "default")
@@ -559,9 +571,36 @@ class RoughnessMixin:
             cal["heading_offset_deg"] = s.value(
                 f"{prefix}/heading_offset_deg", cal["heading_offset_deg"], type=float)
             cal["mirror"] = s.value(f"{prefix}/mirror", cal["mirror"], type=bool)
+            self._migrate_georef_calibration(s, prefix, cal)
         except Exception as exc:  # noqa: BLE001 — settings best-effort
             log_exception("roughness: load calibration", exc, warn=True)
         return cal
+
+    def _migrate_georef_calibration(self, s, prefix: str, cal: dict) -> None:
+        """Reset a stored ``heading_offset_deg`` written before the #31 fix.
+
+        The offset is a residual mount fine-tune, but until #31 the heading sent
+        to the service was 180 deg out, so a stored value may be a compensation
+        for that rather than a mount calibration.  Keeping it would double-
+        correct.  Rather than guess from the value (a legitimate calibration
+        could sit anywhere), anything stored before the schema bump is reset to
+        the config default and the user is told in the message log.
+        """
+        if not s.contains(f"{prefix}/heading_offset_deg"):
+            return                               # nothing stored for this dataset
+        if s.value(f"{prefix}/cal_version", 1, type=int) >= self.GEOREF_CAL_VERSION:
+            return
+        previous = cal["heading_offset_deg"]
+        cal["heading_offset_deg"] = self._georef_defaults()["heading_offset_deg"]
+        s.setValue(f"{prefix}/heading_offset_deg", cal["heading_offset_deg"])
+        s.setValue(f"{prefix}/cal_version", self.GEOREF_CAL_VERSION)
+        QgsMessageLog.logMessage(
+            "roughness georef: the heading sent to the service was 180 deg out "
+            "(issue #31) and is now corrected. The saved heading offset for this "
+            f"dataset ({previous:g} deg) was written under the old behaviour, so "
+            f"it has been reset to {cal['heading_offset_deg']:g} deg to avoid "
+            "double-correcting. Previously exported GeoTIFFs need regenerating.",
+            "GroundTruther", Qgis.Info)
 
     def _save_georef_calibration(self) -> None:
         """Persist the current calibration for this dataset (QgsSettings)."""
@@ -570,6 +609,7 @@ class RoughnessMixin:
             prefix = self._georef_settings_prefix()
             for key, val in self._georef_cal.items():
                 s.setValue(f"{prefix}/{key}", val)
+            s.setValue(f"{prefix}/cal_version", self.GEOREF_CAL_VERSION)
             self._georef_status.setText("calibration saved for this dataset")
         except Exception as exc:  # noqa: BLE001
             log_exception("roughness: save calibration", exc, warn=True)

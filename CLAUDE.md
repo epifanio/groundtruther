@@ -54,6 +54,14 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
 - Logging: **`QgsMessageLog.logMessage(msg, 'GroundTruther', Qgis.<level>)`** — never
   `print()`. Use `configure.log_exception(context, exc, warn=?)` for tracebacks.
 - Imports: **`from qgis.PyQt import ...`** (the QGIS Qt shim), not `PyQt6` directly.
+- **Intra-plugin imports are always `from groundtruther… import …`** — never a bare
+  `from gt.… import` / `import ioutils`, and **never append the plugin directory to
+  `sys.path`** (only `__init__.py`'s `_bootstrap_venv` may touch `sys.path`, and it
+  adds the venv). QGIS puts the *plugins* dir on the path, not the plugin's own, so a
+  bare name only resolves if something has polluted the path — and then the module is
+  loaded **twice**, under two names, with its module-level state duplicated, in a
+  `sys.modules` shared with every other plugin. `tests/gui/test_import_hygiene.py`
+  fails if this comes back.
 - In **generated** `Ui_*.py`, Qt6 enums use the **integer-constructor form**
   (`Qt.WindowType(1)`, `QtWidgets.QSizePolicy.Policy(7)`) — `compile_ui.sh` auto-patches
   this because the qgis.PyQt shim doesn't expose scoped enum inner-classes reliably.

@@ -102,15 +102,18 @@ class RoughnessSettings(BaseModel):
     n_water: Optional[float] = None
 
     # --- UTM georeferencing (optional) ---
-    # When ``georeference`` is on, GT attaches a ``geo`` object (built from the
-    # frame's nav: Xutm_adj→easting, Yutm_adj→northing [layback-corrected HabCam
-    # seafloor position = habcam_lon/lat, NOT raw ship sXutm/sYutm],
-    # Heading/bearing→heading_deg) to
-    # the request; the service returns a geotransform so the micro-DEM and
-    # orthophoto can be written as GeoTIFFs and added to QGIS.
+    # When ``georeference`` is on, GT attaches a ``geo`` object built from the
+    # frame's nav — ``Xutm + dx``→easting, ``Yutm + dy``→northing (the calibrated
+    # USBL seafloor fix, NOT the layback model Xutm_adj nor the raw ship sXutm)
+    # and the platform heading→heading_deg — to the request; the service returns a
+    # geotransform so the micro-DEM and orthophoto can be written as GeoTIFFs and
+    # added to QGIS.
     #
     # The mount is known (image bottom→top = heading, image-right = starboard), so
     # position AND rotation are correct out of the box — no calibration loop.
+    # The heading comes from a ``Heading`` column if the nav has one, else from
+    # ``bearing`` **reversed**: bearing is the direction ship→towed body, i.e.
+    # astern (see ``gt/roughness_geo.HEADING_SOURCES`` and issue #31).
     # ``heading_offset_deg`` is a residual fine-tune (default 0); ``mirror`` is the
     # only escape hatch — set true once if a mosaic comes out port/starboard
     # flipped.  ``dem_max_side`` caps the returned grid resolution.

@@ -46,9 +46,9 @@ from qgis.PyQt.QtCore import *
 from qgis.PyQt.QtGui import *
 from qgis.PyQt.QtWidgets import *
 
-from Ui_epsg_ui import Ui_Form
+from groundtruther.pygui.Ui_epsg_ui import Ui_Form
 import os
-from episg import *
+from groundtruther.episg import guioption, rep3
 apppath = os.path.abspath(os.path.dirname(sys.argv[0]))
 epsgfile = str(apppath)+'/epsg'
 

@@ -92,8 +92,12 @@ shingled.
 [#31](https://github.com/epifanio/groundtruther/issues/31): GroundTruther currently sends
 `heading_deg = bearing`, which is the ship→body direction — **180° out**. Every frame's
 geotransform is rotated by that. Building a ribbon before the fix lands would composite
-304 individually back-to-front frames. **Do not start this plan until
-`PLANNING/TODO_docs-audit-code-findings.md` Track 3 has landed.**
+304 individually back-to-front frames. **This dependency is satisfied once PR
+[#35](https://github.com/epifanio/groundtruther/pull/35) is merged** — Track 3 of
+`PLANNING/docs-audit-code-findings.md` fixed the client side. Note that the **service**
+still has the same bug for mode-A mosaics
+([stereo-roughness#1](https://github.com/epifanio/stereo-roughness/issues/1)), so a ribbon
+built by the service rather than from client-supplied nav is still 180° out.
 
 ### What exists already and should be reused
 

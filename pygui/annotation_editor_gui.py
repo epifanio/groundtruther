@@ -20,7 +20,6 @@ The widget never modifies the parent DataFrame directly; it emits
 from __future__ import annotations
 
 import copy
-import csv
 import json
 import numpy as np
 
@@ -36,6 +35,12 @@ from qgis.PyQt.QtCore import Qt, pyqtSignal, QObject, QEvent, QRectF
 from qgis.PyQt.QtGui import QPen, QColor
 
 import pyqtgraph as pg
+
+from groundtruther.gt.annotations import (
+    bbox_ring_to_rect,
+    rect_to_bbox_ring,
+    write_annotation_rows,
+)
 
 try:
     from qgis.core import Qgis, QgsMessageLog
@@ -53,16 +58,6 @@ def _is_nan(value) -> bool:
         return bool(np.isnan(value))
     except (TypeError, ValueError):
         return False
-
-
-def _bbox_to_rect(coords: list) -> tuple[float, float, float, float]:
-    xs = coords[0::2]
-    ys = coords[1::2]
-    return min(xs), min(ys), max(xs), max(ys)
-
-
-def _rect_to_bbox(x0: float, y0: float, x1: float, y1: float) -> list:
-    return [x0, y1, x1, y1, x1, y0, x0, y0]
 
 
 # ---------------------------------------------------------------------------
@@ -448,7 +443,7 @@ class AnnotationEditorWidget(QWidget):
             imagename = str(row["Imagename"]) + ".jpg"
             for i, bbox_wrapper in enumerate(ann.get("bbox", [])):
                 coords = bbox_wrapper["bbox"]
-                x0, y0, x1, y1 = _bbox_to_rect(coords)
+                x0, y0, x1, y1 = bbox_ring_to_rect(coords)
                 rows.append({
                     "Detection": "",
                     "Imagename": imagename,
@@ -463,18 +458,11 @@ class AnnotationEditorWidget(QWidget):
                     "Confidence": ann["Confidence"][i],
                 })
 
-        fieldnames = [
-            "Detection", "Imagename", "Frame_Identifier",
-            "TL_x", "TL_y", "BR_x", "BR_y",
-            "detection_Confidence", "Target_Length",
-            "Species", "Confidence",
-        ]
         try:
-            with open(path, "w", newline="") as fh:
-                fh.write("\n\n")
-                writer = csv.DictWriter(fh, fieldnames=fieldnames)
-                writer.writeheader()
-                writer.writerows(rows)
+            # An ordinary CSV.  This used to start with two blank lines, which
+            # the reader's old `skiprows=[0, 1]` was built around; between them
+            # the header came back as a phantom annotation on every reload (#28).
+            write_annotation_rows(rows, path)
             self._dirty = False
             _log(f"Annotations saved to {path}")
             return True
@@ -527,7 +515,7 @@ class AnnotationEditorWidget(QWidget):
         view = self._imv.getView()
         for i, bbox_wrapper in enumerate(self._annotation.get("bbox", [])):
             coords = bbox_wrapper["bbox"]
-            x0, y0, x1, y1 = _bbox_to_rect(coords)
+            x0, y0, x1, y1 = bbox_ring_to_rect(coords)
             roi = pg.RectROI(
                 pos=[x0, y0],
                 size=[x1 - x0, y1 - y0],
@@ -680,7 +668,7 @@ class AnnotationEditorWidget(QWidget):
                          label: str, confidence: float = 1.0):
         if self._annotation is None:
             self._annotation = {"bbox": [], "Species": [], "Confidence": []}
-        self._annotation["bbox"].append({"bbox": _rect_to_bbox(x0, y0, x1, y1)})
+        self._annotation["bbox"].append({"bbox": rect_to_bbox_ring(x0, y0, x1, y1)})
         self._annotation["Species"].append(label)
         self._annotation["Confidence"].append(confidence)
         self._dirty = True
@@ -716,7 +704,7 @@ class AnnotationEditorWidget(QWidget):
         size = roi.size()
         x0, y0 = pos.x(), pos.y()
         x1, y1 = x0 + size.x(), y0 + size.y()
-        self._annotation["bbox"][idx]["bbox"] = _rect_to_bbox(x0, y0, x1, y1)
+        self._annotation["bbox"][idx]["bbox"] = rect_to_bbox_ring(x0, y0, x1, y1)
         self._dirty = True
         _log(f"Annotation {idx} resized to ({x0:.1f},{y0:.1f})-({x1:.1f},{y1:.1f})")
         self.annotation_changed.emit(self._image_index)

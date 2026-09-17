@@ -425,7 +425,7 @@ class VideoAnnotationEditorWidget(QWidget):
             self._csv_path = path
 
         try:
-            from gt.video_manager import save_video_annotations
+            from groundtruther.gt.video_manager import save_video_annotations
             save_video_annotations(all_annotations, path)
             self._dirty = False
             _log(f"Video annotations saved to {path}")

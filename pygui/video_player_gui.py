@@ -444,7 +444,7 @@ class VideoPlayerWidget(QWidget):
             self._reader.release()
             self._reader = None
 
-        from gt.video_reader import open_video
+        from groundtruther.gt.video_reader import open_video
         reader = open_video(video_path)
         if reader is None or not reader.is_opened:
             self._video_label.setText(f"Cannot open: {video_path}")
@@ -629,7 +629,7 @@ class VideoPlayerWidget(QWidget):
         qimg = _bgr_to_qimage(bgr)
         ann = self._annotations.get(self._current_frame)
         if ann:
-            from gt.video_manager import filter_annotations_by_confidence
+            from groundtruther.gt.video_manager import filter_annotations_by_confidence
             if self._selected_ann_idx is not None:
                 # Editor active: show all boxes so the selected one is always visible
                 filtered = filter_annotations_by_confidence(ann, 0.0)

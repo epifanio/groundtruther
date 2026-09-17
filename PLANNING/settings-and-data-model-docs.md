@@ -348,7 +348,18 @@ left undocumented.**
    > The plugin sends `bearing`. Every georeferenced micro-DEM, orthophoto and nav-placed
    > mosaic is rotated 180° about its own centre; positions are unaffected, which is why a
    > check that verified position never caught it. Fix planned as Track 3 of
-   > `PLANNING/TODO_docs-audit-code-findings.md`.
+   > `PLANNING/docs-audit-code-findings.md`.
+   >
+   > **CLOSED, 2026-09-17 — answered *and* fixed.** Track 3 of
+   > `PLANNING/docs-audit-code-findings.md` shipped the fix (PR
+   > [#35](https://github.com/epifanio/groundtruther/pull/35), issue #31 closed):
+   > `gt/roughness_geo.HEADING_SOURCES` now applies a per-column rule — a `Heading` column
+   > as it stands, a `bearing` column reversed. The measurement was re-run from scratch
+   > during execution and reproduced (content down in **60 of 60** pairs; `heading =
+   > bearing` gives a median 175.1° error against the nav-derived course over ground,
+   > `bearing + 180` gives 4.9°). The docs on this site were updated to state the
+   > conclusion rather than the open question, and the ~5° residual is quoted as the
+   > accuracy of the derived heading. The other four questions in this section remain open.
 
    Original wording: `bearing` is
    verifiably the direction of the (`dx`,`dy`) offset vector (base → HabCam), which
@@ -387,7 +398,12 @@ left undocumented.**
   > objects (split module state, broken exception identity) and that the path append
   > publishes 19 modules + 2 packages under bare names into the QGIS-wide namespace. The
   > issue has been retitled and corrected; scope is 14 bare imports, not 7. See
-  > `PLANNING/TODO_docs-audit-code-findings.md`.
+  > `PLANNING/docs-audit-code-findings.md`.
+  >
+  > **FIXED, 2026-09-17** (PR [#35](https://github.com/epifanio/groundtruther/pull/35)).
+  > It turned out to be **17** bare imports and **33** leaked names — three `pygui.…`
+  > spellings the grep pattern missed, and every plugin *directory* leaking as a PEP-420
+  > namespace package on top of the modules. `tests/gui/test_import_hygiene.py` guards it.
   >
   > **Lesson:** verify an import failure in the offscreen QGIS harness `CLAUDE.md`
   > describes, not in an ad-hoc `PYTHONPATH`.
@@ -401,7 +417,12 @@ left undocumented.**
   > matches GroundTruther's *own* save format. The parser is therefore wrong for both of
   > its inputs, in opposite directions — an own-saved file reads back **N+1** records
   > (the header survives as a phantom row) and a detector export reads back **N−1**.
-  > Details on the issue; fix planned in `PLANNING/TODO_docs-audit-code-findings.md`.
+  > Details on the issue; fix planned in `PLANNING/docs-audit-code-findings.md`.
+  >
+  > **FIXED, 2026-09-17** (PR [#35](https://github.com/epifanio/groundtruther/pull/35)).
+  > The reader moved to a Qt-free `gt/annotations.py` and now sniffs the preamble; the
+  > writer emits an ordinary CSV. The warning box and its workaround were removed from the
+  > annotations page.
 
 ### Deviations from the plan
 

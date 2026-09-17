@@ -162,6 +162,22 @@ The mount is known (image bottom→top = heading, image-right = starboard), so t
 defaults — offset `0`, mirror off — are correct out of the box for the reference
 deployment. Treat both as escape hatches.
 
+!!! warning "A saved heading offset near ±180 was resetting a real bug"
+    Until [#31](https://github.com/epifanio/groundtruther/issues/31) GroundTruther
+    sent the nav's `bearing` column as the heading. `bearing` points **astern**, so
+    every georeferenced product came out **rotated 180°** — and a heading offset of
+    ±180 was the natural way to paper over it.
+
+    The derivation is now correct (see
+    [`Heading` vs `bearing`](../data-model/image-metadata.md#positioning-columns)),
+    which means such an offset would double-correct. So the **first time you open a
+    dataset whose calibration was saved before the fix, its `heading_offset_deg` is
+    reset to the config default** and a line saying so appears in the
+    `GroundTruther` message log. `epsg`, `mirror` and `georeference` are untouched.
+    If you had dialled in a genuine mount fine-tune, set it again and save.
+
+    Rasters exported before the fix are rotated 180° and need regenerating.
+
 ### Saved calibration overrides the config
 
 !!! warning "Why editing Settings appears to do nothing"
