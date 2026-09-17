@@ -1707,6 +1707,21 @@ Mirror, once.</p>
 <p>The mount is known (image bottom→top = heading, image-right = starboard), so the
 defaults — offset <code>0</code>, mirror off — are correct out of the box for the reference
 deployment. Treat both as escape hatches.</p>
+<div class="admonition warning">
+<p class="admonition-title">A saved heading offset near ±180 was resetting a real bug</p>
+<p>Until <a href="https://github.com/epifanio/groundtruther/issues/31">#31</a> GroundTruther
+sent the nav's <code>bearing</code> column as the heading. <code>bearing</code> points <strong>astern</strong>, so
+every georeferenced product came out <strong>rotated 180°</strong> — and a heading offset of
+±180 was the natural way to paper over it.</p>
+<p>The derivation is now correct (see
+<a href="../../data-model/image-metadata/#positioning-columns"><code>Heading</code> vs <code>bearing</code></a>),
+which means such an offset would double-correct. So the <strong>first time you open a
+dataset whose calibration was saved before the fix, its <code>heading_offset_deg</code> is
+reset to the config default</strong> and a line saying so appears in the
+<code>GroundTruther</code> message log. <code>epsg</code>, <code>mirror</code> and <code>georeference</code> are untouched.
+If you had dialled in a genuine mount fine-tune, set it again and save.</p>
+<p>Rasters exported before the fix are rotated 180° and need regenerating.</p>
+</div>
 <h3 id="saved-calibration-overrides-the-config">Saved calibration overrides the config<a class="headerlink" href="#saved-calibration-overrides-the-config" title="Permanent link">&para;</a></h3>
 <div class="admonition warning">
 <p class="admonition-title">Why editing Settings appears to do nothing</p>

@@ -1340,8 +1340,9 @@ and per-frame video annotations.</p>
 <p><code>HabCam.imageannotation</code> — the detector output overlaid on the imagery by the
 <a href="../../tools/image-browser/">Image Browser</a> and edited by the
 <a href="../../tools/annotation/">annotation editor</a>.</p>
-<p><strong>The file is read positionally, not by header name.</strong> GroundTruther skips the
-first two lines and then assigns its own names to the eleven columns, in order:</p>
+<p><strong>The file is read positionally, not by header name.</strong> GroundTruther skips any
+leading blank or comment lines, drops a header row if there is one, and then
+assigns its own names to the eleven columns, in order:</p>
 <table>
 <thead>
 <tr>
@@ -1418,13 +1419,20 @@ differ from GroundTruther's internal names but the <strong>order matches</strong
 <a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>9,201503.20150619.181142496.204638.jpg,8,123.0,306.0,182.0,374.0,0.231257,0,fish,0.231257
 <a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>15,201503.20150619.181143331.204643.jpg,12,422.875,325.125,584.375,567.375,0.335472,0,fish,0.335472
 </code></pre></div>
-<div class="admonition warning">
-<p class="admonition-title">Two leading lines are skipped</p>
-<p>The parser is fixed at <code>skiprows=[0, 1]</code> — it was written for an export
-format with two banner lines. A file with a <strong>single</strong> header row therefore
-loses its <strong>first detection</strong>. In the sample dataset that is 1 row out of
-7 278. If every detection matters, prepend a second comment line to the
-file, or drop the header entirely and add one blank line.</p>
+<div class="admonition info">
+<p class="admonition-title">The preamble is detected, not assumed</p>
+<p>GroundTruther accepts the file however it arrives: with a header row or
+without, and with any number of blank or <code>#</code>-commented banner lines in front
+of it. A header is recognised by its bounding-box columns failing to parse as
+numbers, so a detection with one damaged coordinate is still read as a
+detection. <strong>Every row is kept</strong> — the sample dataset's
+<code>test_detector_output.csv</code> loads all 7 278 detections. Which shape was
+detected is logged to the <code>GroundTruther</code> message-log tab.</p>
+<p>The reader used to be fixed at <code>skiprows=[0, 1]</code>, which lost the first
+detection of a single-header file and turned the header of GroundTruther's own
+save into a phantom annotation
+(<a href="https://github.com/epifanio/groundtruther/issues/28">#28</a>). Files written by
+that older version — two blank lines, then the header — still load correctly.</p>
 </div>
 <p>The <strong>confidence threshold</strong> spin box in the Image Browser hides any box whose
 <code>Confidence</code> is below the value; the filter is inclusive (<code>&gt;=</code>) and is shared

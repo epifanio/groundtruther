@@ -1640,7 +1640,7 @@ roughness service. If <code>Xutm</code>/<code>Yutm</code> are absent the plugin 
 <td><code>bearing</code></td>
 <td>float64</td>
 <td>° (−180…180)</td>
-<td>Direction of the (<code>dx</code>, <code>dy</code>) offset vector. <strong>GroundTruther sends this as <code>heading_deg</code></strong> to the roughness service when there is no <code>Heading</code> column — see the note below.</td>
+<td>Direction of the (<code>dx</code>, <code>dy</code>) offset vector — ship <strong>→</strong> HabCam, i.e. <em>astern</em>. GroundTruther derives the roughness service's <code>heading_deg</code> from it by <strong>reversing it</strong> (<code>bearing + 180</code>) when there is no <code>Heading</code> column — see the note below.</td>
 </tr>
 <tr>
 <td><code>location</code></td>
@@ -1651,15 +1651,42 @@ roughness service. If <code>Xutm</code>/<code>Yutm</code> are absent the plugin 
 </tbody>
 </table>
 <div class="admonition note">
-<p class="admonition-title"><code>Heading</code> vs <code>bearing</code></p>
-<p>The roughness georeferencing needs a heading. GroundTruther looks for a
-<code>Heading</code> column first and falls back to <code>bearing</code>. The sample dataset has
-no <code>Heading</code> column, so <code>bearing</code> is what gets sent.</p>
-<p>Measured on the sample dataset, <code>bearing</code> is the direction <strong>from the base
-position toward the HabCam fix</strong> — which, for a body towed astern, runs
-roughly <strong>opposite</strong> to the course over ground (median separation ≈ 173°).
-If your own table has a true vehicle heading, name the column <code>Heading</code> and
-it will be preferred automatically.</p>
+<p class="admonition-title"><code>Heading</code> vs <code>bearing</code> — not two names for one thing</p>
+<p>The roughness georeferencing needs a <strong>platform heading</strong>. GroundTruther uses
+a <code>Heading</code> column as it stands, and if the table has none — as the sample
+dataset does not — derives the heading from <code>bearing</code> <strong>reversed</strong>.</p>
+<p><code>bearing</code> is not an attitude. It is the direction of the (<code>dx</code>, <code>dy</code>) layback
+offset, from the ship to the body it tows ~148 m behind it, so it points
+<strong>astern</strong> — roughly 180° from the course being made good (median |<code>bearing</code>
+− course over ground| ≈ 173–178° across the survey). The service rotates each
+frame so that image bottom→top is <code>heading_deg</code>, and the camera's image-up
+points <strong>forward</strong> along the tow, so the heading is <code>bearing + 180</code>.</p>
+<p>How that was settled: seabed content scrolls <strong>down</strong> between consecutive
+frames — 60 of 60 confident template matches, by ≈ 478 mm per frame against
+an independent prediction of ≈ 489 mm from speed × interval. Rotating that
+measured image shift into ground coordinates and comparing it with the course
+over ground taken independently from the nav gives a median error of
+<strong>175°</strong> for <code>heading = bearing</code> and <strong>4.9°</strong> for <code>heading = bearing + 180</code>.
+Only one of the two reproduces the track the vehicle actually followed.</p>
+<p>That ~5° residual — camera yaw relative to the track, USBL noise, cross-track
+drift — is also <strong>how accurate the derived heading is</strong>, so it bounds how well
+a single frame's raster can be expected to align. Leave <code>heading_offset_deg</code>
+at 0; it is a residual mount fine-tune, not the place for this.</p>
+<p>If your own table has a true vehicle heading, name the column <code>Heading</code> and it
+will be preferred automatically.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Rasters exported before this was fixed are rotated 180°</p>
+<p>Until <a href="https://github.com/epifanio/groundtruther/issues/31">#31</a> GroundTruther
+sent <code>bearing</code> unchanged, so every georeferenced micro-DEM, orthophoto and
+nav-placed mosaic it produced is <strong>rotated 180° about its own centre</strong>.
+Positions are unaffected. Regenerate anything exported earlier.</p>
+<p>The roughness service makes the same assumption for the mosaics where <strong>it</strong>
+pulls the nav (<a href="https://github.com/epifanio/stereo-roughness/issues/1">stereo-roughness#1</a>),
+and GroundTruther deliberately does not compensate for that from the client —
+doing so would double-correct once the service is fixed. Until then a
+roughness raster and a service-side mosaic of the same patch disagree with
+each other by 180°.</p>
 </div>
 <h2 id="depth-and-altitude">Depth and altitude<a class="headerlink" href="#depth-and-altitude" title="Permanent link">&para;</a></h2>
 <p>Verified relation in the sample data: <code>V_Depth + Altimeter ≈ Water_Depth</code>.</p>
