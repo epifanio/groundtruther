@@ -196,7 +196,7 @@ class VideoBrowserMixin:
         # --- Load metadata CSV ---
         if videometadata:
             try:
-                from gt.video_manager import load_video_metadata_survey, build_kdtree
+                from groundtruther.gt.video_manager import load_video_metadata_survey, build_kdtree
                 self._video_metadata_df = load_video_metadata_survey(videometadata)
                 self._video_kdtree = build_kdtree(self._video_metadata_df)
                 QgsMessageLog.logMessage(
@@ -211,7 +211,7 @@ class VideoBrowserMixin:
         # --- Load annotation CSV ---
         if videoannotation:
             try:
-                from gt.video_manager import load_video_annotations
+                from groundtruther.gt.video_manager import load_video_annotations
                 self._video_annotations = load_video_annotations(videoannotation)
                 self._video_player.set_annotations(self._video_annotations)
                 QgsMessageLog.logMessage(
@@ -364,7 +364,7 @@ class VideoBrowserMixin:
         """Return the nearest frame index for a map-canvas click at *(lon, lat)*."""
         if self._video_kdtree is None or self._video_metadata_df is None:
             return None
-        from gt.video_manager import nearest_frame_index
+        from groundtruther.gt.video_manager import nearest_frame_index
         frame_idx, _ = nearest_frame_index(
             self._video_kdtree, self._video_metadata_df, lon, lat)
         return frame_idx

@@ -269,7 +269,7 @@ class VideoAnnotationMixin:
         if not path:
             return
         try:
-            from gt.video_manager import load_video_annotations
+            from groundtruther.gt.video_manager import load_video_annotations
             loaded = load_video_annotations(path)
             self._video_annotations.update(loaded)
             self._video_ann_editor.set_csv_path(path)
