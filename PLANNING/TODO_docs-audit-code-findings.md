@@ -119,7 +119,7 @@ detection is not benign: it is silent data loss with no way for a user to notice
 new Qt/QGIS-free `gt/annotations.py`** and leave a re-export in `ioutils` for the two
 call sites (`mixins/settings_mixin.py:9`, `mixins/annotation_editor_mixin.py:141`).
 
-### Finding 3 — CONFIRMED: the roughness georeference is 180° out
+### Finding 3 — CONFIRMED: the roughness georeference is 180° out ([#31](https://github.com/epifanio/groundtruther/issues/31))
 
 This started as an open question and was **resolved during planning**, entirely offline,
 after the user supplied the missing domain fact: *the camera's orientation follows the
@@ -387,7 +387,7 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
 - [ ] **22. Rename** `TODO_docs-audit-code-findings.md` → `docs-audit-code-findings.md`,
       `Status: DONE`; **amend** `PLANNING/settings-and-data-model-docs.md`'s Progress Log
       to note that its open question #1 is now answered.
-- [ ] **23. Open the PR** with `Closes #27` / `Closes #28`, leave unmerged.
+- [ ] **23. Open the PR** with `Closes #27` / `Closes #28` / `Closes #31`, leave unmerged.
 
 ## Acceptance criteria & verification
 
@@ -495,7 +495,7 @@ the project memory with your findings, fill the Progress Log, rename
 PLANNING/TODO_docs-audit-code-findings.md → PLANNING/docs-audit-code-findings.md
 (Status: DONE), note in PLANNING/settings-and-data-model-docs.md's Progress Log that its
 open question #1 is now answered, and open a PR against master
-(gh, account epifanio) with "Closes #27" and "Closes #28". Do NOT merge — I will review
+(gh, account epifanio) with "Closes #27", "Closes #28" and "Closes #31". Do NOT merge — I will review
 and merge, and the import change needs my hands-on GUI check first.
 ```
 
