@@ -2,54 +2,82 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://epifanio.github.io/groundtruther/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
     </url>
     <url>
          <loc>https://epifanio.github.io/groundtruther/architecture/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
     </url>
     <url>
          <loc>https://epifanio.github.io/groundtruther/assets/img/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
+    </url>
+    <url>
+         <loc>https://epifanio.github.io/groundtruther/configuration/</loc>
+         <lastmod>2026-09-17</lastmod>
+    </url>
+    <url>
+         <loc>https://epifanio.github.io/groundtruther/configuration/settings-reference/</loc>
+         <lastmod>2026-09-17</lastmod>
+    </url>
+    <url>
+         <loc>https://epifanio.github.io/groundtruther/configuration/validation/</loc>
+         <lastmod>2026-09-17</lastmod>
+    </url>
+    <url>
+         <loc>https://epifanio.github.io/groundtruther/data-model/annotations-and-video/</loc>
+         <lastmod>2026-09-17</lastmod>
+    </url>
+    <url>
+         <loc>https://epifanio.github.io/groundtruther/data-model/image-metadata/</loc>
+         <lastmod>2026-09-17</lastmod>
+    </url>
+    <url>
+         <loc>https://epifanio.github.io/groundtruther/data-model/mbes-soundings/</loc>
+         <lastmod>2026-09-17</lastmod>
     </url>
     <url>
          <loc>https://epifanio.github.io/groundtruther/installation/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
     </url>
     <url>
          <loc>https://epifanio.github.io/groundtruther/installation/linux/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
     </url>
     <url>
          <loc>https://epifanio.github.io/groundtruther/installation/macos/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
     </url>
     <url>
          <loc>https://epifanio.github.io/groundtruther/installation/windows/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
     </url>
     <url>
          <loc>https://epifanio.github.io/groundtruther/tools/annotation/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
     </url>
     <url>
          <loc>https://epifanio.github.io/groundtruther/tools/grass-fastgis/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
     </url>
     <url>
          <loc>https://epifanio.github.io/groundtruther/tools/image-browser/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
     </url>
     <url>
          <loc>https://epifanio.github.io/groundtruther/tools/query-builder/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
     </url>
     <url>
          <loc>https://epifanio.github.io/groundtruther/tools/report-builder/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
+    </url>
+    <url>
+         <loc>https://epifanio.github.io/groundtruther/tools/seafloor-roughness/</loc>
+         <lastmod>2026-09-17</lastmod>
     </url>
     <url>
          <loc>https://epifanio.github.io/groundtruther/tools/video-player/</loc>
-         <lastmod>2026-06-19</lastmod>
+         <lastmod>2026-09-17</lastmod>
     </url>
 </urlset>

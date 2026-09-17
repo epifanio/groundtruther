@@ -12,13 +12,13 @@
         <meta name="author" content="Massimo Di Stefano">
       
       
-        <link rel="canonical" href="https://epifanio.github.io/groundtruther/tools/query-builder/">
+        <link rel="canonical" href="https://epifanio.github.io/groundtruther/data-model/image-metadata/">
       
       
-        <link rel="prev" href="../annotation/">
+        <link rel="prev" href="../../configuration/validation/">
       
       
-        <link rel="next" href="../seafloor-roughness/">
+        <link rel="next" href="../mbes-soundings/">
       
       
         
@@ -29,7 +29,7 @@
     
     
       
-        <title>Acoustic Query Builder - GroundTruther</title>
+        <title>Image metadata - GroundTruther</title>
       
     
     
@@ -80,7 +80,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#acoustic-query-builder" class="md-skip">
+        <a href="#habcam-image-metadata" class="md-skip">
           Skip to content
         </a>
       
@@ -114,7 +114,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Acoustic Query Builder
+              Image metadata
             
           </span>
         </div>
@@ -266,13 +266,11 @@
   
   
   
-    
-  
   
     
     
-      <li class="md-tabs__item md-tabs__item--active">
-        <a href="../image-browser/" class="md-tabs__link">
+      <li class="md-tabs__item">
+        <a href="../../tools/image-browser/" class="md-tabs__link">
           
   
   
@@ -312,11 +310,13 @@
   
   
   
+    
+  
   
     
     
-      <li class="md-tabs__item">
-        <a href="../../data-model/image-metadata/" class="md-tabs__link">
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
           
   
   
@@ -589,10 +589,8 @@
       
   
   
-    
   
   
-  
     
     
       
@@ -614,22 +612,19 @@
     
     
       
-        
-        
-      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
         
           
-          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
             
   
   
@@ -647,7 +642,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
           <label class="md-nav__title" for="__nav_3">
             <span class="md-nav__icon md-icon"></span>
             
@@ -665,7 +660,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../image-browser/" class="md-nav__link">
+      <a href="../../tools/image-browser/" class="md-nav__link">
         
   
   
@@ -693,7 +688,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../video-player/" class="md-nav__link">
+      <a href="../../tools/video-player/" class="md-nav__link">
         
   
   
@@ -721,7 +716,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../annotation/" class="md-nav__link">
+      <a href="../../tools/annotation/" class="md-nav__link">
         
   
   
@@ -746,37 +741,10 @@
                 
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-        <label class="md-nav__link md-nav__link--active" for="__toc">
-          
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Acoustic Query Builder
-  
-
-    
-  </span>
-  
-  
-
-          <span class="md-nav__icon md-icon"></span>
-        </label>
-      
-      <a href="./" class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href="../../tools/query-builder/" class="md-nav__link">
         
   
   
@@ -792,59 +760,6 @@
   
 
       </a>
-      
-        
-
-<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
-  
-  
-  
-    
-  
-  
-    <label class="md-nav__title" for="__toc">
-      <span class="md-nav__icon md-icon"></span>
-      Table of contents
-    </label>
-    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
-      
-        <li class="md-nav__item">
-  <a href="#what-it-does" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        What it does
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#how-to-use" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        How to use
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#inputs-settings-mbes" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        Inputs (Settings → Mbes)
-      
-    </span>
-  </a>
-  
-</li>
-      
-    </ul>
-  
-</nav>
-      
     </li>
   
 
@@ -857,7 +772,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../seafloor-roughness/" class="md-nav__link">
+      <a href="../../tools/seafloor-roughness/" class="md-nav__link">
         
   
   
@@ -885,7 +800,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../report-builder/" class="md-nav__link">
+      <a href="../../tools/report-builder/" class="md-nav__link">
         
   
   
@@ -913,7 +828,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../grass-fastgis/" class="md-nav__link">
+      <a href="../../tools/grass-fastgis/" class="md-nav__link">
         
   
   
@@ -1079,8 +994,10 @@
       
   
   
+    
   
   
+  
     
     
       
@@ -1094,19 +1011,22 @@
     
     
       
+        
+        
+      
       
         
       
     
     
-    <li class="md-nav__item md-nav__item--nested">
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
       
         
         
-        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
         
           
-          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
             
   
   
@@ -1124,7 +1044,7 @@
             <span class="md-nav__icon md-icon"></span>
           </label>
         
-        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
           <label class="md-nav__title" for="__nav_5">
             <span class="md-nav__icon md-icon"></span>
             
@@ -1139,10 +1059,37 @@
                 
   
   
+    
   
   
-    <li class="md-nav__item">
-      <a href="../../data-model/image-metadata/" class="md-nav__link">
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Image metadata
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
         
   
   
@@ -1158,6 +1105,136 @@
   
 
       </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#positioning-read-this-first" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positioning: read this first
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#required-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Required columns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#positioning-columns" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Positioning columns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#depth-and-altitude" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Depth and altitude
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#imaging-geometry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Imaging geometry
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environmental-sensors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environmental sensors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#survey-bookkeeping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Survey bookkeeping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#columns-groundtruther-adds-at-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Columns GroundTruther adds at load
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bringing-your-own-survey" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bringing your own survey
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
     </li>
   
 
@@ -1170,7 +1247,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../data-model/mbes-soundings/" class="md-nav__link">
+      <a href="../mbes-soundings/" class="md-nav__link">
         
   
   
@@ -1198,7 +1275,7 @@
   
   
     <li class="md-nav__item">
-      <a href="../../data-model/annotations-and-video/" class="md-nav__link">
+      <a href="../annotations-and-video/" class="md-nav__link">
         
   
   
@@ -1280,10 +1357,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#what-it-does" class="md-nav__link">
+  <a href="#positioning-read-this-first" class="md-nav__link">
     <span class="md-ellipsis">
       
-        What it does
+        Positioning: read this first
       
     </span>
   </a>
@@ -1291,10 +1368,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#how-to-use" class="md-nav__link">
+  <a href="#required-columns" class="md-nav__link">
     <span class="md-ellipsis">
       
-        How to use
+        Required columns
       
     </span>
   </a>
@@ -1302,10 +1379,87 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#inputs-settings-mbes" class="md-nav__link">
+  <a href="#positioning-columns" class="md-nav__link">
     <span class="md-ellipsis">
       
-        Inputs (Settings → Mbes)
+        Positioning columns
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#depth-and-altitude" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Depth and altitude
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#imaging-geometry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Imaging geometry
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#environmental-sensors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Environmental sensors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#timing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#survey-bookkeeping" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Survey bookkeeping
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#columns-groundtruther-adds-at-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Columns GroundTruther adds at load
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bringing-your-own-survey" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bringing your own survey
       
     </span>
   </a>
@@ -1332,70 +1486,410 @@
   
 
 
-<h1 id="acoustic-query-builder">Acoustic Query Builder<a class="headerlink" href="#acoustic-query-builder" title="Permanent link">&para;</a></h1>
-<p>Interrogate MBES products — backscatter and bathymetric derivatives — under
-points and sampling shapes, and summarise their distributions. This is where the
-acoustic side of the "ground-truthing" happens.</p>
-<figure>
-<!-- TODO: replace src with assets/img/query-builder-1.png -->
-<p><img alt="Acoustic Query Builder" src="../../assets/img/placeholder.svg" width="900" />
-  </p>
-<figcaption>Querying backscatter / derivatives under a sampling shape.</figcaption>
-</figure>
-<h2 id="what-it-does">What it does<a class="headerlink" href="#what-it-does" title="Permanent link">&para;</a></h2>
+<h1 id="habcam-image-metadata">HabCam image metadata<a class="headerlink" href="#habcam-image-metadata" title="Permanent link">&para;</a></h1>
+<p><code>HabCam.imagemetadata</code> — the table that drives the
+<a href="../../tools/image-browser/">Image Browser</a>, the map lookup, the metadata panel
+and every position GroundTruther sends to a service.</p>
 <ul>
-<li><strong>Point query:</strong> click the map to read the value(s) of selected GRASS raster
-  layers (backscatter, slope, geomorphons, …) at that location, via the
-  <a href="../grass-fastgis/">GRASS/FastGIS</a> <code>sample</code> endpoint (the server reprojects your
-  click as needed).</li>
-<li><strong>Spatial selection:</strong> draw a sampling shape and select the MBES soundings that
-  fall inside it. Point-in-polygon testing runs over a soundings <strong>Parquet</strong> table
-  with a fast <code>numba</code>-accelerated routine (with an optional GPU/<code>cuspatial</code> path).</li>
-<li><strong>Distributions:</strong> visualise the selected values (e.g. backscatter angular
-  response / density) with <code>plotnine</code>/<code>matplotlib</code>, ready to compare against the
-  optical evidence.</li>
+<li><strong>Format:</strong> Apache <strong>Parquet</strong> (read with <code>pandas.read_parquet</code>; the file
+  extension does not matter — <code>.pq</code> and <code>.parquet</code> are both fine).</li>
+<li><strong>One row per image.</strong></li>
+<li><strong>Index:</strong> a <code>DatetimeIndex</code> — the acquisition time of each frame. The metadata
+  panel's <strong>Time</strong> row displays it, so a table indexed by something else will
+  show a blank there but is otherwise usable.</li>
+<li><strong>Reference file:</strong> the sample dataset's <code>projectdata.pq</code>
+  (<a href="https://zenodo.org/records/7995674">Zenodo 7995674</a>) — 123 394 rows,
+  38 columns. The tables below describe exactly that file.</li>
 </ul>
-<h2 id="how-to-use">How to use<a class="headerlink" href="#how-to-use" title="Permanent link">&para;</a></h2>
-<ol>
-<li>In the GRASS toolbox, <strong>select an environment</strong> and choose which raster layers
-   to query.</li>
-<li>Use the <strong>point-query</strong> map tool to read values at a click, or draw a
-   <strong>sampling shape</strong> to select soundings within it.</li>
-<li>Review the returned values / plots; results can feed into the
-   <a href="../report-builder/">Report Builder</a>.</li>
-</ol>
-<h2 id="inputs-settings-mbes">Inputs (Settings → Mbes)<a class="headerlink" href="#inputs-settings-mbes" title="Permanent link">&para;</a></h2>
+<hr />
+<h2 id="positioning-read-this-first">Positioning: read this first<a class="headerlink" href="#positioning-read-this-first" title="Permanent link">&para;</a></h2>
+<p>The table carries <strong>three different horizontal positions</strong>, and they are metres
+apart. Choosing the wrong one silently misplaces every sample you take.</p>
 <table>
 <thead>
 <tr>
-<th>Setting</th>
+<th>Position</th>
+<th>Columns</th>
 <th>What it is</th>
+<th>Use it?</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td><code>soundings</code></td>
-<td>MBES soundings table (Parquet) used for spatial selection.</td>
+<td><strong>Calibrated USBL fix</strong></td>
+<td><code>Xutm</code> + <code>dx</code>, <code>Yutm</code> + <code>dy</code></td>
+<td>The measured acoustic fix of the towed HabCam on the seabed. <strong>This is what GroundTruther uses everywhere.</strong></td>
+<td>✅ <strong>Yes</strong></td>
 </tr>
 <tr>
-<td><code>reference_surface</code></td>
-<td><em>Optional</em> GeoTIFF DEM. When set, the 3-D viewer clips <strong>this raster</strong> to the sampling shape instead of gridding the selected soundings; it falls back to the soundings surface if the file is missing or unreadable.</td>
+<td>Layback <em>model</em></td>
+<td><code>Xutm_adj</code>, <code>Yutm_adj</code> (= <code>habcam_lon</code>/<code>habcam_lat</code> projected)</td>
+<td>A modelled tow position, not a measurement. Verified to sit ≈ 2.5 m (median) from the USBL fix.</td>
+<td>⚠️ Fallback only</td>
+</tr>
+<tr>
+<td>Ship GPS</td>
+<td><code>sXutm</code>, <code>sYutm</code> (and <code>x</code>, <code>y</code>, <code>vessel_lon</code>, <code>vessel_lat</code>)</td>
+<td>The <strong>surface vessel</strong>. The HabCam trails it by ~150 m along the cable.</td>
+<td>❌ <strong>Never</strong> a seafloor position</td>
 </tr>
 </tbody>
 </table>
-<p>Column-by-column — including how the backscatter field is chosen and what the
-port/starboard/fold beam filter does:
-<strong><a href="../../data-model/mbes-soundings/">MBES soundings</a></strong>.</p>
-<p>GRASS raster layers (backscatter, derivatives) live in the active GRASS
-environment — see the <a href="../grass-fastgis/">GRASS / FastGIS toolbox</a>.</p>
-<div class="admonition tip">
-<p class="admonition-title">Column names are configurable</p>
-<p>Easting, Northing, Longitude and Latitude are read from <strong>editable text
-fields</strong> in the query builder, so a table using different names works without
-any code change. If one of the four is missing, the spatial tools stay
-disabled and the missing names are logged to the <code>GroundTruther</code> message-log
-tab.</p>
+<div class="admonition danger">
+<p class="admonition-title"><code>sXutm</code> / <code>sYutm</code> is not where the camera is</p>
+<p>It is where the <em>ship</em> is. In the sample dataset the median separation
+between the ship and the HabCam fix is <strong>≈ 148 m</strong> — larger than most
+sampling shapes. A backscatter sample taken at the ship position describes a
+patch of seabed the camera never saw.</p>
 </div>
+<p><strong>How GroundTruther applies this.</strong> At load time the plugin computes
+<code>easting = Xutm + dx</code>, <code>northing = Yutm + dy</code>, projects it from
+<code>Roughness.epsg</code> (default EPSG:32619) to WGS-84, and stores the result as two
+extra columns, <code>usbl_lon</code> / <code>usbl_lat</code>. Those drive <strong>one canonical position</strong>
+for everything: the KD-tree nearest-image lookup, the red map marker, the KMZ
+export, the query builder's sampling centre, and the <code>geo</code> object sent to the
+roughness service. If <code>Xutm</code>/<code>Yutm</code> are absent the plugin falls back to
+<code>habcam_lon</code> / <code>habcam_lat</code> throughout — consistent, just less accurate.</p>
+<hr />
+<h2 id="required-columns">Required columns<a class="headerlink" href="#required-columns" title="Permanent link">&para;</a></h2>
+<p>Without these the plugin cannot do its job.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>dtype</th>
+<th>Meaning</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Imagename</code></td>
+<td>string</td>
+<td>The frame identifier, <strong>without an extension</strong> — e.g. <code>201503.20150619.181140656.204627</code>. Encodes cruise, date, timestamp and a frame counter.</td>
+<td>Resolving the image file on disk (<code>&lt;name&gt;.jpg</code>, <code>.png</code>, …, or <code>&lt;name&gt;_orig.*</code> for stereo deliveries); joining the annotation CSV; the <code>frame_key</code> sent to the roughness service.</td>
+</tr>
+<tr>
+<td><code>habcam_lon</code>, <code>habcam_lat</code></td>
+<td>float64</td>
+<td>HabCam position in WGS-84 decimal degrees (the layback model).</td>
+<td>The fallback position for the KD-tree, the map marker and the sampling centre when the USBL columns are missing.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="positioning-columns">Positioning columns<a class="headerlink" href="#positioning-columns" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>dtype</th>
+<th>Units</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Xutm</code>, <code>Yutm</code></td>
+<td>float64</td>
+<td>m (projected CRS)</td>
+<td>The <strong>base</strong> position the USBL offset is applied to. Exactly equal to <code>Longitude</code>/<code>Latitude</code> projected into EPSG:32619, and piecewise-constant across consecutive frames (one value per navigation fix).</td>
+</tr>
+<tr>
+<td><code>dx</code>, <code>dy</code></td>
+<td>float64</td>
+<td>m</td>
+<td>The horizontal offset from the base position to the HabCam seabed fix. Magnitude equals <code>distance</code>, direction equals <code>bearing</code>. Typically 30–200 m — this is the tow layback, not a small lever-arm correction.</td>
+</tr>
+<tr>
+<td><code>Xutm_adj</code>, <code>Yutm_adj</code></td>
+<td>float64</td>
+<td>m (EPSG:32619)</td>
+<td><code>habcam_lon</code> / <code>habcam_lat</code> projected — the layback <em>model</em>. The query builder uses these to select images inside a sampling shape <strong>only</strong> when <code>Xutm</code>/<code>dx</code> are absent.</td>
+</tr>
+<tr>
+<td><code>sXutm</code>, <code>sYutm</code></td>
+<td>float64</td>
+<td>m (projected CRS)</td>
+<td>Ship GPS position. Not read by the plugin.</td>
+</tr>
+<tr>
+<td><code>x</code>, <code>y</code></td>
+<td>float64</td>
+<td>m (projected CRS)</td>
+<td><code>vessel_lon</code> / <code>vessel_lat</code> projected. A second surface-vessel position series. Not read by the plugin.</td>
+</tr>
+<tr>
+<td><code>vessel_lon</code>, <code>vessel_lat</code></td>
+<td>float64</td>
+<td>° WGS-84</td>
+<td>Surface-vessel position. Not read by the plugin.</td>
+</tr>
+<tr>
+<td><code>Longitude</code>, <code>Latitude</code></td>
+<td>float64</td>
+<td>° WGS-84</td>
+<td>The WGS-84 form of <code>Xutm</code>/<code>Yutm</code> (verified: they project onto each other exactly). Shown in the metadata panel and included in the report summary.</td>
+</tr>
+<tr>
+<td><code>distance</code></td>
+<td>float64</td>
+<td>m</td>
+<td>Length of the (<code>dx</code>, <code>dy</code>) offset vector.</td>
+</tr>
+<tr>
+<td><code>bearing</code></td>
+<td>float64</td>
+<td>° (−180…180)</td>
+<td>Direction of the (<code>dx</code>, <code>dy</code>) offset vector. <strong>GroundTruther sends this as <code>heading_deg</code></strong> to the roughness service when there is no <code>Heading</code> column — see the note below.</td>
+</tr>
+<tr>
+<td><code>location</code></td>
+<td>string</td>
+<td>—</td>
+<td><code>Point(&lt;habcam_lon&gt; &lt;habcam_lat&gt;)</code>, a WKT-like restatement of the HabCam position. Not read by the plugin.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition note">
+<p class="admonition-title"><code>Heading</code> vs <code>bearing</code></p>
+<p>The roughness georeferencing needs a heading. GroundTruther looks for a
+<code>Heading</code> column first and falls back to <code>bearing</code>. The sample dataset has
+no <code>Heading</code> column, so <code>bearing</code> is what gets sent.</p>
+<p>Measured on the sample dataset, <code>bearing</code> is the direction <strong>from the base
+position toward the HabCam fix</strong> — which, for a body towed astern, runs
+roughly <strong>opposite</strong> to the course over ground (median separation ≈ 173°).
+If your own table has a true vehicle heading, name the column <code>Heading</code> and
+it will be preferred automatically.</p>
+</div>
+<h2 id="depth-and-altitude">Depth and altitude<a class="headerlink" href="#depth-and-altitude" title="Permanent link">&para;</a></h2>
+<p>Verified relation in the sample data: <code>V_Depth + Altimeter ≈ Water_Depth</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>dtype</th>
+<th>Units</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>V_Depth</code></td>
+<td>float64</td>
+<td>m</td>
+<td>Vehicle depth below the surface.</td>
+</tr>
+<tr>
+<td><code>Altimeter</code></td>
+<td>float64</td>
+<td>m</td>
+<td>Vehicle altitude above the seabed. Also the QA cross-check for the roughness service's reported <code>altitude_mm</code>.</td>
+</tr>
+<tr>
+<td><code>Water_Depth</code></td>
+<td>float64</td>
+<td>m</td>
+<td>Total water depth at the vehicle.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="imaging-geometry">Imaging geometry<a class="headerlink" href="#imaging-geometry" title="Permanent link">&para;</a></h2>
+<p>Both columns are sparsely populated — in the sample dataset only 1 145 of
+123 394 rows (≈ 1 %) carry a value.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>dtype</th>
+<th>Units</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Fov</code></td>
+<td>float64</td>
+<td>m</td>
+<td>Across-track ground field of view of the frame.</td>
+</tr>
+<tr>
+<td><code>Mm_pix</code></td>
+<td>float64</td>
+<td>mm/px</td>
+<td>Ground sample distance. Consistent with <code>Fov ≈ Mm_pix × 1360 px</code> (the image width).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="environmental-sensors">Environmental sensors<a class="headerlink" href="#environmental-sensors" title="Permanent link">&para;</a></h2>
+<p>Displayed in the metadata panel and carried into the report summary. <strong>Salinity
+and temperature are in conventional units; the optical channels are raw sensor
+output</strong> — their scaling is not recorded anywhere in the plugin or the dataset.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>dtype</th>
+<th>Units</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Salinity</code></td>
+<td>float64</td>
+<td>PSU</td>
+<td>Practical salinity (sample values ≈ 32–33).</td>
+</tr>
+<tr>
+<td><code>Temp</code></td>
+<td>float64</td>
+<td>°C</td>
+<td>Water temperature (sample values ≈ 7–13).</td>
+</tr>
+<tr>
+<td><code>O2</code></td>
+<td>float64</td>
+<td><em>unconfirmed</em></td>
+<td>Dissolved-oxygen channel (sample values ≈ 6.9–8.9).</td>
+</tr>
+<tr>
+<td><code>Cdom</code></td>
+<td>float64</td>
+<td><em>raw counts</em></td>
+<td>Coloured dissolved organic matter fluorometer. Takes negative values in the sample data, so it is uncalibrated instrument output, not a concentration.</td>
+</tr>
+<tr>
+<td><code>Chlorophyll</code></td>
+<td>float64</td>
+<td><em>raw counts</em></td>
+<td>Chlorophyll fluorometer.</td>
+</tr>
+<tr>
+<td><code>Turb</code></td>
+<td>float64</td>
+<td><em>raw counts</em></td>
+<td>Turbidity sensor.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="timing">Timing<a class="headerlink" href="#timing" title="Permanent link">&para;</a></h2>
+<p>All redundant with the DatetimeIndex; none is read by the plugin.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>dtype</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Date</code></td>
+<td>float64</td>
+<td>Calendar date as <code>YYYYMMDD</code>.</td>
+</tr>
+<tr>
+<td><code>DecDay</code></td>
+<td>float64</td>
+<td>Fraction of the day, <code>0…1</code>. Verified equal to the time of day of the index.</td>
+</tr>
+<tr>
+<td><code>DateTm</code></td>
+<td>float64</td>
+<td><code>Date + DecDay</code>.</td>
+</tr>
+<tr>
+<td><code>TripDay</code></td>
+<td>float64</td>
+<td>Day number within the cruise, plus <code>DecDay</code> — <code>15.758…</code> is day 15 at 18:11.</td>
+</tr>
+<tr>
+<td><code>dT</code></td>
+<td>float64</td>
+<td>Elapsed time since the previous record, <strong>in days</strong> (≈ 1.9 × 10⁻⁶ ≈ 0.17 s in the sample).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="survey-bookkeeping">Survey bookkeeping<a class="headerlink" href="#survey-bookkeeping" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>dtype</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Step</code></td>
+<td>float64</td>
+<td>Per-frame increment of <code>Position</code>.</td>
+</tr>
+<tr>
+<td><code>Position</code></td>
+<td>float64</td>
+<td>Monotonically increasing running total; <code>Position[i] − Position[i−1] == Step[i]</code> holds for 99.999 % of rows (the one exception is a data gap). Its origin is offset by ≈ 2.6 × 10⁶ and its physical unit is not recorded — the magnitudes are consistent with an along-track distance in metres, but this is <strong>not confirmed</strong>.</td>
+</tr>
+</tbody>
+</table>
+<p>Neither column is read by GroundTruther.</p>
+<h2 id="columns-groundtruther-adds-at-load">Columns GroundTruther adds at load<a class="headerlink" href="#columns-groundtruther-adds-at-load" title="Permanent link">&para;</a></h2>
+<p>These are <strong>not</strong> in your file — the plugin computes them.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>usbl_lon</code>, <code>usbl_lat</code></td>
+<td>WGS-84 form of the USBL fix (<code>Xutm + dx</code>, <code>Yutm + dy</code>, projected from <code>Roughness.epsg</code>). The canonical position for the KD-tree, marker, export and sampling. Deliberately <strong>hidden</strong> from the metadata panel.</td>
+</tr>
+<tr>
+<td><code>Annotation</code></td>
+<td>The parsed annotation record for this image, joined on <code>Imagename</code>. Rendered in the metadata panel as a species → count tally. See <a href="../annotations-and-video/">Annotations</a>.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="bringing-your-own-survey">Bringing your own survey<a class="headerlink" href="#bringing-your-own-survey" title="Permanent link">&para;</a></h2>
+<p>The minimum viable table is:</p>
+<table>
+<thead>
+<tr>
+<th>You must provide</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A <code>DatetimeIndex</code></td>
+<td>The metadata panel's Time row.</td>
+</tr>
+<tr>
+<td><code>Imagename</code></td>
+<td>File resolution and annotation joins.</td>
+</tr>
+<tr>
+<td><code>habcam_lon</code>, <code>habcam_lat</code></td>
+<td>Position, if you provide nothing better.</td>
+</tr>
+<tr>
+<td><code>Xutm</code>, <code>Yutm</code>, <code>dx</code>, <code>dy</code></td>
+<td>Strongly recommended — the accurate position path. <code>dx</code>/<code>dy</code> may be zero if your positions need no offset.</td>
+</tr>
+</tbody>
+</table>
+<p>Everything else is optional: <strong>every</strong> column in the file is listed in the
+metadata panel automatically, so extra columns of your own are displayed without
+any code change. Columns the plugin looks up by name (<code>Heading</code>, <code>bearing</code>,
+<code>Altimeter</code>, the environment channels) simply do not contribute if absent.</p>
+<p>The projected columns must be in the CRS named by
+<a href="../../configuration/settings-reference/#georeferencing"><code>Roughness.epsg</code></a>
+(default EPSG:32619, WGS 84 / UTM 19N) — that is the CRS used to turn them back
+into longitude/latitude.</p>
 
 
 
