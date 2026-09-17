@@ -11,23 +11,9 @@ to the KML report builder via pyqtSignal.
 GPU acceleration (cudf / cuspatial) is used automatically when available;
 the code falls back to CPU (scipy / pandas) otherwise.
 """
-import sys
 import os
 import tempfile
 import pathlib
-
-# getting the name of the directory
-# where the this file is present.
-current = os.path.dirname(os.path.realpath(__file__))
- 
-# Getting the parent directory name
-# where the current directory is present.
-parent = os.path.dirname(current)
- 
-# adding the parent directory to
-# the sys.path.
-sys.path.append(parent)
-
 
 from qgis.PyQt.QtCore import Qt, QSize, QSortFilterProxyModel, pyqtSignal, pyqtSlot
 from qgis.PyQt.QtGui import QColor, QPixmap, QScreen

@@ -42,8 +42,7 @@ Map tools (maptools/qgsmaptools.py)
     GRQueryTool   — same + triggers GRASS r.what raster query
     GCRTool       — rubber-band rectangle → sets GRASS computational region
 """
-import os, sys
-sys.path.append(os.path.dirname(__file__))
+import os
 
 from qgis.PyQt.QtCore import QSettings, QTranslator, QCoreApplication, Qt
 from qgis.PyQt.QtGui import QIcon, QCursor
