@@ -206,7 +206,39 @@ Two traps worth knowing if you re-derive this independently:
   per frame ≈ 571 px, against a 1024 px frame height — so consecutive frames overlap
   ~44 % and a gap of 2 has no overlap at all.
 
-**Conclusion.** The correct `heading_deg` is the vessel heading ≈ COG ≈ `bearing + 180°`.
+### The one gap — check it before landing the fix
+
+Every measurement above was made on the **`imgs_jpg/*.jpg` delivery**. The service does
+not read those: it reads the stereo `<name>_orig.png` from its **own** `/data` archive and
+works in the *rectified left* frame. Nothing on this machine holds a stereo original — a
+filesystem-wide search for `*_orig.png` found none — so **the one link that could not be
+verified offline is whether the JPEG delivery has the same vertical orientation as the
+rectified left image the service produces.**
+
+This is decision-changing, not a footnote. If `jpg == vflip(rectified_left)`, then in the
+*service's* frame content moves **up**, image-up is astern, and `heading_deg = bearing`
+— today's code — is **correct**, and applying the fix would break a working
+georeference.
+
+What makes a flip unlikely, but not impossible:
+
+- the JPEG is exactly **1360 × 1024**, INTERFACE.md's rectified-left `full_shape`;
+- INTERFACE.md's overlay-registration section explicitly anticipates it — *"identity if
+  the JPG **is** the rectified left"*;
+- the measured ground motion (464 mm) matches the kinematic prediction (495 mm) using
+  `f = 2480.28`, the rectified-left focal length — so the JPEG is that image at native
+  scale. **But a vertical flip preserves scale**, so this does not rule one out;
+- the JPEGs were delivered from `…/habcam_jpg_2015/` for human annotation work, and such
+  deliveries are normally "as the camera sees it".
+
+**The check is one API call** and it is cheap: request `include_left_preview` for a frame
+whose JPEG is on disk and compare the returned `left_preview_png_b64` with the JPEG —
+the registration step INTERFACE.md already describes. Same orientation (identity, not a
+flip) ⟹ the chain closes and the fix is right. This is a better use of the plan's single
+authorised live call than rendering a raster and eyeballing it.
+
+**Conclusion** (subject to that check). The correct `heading_deg` is the vessel heading
+≈ COG ≈ `bearing + 180°`.
 [gt/roughness_geo.py](../gt/roughness_geo.py) sends `bearing`. Positions are correct —
 which is exactly why this survived a georeferencing check that verified *position* to
 ~0.1 m and never tested *rotation*.
@@ -278,10 +310,11 @@ review, one GUI-check session.
   comments** — the issue bodies alone are misleading.
 - Read `/home/epinux/dev/stereo-roughness/INTERFACE.md` §`geo` and §`POST /mosaic`
   before Track 3.
-- **Track 3 no longer needs the API to decide anything** — the question was settled
-  offline during planning. A live call is authorised only to *confirm the fix*: render one
-  frame before and after and check the raster's orientation against the bathymetry. One
-  window, no batching; the service is a shared GPU.
+- **Track 3 needs exactly one live API call, as a gate** (task 13b): `include_left_preview`
+  for a single frame, to confirm the JPEG delivery and the service's rectified-left frame
+  share a vertical orientation. Everything else was settled offline. A second call to
+  render one frame before/after the fix is also authorised. No batching; the service is a
+  shared GPU.
 - Reference data: `/home/epinux/dev/groundtruther_test_dataset/` (`projectdata.pq`,
   `test_detector_output.csv`, `test_mosaic_real.*`).
 
@@ -361,6 +394,14 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
       ±15-frame nav baseline. Expect ~175° error for the first and ~5° for the second.
       Paste both into the Progress Log. **Do not take the fix on trust** — if this does
       not reproduce, stop and report, because everything below depends on it.
+- [ ] **13b. GATE — confirm the JPEG and the service's rectified left share a vertical
+      orientation.** See "The one gap" in Finding 3. Request `include_left_preview` for a
+      frame whose JPEG is on disk and compare the two: same orientation ⟹ proceed;
+      **vertically flipped ⟹ STOP — today's `heading_deg = bearing` is correct, close
+      [#31](https://github.com/epifanio/groundtruther/issues/31) as invalid and report.**
+      Everything from task 14 on is conditional on this. Do not skip it because the
+      evidence looks overwhelming — it is overwhelming *in the JPEG frame*, which is not
+      the frame the service works in.
 - [ ] **14. Make `Heading` and `bearing` distinct quantities** in
       [gt/roughness_geo.py](../gt/roughness_geo.py). `DEFAULT_HEADING_COLS` currently
       treats them as interchangeable spellings. A true `Heading` column is used as-is; a
@@ -475,6 +516,11 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv     # reuse the main venv
   previously exported rasters need regenerating.
 - **Risk: over-correcting.** If the service is fixed for mode A while the client also
   compensates, the error comes back. Fix only what GroundTruther sends; report the rest.
+- **Risk: the whole of Track 3 is inverted.** Every measurement was made on the JPEG
+  delivery, and the service works from its own stereo archive. A vertical flip between the
+  two would make today's code correct and the "fix" a regression. *Mitigation:* task 13b
+  is a hard gate — one API call, before any code changes. This is the only part of this
+  plan that could actively make things worse if it is wrong.
 - **Risk: scope sprawl into `querybuilder_gui.py`.** It is ~1300 lines and untested. The
   Scope section forbids touching anything but the import lines. If a fix seems to require
   more, stop and say so.
