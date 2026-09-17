@@ -117,5 +117,8 @@ in `PLANNING/` — see [PLANNING/README.md](PLANNING/README.md) and the rules in
 - A plan is started by copying [PLANNING/TEMPLATE_planning.md](PLANNING/TEMPLATE_planning.md)
   → `PLANNING/TODO_<topic>.md`; its **kickoff prompt** is pasted into a fresh agent session,
   which reads `CLAUDE.md` + the project memory *first*.
+- **Two prompts:** the *authoring* prompt (in `PLANNING/README.md`) turns the user's raw notes
+  into a filled plan; the *kickoff* prompt at the end of each plan executes it. If you are
+  handed notes for substantial work, offer to author a plan rather than start coding.
 - **Done** = tests green, project memory updated, Progress Log filled, `TODO_` prefix
   dropped (`Status: DONE`), work PR opened and left for the user to merge.

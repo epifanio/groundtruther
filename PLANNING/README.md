@@ -41,12 +41,61 @@ open, prefix **removed** on completion. One topic per file; link related files w
 
 ## Starting a plan (Flow A)
 
+The intended path is to **hand your raw thoughts to a fresh agent session and let it write
+the plan**. Paste the authoring prompt below with your notes appended — unordered and
+half-formed is fine; the agent does the structuring, grounds the plan in the actual source
+and memory, and states an assumption wherever your notes are silent rather than stalling.
+
+### Authoring prompt
+
+```
+You are working on the GroundTruther QGIS plugin (QGIS 4 / Qt6). Author a planning file
+from my notes below. Do NOT implement any of the work.
+
+First: read CLAUDE.md, PLANNING/README.md and PLANNING/planning_rules.md, and review the
+project memory (your recalled memories + the MEMORY.md index). Then read enough of the
+actual source to make the plan concrete — a plan that contradicts the code is worse than
+no plan.
+
+Then, on a new branch `docs/plan-<kebab-topic>` in the main working copy (no worktree —
+that comes at execution time), copy PLANNING/TEMPLATE_planning.md →
+PLANNING/TODO_<kebab-topic>.md and fill in every section:
+- Header table (Status: PLANNED; Worktree branch = the EXECUTION branch <type>/<topic>).
+- Objective, in outcome terms.
+- Context & background — cite real files as path:line and link the relevant memory slugs.
+- Scope — explicit in/out bullets; this is where creep gets contained.
+- Prerequisites, Worktree setup, Task breakdown (sub-tasks small enough to verify each).
+- Acceptance criteria — including the manual QGIS GUI check *I* must do, since agents
+  cannot drive the GUI.
+- Risks & rollback.
+- A self-contained Kickoff prompt (§6) that assumes zero prior conversation.
+Leave the Progress log empty.
+
+Where my notes are silent or ambiguous, pick a sensible default and state it — do not
+stall. Then open the plan PR against master (gh, account epifanio) and report back: the
+assumptions you made, and any question whose answer would actually change the plan. Do
+NOT merge, and do NOT start the work.
+
+My notes:
+<paste your thoughts here — rough, unordered, whatever form they are in>
+```
+
+Useful to include in the notes (all optional — gaps become flagged assumptions): the topic
+and its type (`feat`/`fix`/`docs`/`refactor`/`chore`); what "done" lets you *do*; what is
+explicitly out; opinions on approach or ordering; what you will check by hand in QGIS.
+
+### Doing it yourself
+
 1. Copy [TEMPLATE_planning.md](TEMPLATE_planning.md) → `PLANNING/TODO_<kebab-topic>.md`.
 2. Skim `CLAUDE.md` and the project memory first, so the plan doesn't contradict reality.
 3. Fill every section — especially **Scope** (in/out), **Task breakdown**, and
    **Acceptance criteria**.
 4. Write the **kickoff prompt**: self-contained, assumes no prior conversation.
 5. Open the plan PR on `docs/plan-<topic>`; review and merge it before work starts.
+
+Either way the **topic slug is kebab-case and identical across all three places**: the file
+`TODO_<topic>.md`, the execution branch `<type>/<topic>`, and the worktree
+`../groundtruther-<topic>`.
 
 ## Executing a plan (Flow B)
 
