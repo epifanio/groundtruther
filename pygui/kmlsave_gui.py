@@ -42,7 +42,9 @@ parent = os.path.dirname(current)
 # the sys.path.
 sys.path.append(parent)
 
-from groundtruther.configure import get_settings, error_message, log_exception
+from groundtruther.configure import (
+    get_settings_checked, error_message, log_exception)
+from groundtruther.gt import config_check
 from qgis.core import Qgis, QgsMessageLog
 
 # from xml.dom import minidom
@@ -84,7 +86,7 @@ class SaveKml(QWidget, Ui_Form):
         # disk.  SaveKml does not own a config dialog – that lives on the
         # dockwidget – so there is nothing more we can do here.
         parent_settings = getattr(self.parent, "settings", None)
-        self.settings = parent_settings or get_settings(self.config) or {}
+        self.settings = parent_settings or self._load_settings() or {}
         
         # self.settings = get_settings(self.config)
         self.setupUi(self)
@@ -338,10 +340,16 @@ class SaveKml(QWidget, Ui_Form):
     # Seafloor-roughness products (from the roughness panel on the dock)  #
     # ------------------------------------------------------------------ #
 
-    def _roughness_export_dir(self):
-        """Directory for roughness product images (KML export dir, else temp)."""
-        kmldir = (self.settings or {}).get("Export", {}).get("kmldir", "")
-        return str(kmldir) if kmldir else tempfile.gettempdir()
+    def _load_settings(self):
+        """Load the config, keeping every key that validated (see gt.config_check)."""
+        fresh, report = get_settings_checked(self.config)
+        return config_check.degrade(fresh, report) if fresh is not None else None
+
+    def _export_dir(self):
+        """Directory for exported products — ``Export.kmldir``, else temp."""
+        kmldir = config_check.as_path_str(
+            (self.settings or {}).get("Export", {}).get("kmldir"))
+        return kmldir if kmldir and os.path.isdir(kmldir) else tempfile.gettempdir()
 
     def get_roughness_details(self):
         """Insert the current frame's roughness metrics as a table."""
@@ -362,7 +370,7 @@ class SaveKml(QWidget, Ui_Form):
         if not callable(fn):
             error_message("Roughness panel is not available.")
             return
-        path = os.path.join(self._roughness_export_dir(),
+        path = os.path.join(self._export_dir(),
                             f"{basename}_{uuid.uuid1().hex}.png")
         if not fn(path):
             error_message(
@@ -480,15 +488,16 @@ class SaveKml(QWidget, Ui_Form):
 
     def filemanager(self):
         # Refresh settings in case the user has just saved a new config
-        fresh = get_settings(self.config)
+        fresh = self._load_settings()
         if fresh:
             self.settings = fresh
-        filemanager = self.settings.get("Filesystem", {}).get("filemanager", "")
-        kmldir = self.settings.get("Export", {}).get("kmldir", "")
+        filemanager = config_check.as_path_str(
+            self.settings.get("Filesystem", {}).get("filemanager"))
         if not filemanager:
             error_message("No file manager configured.\nSet one in Settings.")
             return
-        subprocess.Popen([filemanager, str(kmldir)], stdout=subprocess.PIPE)
+        subprocess.Popen([filemanager, self._export_dir()],
+                         stdout=subprocess.PIPE)
 
     def compress_kml(self, outfile, icon):
         directory = os.path.dirname(str(outfile))
@@ -777,10 +786,11 @@ class SaveKml(QWidget, Ui_Form):
         colorpolygon = str(polalpha) + colorpolygon
         tessellate = 0
         extrude = 0
-        fresh = get_settings(self.config)
+        fresh = self._load_settings()
         if fresh:
             self.settings = fresh
-        kmldirectory = self.settings.get("Export", {}).get("kmldir", "")
+        kmldirectory = config_check.as_path_str(
+            self.settings.get("Export", {}).get("kmldir"))
         if not kmldirectory:
             error_message("No KML export directory configured.\nSet one in Settings.")
             return

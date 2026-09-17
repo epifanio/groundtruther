@@ -28,6 +28,7 @@ from qgis.core import (
 )
 
 from groundtruther.configure import log_exception
+from groundtruther.gt import config_check
 from groundtruther.gt import roughness_client
 from groundtruther.gt import task_runner
 
@@ -278,7 +279,8 @@ class RoughnessMixin:
             mit.addWidget(QLabel("Trim"))
             self._micro_dem_trim = QSpinBox()
             self._micro_dem_trim.setRange(0, 10)
-            self._micro_dem_trim.setValue(int(cfg.get("dem_trim_border", 2)))
+            self._micro_dem_trim.setValue(
+                config_check.as_int(cfg.get("dem_trim_border"), 2))
             self._micro_dem_trim.setToolTip("Drop N outer rings of the DEM grid.")
             self._micro_dem_trim.valueChanged.connect(self._rerender_micro_dem)
             mit.addWidget(self._micro_dem_trim)
@@ -288,7 +290,8 @@ class RoughnessMixin:
             self._micro_dem_clip.setSingleStep(0.5)
             self._micro_dem_clip.setDecimals(1)
             self._micro_dem_clip.setSpecialValueText("off")     # 0.0 → masking off
-            self._micro_dem_clip.setValue(float(cfg.get("dem_clip_sigma", 5.0)))
+            self._micro_dem_clip.setValue(
+                config_check.as_float(cfg.get("dem_clip_sigma"), 5.0))
             self._micro_dem_clip.setToolTip(
                 "Mask height outliers beyond N robust σ from the median (0 = off). "
                 "Lower = more aggressive spike removal.")
@@ -297,7 +300,8 @@ class RoughnessMixin:
             mit.addWidget(QLabel("Erode"))
             self._micro_dem_erode = QSpinBox()
             self._micro_dem_erode.setRange(0, 5)
-            self._micro_dem_erode.setValue(int(cfg.get("dem_erode", 1)))
+            self._micro_dem_erode.setValue(
+                config_check.as_int(cfg.get("dem_erode"), 1))
             self._micro_dem_erode.setToolTip(
                 "Peel N rings off every no-data / outlier boundary "
                 "(higher = fewer edge spikes, less coverage).")
@@ -372,13 +376,13 @@ class RoughnessMixin:
         cfg = (getattr(self, "settings", None) or {}).get("Roughness") or {}
         trim = (self._micro_dem_trim.value()
                 if getattr(self, "_micro_dem_trim", None) is not None
-                else int(cfg.get("dem_trim_border", 2)))
+                else config_check.as_int(cfg.get("dem_trim_border"), 2))
         clip = (self._micro_dem_clip.value()
                 if getattr(self, "_micro_dem_clip", None) is not None
-                else float(cfg.get("dem_clip_sigma", 5.0)))
+                else config_check.as_float(cfg.get("dem_clip_sigma"), 5.0))
         erode = (self._micro_dem_erode.value()
                  if getattr(self, "_micro_dem_erode", None) is not None
-                 else int(cfg.get("dem_erode", 1)))
+                 else config_check.as_int(cfg.get("dem_erode"), 1))
         return int(trim), float(clip), int(erode)
 
     def _rerender_micro_dem(self, *_args) -> None:
@@ -530,10 +534,11 @@ class RoughnessMixin:
         """Georeferencing defaults from config (Roughness.* keys)."""
         cfg = (getattr(self, "settings", None) or {}).get("Roughness") or {}
         return {
-            "georeference": bool(cfg.get("georeference", False)),
-            "epsg": int(cfg.get("epsg") or 32619),
-            "heading_offset_deg": float(cfg.get("heading_offset_deg") or 0.0),
-            "mirror": bool(cfg.get("mirror", False)),
+            "georeference": config_check.as_bool(cfg.get("georeference"), False),
+            "epsg": config_check.as_int(cfg.get("epsg"), 32619),
+            "heading_offset_deg": config_check.as_float(
+                cfg.get("heading_offset_deg"), 0.0),
+            "mirror": config_check.as_bool(cfg.get("mirror"), False),
         }
 
     def _georef_settings_prefix(self) -> str:
@@ -1201,9 +1206,10 @@ class RoughnessMixin:
             "api_key": api_key,
             "route": route,
             "direct_url": direct_url,
-            "res_mm": cfg.get("res_mm"),
-            "n_water": cfg.get("n_water"),
-            "dem_max_side": cfg.get("dem_max_side"),
+            # None keeps the service default; a junk value must not be sent.
+            "res_mm": config_check.as_float(cfg.get("res_mm"), None),
+            "n_water": config_check.as_float(cfg.get("n_water"), None),
+            "dem_max_side": config_check.as_int(cfg.get("dem_max_side"), None),
         }
 
     def compute_roughness_for_current_frame(self) -> None:

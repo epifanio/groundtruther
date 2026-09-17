@@ -26,6 +26,7 @@ from qgis.PyQt.QtWidgets import (
 
 from groundtruther.configure import log_exception
 from groundtruther.pygui.image_metadata_gui import ExtendedDateTimeEdit
+from groundtruther.gt import config_check
 from groundtruther.gt import image_manager as img_mgr
 
 
@@ -285,10 +286,8 @@ class ImageBrowserMixin:
 
     def _usbl_transform(self):
         """Cached survey-CRS → WGS-84 transform for the USBL sampling point."""
-        try:
-            epsg = int(((self.settings.get("Roughness") or {}).get("epsg")) or 32619)
-        except Exception:  # noqa: BLE001
-            epsg = 32619
+        epsg = config_check.as_int(
+            (self.settings.get("Roughness") or {}).get("epsg"), 32619)
         xform = getattr(self, "_usbl_xform", None)
         if xform is None or getattr(self, "_usbl_xform_epsg", None) != epsg:
             src = QgsCoordinateReferenceSystem(f"EPSG:{epsg}")
