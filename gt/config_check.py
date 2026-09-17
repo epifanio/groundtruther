@@ -384,23 +384,27 @@ def _check_value(spec: KeySpec, value: Any) -> str | None:
 # ---------------------------------------------------------------------------
 
 def merge_settings(existing, updates):
-    """Deep-merge *updates* into *existing* and return a new dict.
+    """Recursively merge *updates* over *existing* and return a new dict.
 
-    Section by section, key by key: keys the Settings dialog does not know
-    about (the whole ``Roughness`` section, ``Video.videoannotation`` when the
-    dialog has no widget for it, …) survive untouched.  ``existing`` may be
-    ``None`` (no config file yet).
+    Nested mappings merge key by key, so anything *updates* does not mention
+    survives untouched — that is the whole point: the Settings dialog can only
+    speak for the keys it has widgets for, and rebuilding the document from the
+    form alone deletes the rest.
+
+    A key that *is* present in *updates* wins even when its value is ``None``,
+    so clearing a form field really does clear the setting. To *preserve* a
+    key, leave it out of *updates* rather than passing ``None``.
+
+    Neither argument is modified; ``existing`` may be ``None`` (no config file
+    yet).
     """
     merged = copy.deepcopy(existing) if isinstance(existing, dict) else {}
-    for section, values in (updates or {}).items():
-        if not isinstance(values, dict):
-            merged[section] = values
-            continue
-        current = merged.get(section)
-        if not isinstance(current, dict):
-            current = {}
-        current.update(values)
-        merged[section] = current
+    for key, new_value in (updates or {}).items():
+        old_value = merged.get(key)
+        if isinstance(old_value, dict) and isinstance(new_value, dict):
+            merged[key] = merge_settings(old_value, new_value)
+        else:
+            merged[key] = copy.deepcopy(new_value)
     return merged
 
 
@@ -409,11 +413,16 @@ def write_settings(config_path, settings):
 
     ``yaml.safe_dump`` quotes whatever needs quoting, so a path containing
     ``:`` or ``#`` round-trips — unlike the raw ``key: {{value}}`` template
-    this replaced.  ``sort_keys=False`` keeps the section order of the dict.
+    this replaced.  The remaining options keep the file looking like the one
+    GroundTruther has always shipped, so a save through the dialog is not a
+    gratuitous reformat: ``sort_keys=False`` preserves key order,
+    ``explicit_start`` keeps the leading ``---``, and ``indent=4`` matches the
+    existing indentation.
     """
     with open(config_path, "w", encoding="utf8") as yaml_file:
         yaml.safe_dump(settings, yaml_file, sort_keys=False,
-                       default_flow_style=False, allow_unicode=True)
+                       default_flow_style=False, explicit_start=True,
+                       indent=4, allow_unicode=True)
 
 
 # ---------------------------------------------------------------------------

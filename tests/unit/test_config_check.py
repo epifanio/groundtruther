@@ -6,6 +6,7 @@ blank every path including ``Mbes.soundings``, and crash the plugin inside
 ``pd.read_parquet("")`` before any UI existed.
 """
 import pytest
+import yaml
 
 from groundtruther.config_model import HabcamSettings
 from groundtruther.gt import config_check
@@ -397,7 +398,6 @@ def test_as_path_str(value, expected):
 
 def _roundtrip(tmp_path, existing, updates):
     """Write *existing*, merge *updates* over it, write back, read back."""
-    import yaml
     path = tmp_path / "config.yaml"
     path.write_text(yaml.safe_dump(existing, sort_keys=False), encoding="utf8")
     loaded = yaml.safe_load(path.read_text(encoding="utf8"))
@@ -459,6 +459,54 @@ def test_merge_settings_does_not_mutate_the_loaded_document():
     existing = {"HabCam": {"imagepath": "/a", "imagemetadata": "/b"}}
     config_check.merge_settings(existing, {"HabCam": {"imagepath": "/c"}})
     assert existing["HabCam"]["imagepath"] == "/a"
+
+
+def test_merge_settings_is_recursive():
+    """Nesting deeper than section/key merges too, not just the top two levels."""
+    existing = {"A": {"B": {"keep": 1, "change": 1}}}
+    merged = config_check.merge_settings(existing, {"A": {"B": {"change": 2}}})
+    assert merged["A"]["B"] == {"keep": 1, "change": 2}
+
+
+def test_merge_settings_explicit_none_clears_a_value():
+    """A cleared form field (``None``) must win — that is how you unset a key.
+
+    To *preserve* a key, omit it from the updates rather than passing ``None``.
+    """
+    merged = config_check.merge_settings(
+        {"Mbes": {"soundings": "/s.parquet"}}, {"Mbes": {"soundings": None}})
+    assert merged["Mbes"]["soundings"] is None
+
+
+def test_merge_settings_tolerates_none_updates():
+    assert config_check.merge_settings({"A": 1}, None) == {"A": 1}
+
+
+def test_merge_settings_does_not_alias_the_updates():
+    """The result must not share nested objects with either input."""
+    updates = {"Roughness": {"epsg": 32619}}
+    merged = config_check.merge_settings({}, updates)
+    merged["Roughness"]["epsg"] = 32620
+    assert updates["Roughness"]["epsg"] == 32619
+
+
+def test_save_keeps_the_file_looking_like_a_groundtruther_config(tmp_path):
+    """A save must not gratuitously reformat the user's config file.
+
+    The shipped config has a ``---`` header and 4-space indentation; a plain
+    ``safe_dump`` drops both, so the first save would rewrite every line.
+    """
+    path = tmp_path / "config.yaml"
+    config_check.write_settings(path, {
+        "HabCam": {"imagepath": "/data/images"},
+        "Roughness": {"epsg": 32619},
+    })
+    text = path.read_text(encoding="utf8")
+
+    assert text.startswith("---\n")
+    assert "\n    imagepath: /data/images\n" in text
+    # …and key order is preserved, so the file stays recognisable.
+    assert list(yaml.safe_load(text)) == ["HabCam", "Roughness"]
 
 
 def test_merge_settings_replaces_a_non_mapping_section():
