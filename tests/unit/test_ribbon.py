@@ -778,3 +778,86 @@ def test_a_planted_roughness_survives_resample_blend_and_spectrum():
     predicted = ribbon.w1_from_gamma2(k_band[inside], gamma2, w2)
     ratio = float(np.median(w_band[inside] / predicted))
     assert ratio == pytest.approx(1.0, rel=0.5), "the amplitude has to survive too"
+
+
+# --- vertical levelling and the noise floor ---------------------------------
+
+def test_level_vertically_recovers_planted_offsets():
+    """The high-frequency part of a planted offset sequence must come back."""
+    rng = np.random.default_rng(2)
+    n = 200
+    planted = rng.normal(0, 0.08, n)
+    pairs = [(i, j, planted[i] - planted[j])
+             for i in range(n) for j in (i + 1, i + 2) if j < n]
+    offsets = ribbon.level_vertically(pairs, n)
+    # both are compared after the same high-pass, since the low frequencies are
+    # deliberately left to the depth sensor
+    expected = planted - ribbon._smooth(planted, 51)
+    assert np.std(offsets - expected) < 0.1 * np.std(expected)
+
+
+def test_levelling_shrinks_the_seam_disagreement():
+    rng = np.random.default_rng(4)
+    n = 120
+    planted = rng.normal(0, 0.09, n)
+    pairs = [(i, i + 1, planted[i] - planted[i + 1]) for i in range(n - 1)]
+    offsets = ribbon.level_vertically(pairs, n)
+    before = np.array([d for _, _, d in pairs])
+    after = np.array([(planted[i] - offsets[i]) - (planted[j] - offsets[j])
+                      for i, j, _ in pairs])
+    assert np.std(after) < np.std(before) / 5
+
+
+def test_levelling_leaves_the_datum_to_the_depth_sensor():
+    """A slow real drift must NOT be absorbed — that is the vehicle's to report."""
+    n = 200
+    drift = np.linspace(-0.5, 0.5, n)          # a metre over the strip
+    pairs = [(i, i + 1, drift[i] - drift[i + 1]) for i in range(n - 1)]
+    offsets = ribbon.level_vertically(pairs, n)
+    assert np.abs(offsets).max() < 0.02        # almost nothing is taken out
+
+
+def test_level_vertically_with_no_pairs():
+    assert np.all(ribbon.level_vertically([], 10) == 0.0)
+
+
+def test_registration_noise_spectrum_integrates_to_the_variance():
+    """It is a spectral density, so its integral has to be sigma squared."""
+    sigma, spacing = 0.05, 0.49
+    k = np.linspace(1e-6, 4000.0, 4_000_001)
+    w = ribbon.registration_noise_spectrum(sigma, spacing, k)
+    assert 2 * float(np.trapezoid(w, k)) == pytest.approx(sigma ** 2, rel=0.01)
+
+
+def test_registration_noise_is_flat_across_the_scale_gap():
+    """Which is exactly why it competes with the measurement of interest."""
+    k_lo, k_hi = ribbon.wavelength_band_to_k(1.2, 3.0)
+    w = ribbon.registration_noise_spectrum(0.08, 0.49, np.array([k_lo, k_hi]))
+    assert w[1] / w[0] > 0.5
+
+
+def test_sigma_for_noise_floor_inverts_the_noise_spectrum():
+    spacing, k = 0.49, np.array([2.09, 5.24])
+    target = ribbon.registration_noise_spectrum(0.02, spacing, k)
+    assert ribbon.sigma_for_noise_floor(target, spacing, k) == pytest.approx(0.02,
+                                                                            rel=1e-6)
+
+
+def test_levelling_is_not_wrecked_by_a_bad_frame():
+    """A few frames return a partly wrong micro-DEM and disagree by over a metre.
+
+    Plain least squares smears that across the whole chain — on the real strip it
+    gave a 1.2 m 95th-percentile correction against a 0.1 m median.
+    """
+    rng = np.random.default_rng(9)
+    n = 150
+    planted = rng.normal(0, 0.05, n)
+    pairs = [(i, j, planted[i] - planted[j])
+             for i in range(n) for j in (i + 1, i + 2) if j < n]
+    clean = ribbon.level_vertically(pairs, n)
+    corrupted = list(pairs)
+    for index in (40, 41, 90):
+        i, j, d = corrupted[index]
+        corrupted[index] = (i, j, d + 3.0)          # a metres-wrong overlap
+    robust = ribbon.level_vertically(corrupted, n)
+    assert np.percentile(np.abs(robust - clean), 95) < 0.05

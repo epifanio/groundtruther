@@ -335,8 +335,13 @@ def cmd_fetch(args):
     from groundtruther.gt import roughness_geo
 
     cfg = load_config(args.config)
-    endpoint = cfg["Processing"]["grass_api_endpoint"]
-    api_key = cfg["Processing"]["grass_api_key"]
+    # Two transports, same contract.  --direct-url posts straight at the GPU
+    # service with no auth header, which is the way to run this when the
+    # roughness container is on the same machine: no FastGIS key, no tunnel.
+    direct_url = args.direct_url or os.environ.get("ROUGHNESS_DIRECT_URL")
+    endpoint = None if direct_url else cfg["Processing"]["grass_api_endpoint"]
+    api_key = None if direct_url else cfg["Processing"]["grass_api_key"]
+    print("transport:", direct_url if direct_url else f"{endpoint} (X-API-Key)")
     df = read_inventory(args.work)
     strip = strip_frames(df, args.start, args.n)
     cache = os.path.join(args.work, "cache")
@@ -355,8 +360,9 @@ def cmd_fetch(args):
         geo = roughness_geo.geo_from_record(record)
         try:
             result = rc.roughness_for_frame(
-                frame_key, endpoint=endpoint, api_key=api_key, geo=geo,
-                dem_format="mm", include_orthophoto=True, include_spectrum=True)
+                frame_key, endpoint=endpoint, api_key=api_key,
+                direct_url=direct_url, geo=geo, dem_format="mm",
+                include_orthophoto=True, include_spectrum=True)
         except rc.RoughnessError as exc:
             print(f"  [{position}] {frame_key}: FAILED {exc}", flush=True)
             rows.append({"frame_key": frame_key, "error": str(exc)})
@@ -528,37 +534,71 @@ def cmd_composite(args):
         raise SystemExit(f"grid would be {cells / 1e9:.1f} Gcell; raise --max-cells "
                          f"or drop --north-up")
 
-    # pass 2: resample, blend, and measure the seams as we go
-    canvas = ribbon.RibbonCanvas(target, n_bands=4)
-    previous = None
-    seams = []
+    # pass 2: resample and measure every overlap (lag 1 and 2 -- frames are
+    # ~0.49 m apart and ~1.3 m long, so a frame overlaps the next two, and those
+    # extra pairs close loops the levelling below would otherwise random-walk
+    # along)
+    def resample_all():
+        for position, geotransform, elevation, rgb in placed_frames(poses, cache):
+            pose = poses.iloc[position]
+            absolute = elevation - float(pose.v_depth_m)
+            bands = [absolute]
+            bands += ([rgb[..., i] for i in range(3)] if rgb is not None
+                      else [np.full(absolute.shape, np.nan)] * 3)
+            window, values, valid = ribbon.resample_frame(bands, geotransform, target)
+            if np.any(valid):
+                yield position, pose, window, values, valid
+
+    def measure_overlaps(recent, position, window, values, valid, offsets=None):
+        found = []
+        for previous in recent:
+            shared = ribbon.intersect_windows(previous["window"], window)
+            if shared is None:
+                continue
+            _, cut_prev, cut_now = shared
+            shift = 0.0 if offsets is None else (offsets[previous["position"]]
+                                                 - offsets[position])
+            stats = ribbon.overlap_difference(
+                previous["values"][cut_prev] - shift, previous["valid"][cut_prev],
+                values[0][cut_now], valid[cut_now])
+            if stats:
+                stats.update(source=poses.iloc[position].source,
+                             i=int(previous["position"]), j=int(position),
+                             lag=int(position - previous["position"]))
+                found.append(stats)
+        return found
+
     t0 = time.time()
-    for count, (position, geotransform, elevation, rgb) in enumerate(
-            placed_frames(poses, cache), 1):
-        pose = poses.iloc[position]
-        # camera-relative height -> survey datum
-        absolute = elevation - float(pose.v_depth_m)
-        bands = [absolute]
-        bands += ([rgb[..., i] for i in range(3)] if rgb is not None
-                  else [np.full(absolute.shape, np.nan)] * 3)
-        window, values, valid = ribbon.resample_frame(bands, geotransform, target)
-        if not np.any(valid):
-            continue
+    overlaps = []
+    recent = []
+    for count, (position, pose, window, values, valid) in enumerate(resample_all(), 1):
+        overlaps += measure_overlaps(recent, position, window, values, valid)
+        recent = (recent + [{"position": position, "window": window,
+                             "values": values[0], "valid": valid}])[-2:]
+        if count % 50 == 0:
+            print(f"  measured {count}/{len(used)} ({time.time() - t0:.0f}s)", flush=True)
+
+    offsets = np.zeros(len(poses))
+    if args.level and overlaps:
+        offsets = ribbon.level_vertically(
+            [(o["i"], o["j"], o["median"]) for o in overlaps], len(poses),
+            anchor_window=args.anchor_window)
+        print(f"\nvertical levelling: {len(overlaps)} overlap pairs, "
+              f"per-frame correction median|.| {np.median(np.abs(offsets)) * 1000:.1f} mm, "
+              f"p95 {np.percentile(np.abs(offsets), 95) * 1000:.1f} mm")
+
+    # pass 3: apply the levelling, accumulate, and re-measure the seams
+    canvas = ribbon.RibbonCanvas(target, n_bands=4)
+    seams = []
+    recent = []
+    for count, (position, pose, window, values, valid) in enumerate(resample_all(), 1):
+        values[0] = values[0] - offsets[position]
+        seams += measure_overlaps(recent, position, window, values, valid)
+        recent = (recent + [{"position": position, "window": window,
+                             "values": values[0], "valid": valid}])[-2:]
         canvas.add(window, values, valid)
-        if previous is not None:
-            shared = ribbon.intersect_windows(previous[0], window)
-            if shared is not None:
-                _, cut_prev, cut_now = shared
-                stats = ribbon.overlap_difference(
-                    previous[1][cut_prev], previous[2][cut_prev],
-                    values[0][cut_now], valid[cut_now])
-                if stats:
-                    stats["source"] = pose.source
-                    stats["position"] = int(position)
-                    seams.append(stats)
-        previous = (window, values[0], valid)
-        if count % 25 == 0:
-            print(f"  {count}/{len(used)} frames ({time.time() - t0:.0f}s)", flush=True)
+        if count % 50 == 0:
+            print(f"  blended {count}/{len(used)} ({time.time() - t0:.0f}s)", flush=True)
 
     bands, count_band = canvas.result()
     covered = int((count_band > 0).sum())
@@ -581,10 +621,9 @@ def cmd_composite(args):
                                 epsg, count_path, nodata=0)
     print("wrote", dem_path, ortho_path, count_path, sep="\n  ")
 
-    if seams:
-        frame = pd.DataFrame(seams)
-        frame.to_csv(os.path.join(args.work, "seams.csv"), index=False)
-        print("\nseam error (overlap elevation difference between consecutive frames)")
+    def report(label, rows):
+        frame = pd.DataFrame(rows)
+        print(f"\nseam error {label} (elevation difference where two frames overlap)")
         print(f"  pairs measured      : {len(frame)}")
         for source, group in frame.groupby("source"):
             print(f"  {source:6s} n={len(group):3d}  median|dz| {group.median_abs.median() * 1000:7.1f} mm"
@@ -593,13 +632,35 @@ def cmd_composite(args):
         print(f"  ALL    n={len(frame):3d}  median|dz| {frame.median_abs.median() * 1000:7.1f} mm"
               f"   rms {frame.rms.median() * 1000:7.1f} mm"
               f"   p95 {frame.p95_abs.median() * 1000:7.1f} mm")
+        # the per-frame vertical placement sigma, which is what sets the
+        # spectral noise floor: var(pair difference) = 2 * sigma^2
+        sigma = float(frame["median"].std() / np.sqrt(2))
+        robust = float((frame["median"].quantile(.75)
+                        - frame["median"].quantile(.25)) / 1.349 / np.sqrt(2))
+        print(f"  per-frame vertical sigma: {sigma * 1000:.1f} mm "
+              f"({robust * 1000:.1f} mm robust)")
+        return frame, sigma, robust
+
+    if overlaps:
+        report("BEFORE levelling", overlaps)
+    if seams:
+        frame, sigma, robust = report("after levelling" if args.level else "(no levelling)",
+                                      seams)
+        frame.to_csv(os.path.join(args.work, "seams.csv"), index=False)
+        summary_extra = {"vertical_sigma_m": sigma, "vertical_sigma_robust_m": robust,
+                         "levelled": bool(args.level)}
+    else:
+        summary_extra = {}
     with open(os.path.join(args.work, "composite_summary.json"), "w") as fh:
         json.dump({"frames_used": len(used), "frames_total": int(len(poses)),
                    "grid": {k: target[k] for k in ("width", "height", "pixel_m",
                                                    "azimuth_deg")},
                    "coverage_fraction": covered / cells,
                    "seam_median_abs_mm": (float(pd.DataFrame(seams).median_abs.median() * 1000)
-                                          if seams else None)}, fh, indent=2)
+                                          if seams else None),
+                   "frame_spacing_m": float(np.median(ribbon.step_lengths(
+                       poses.easting.values, poses.northing.values))),
+                   **summary_extra}, fh, indent=2)
 
 
 # --------------------------------------------------------------------------
@@ -750,11 +811,52 @@ def cmd_analyse(args):
                   f"+-{gap_fit['gamma_err']:.2f} (=> gamma2 "
                   f"{gap_fit['gamma'] + 1:.2f}), r2 {gap_fit['r2']:.2f}, "
                   f"n {gap_fit['n']} bands")
+            # The ribbon's own registration noise lands flat across this band,
+            # so the measurement is only meaningful above it.
+            composite_summary = {}
+            summary_path = os.path.join(args.work, "composite_summary.json")
+            if os.path.exists(summary_path):
+                with open(summary_path) as fh:
+                    composite_summary = json.load(fh)
+            spacing = composite_summary.get("frame_spacing_m") or float(
+                np.median(ribbon.step_lengths(poses.easting.values,
+                                              poses.northing.values)))
+            sigma = composite_summary.get("vertical_sigma_m")
+            sigma_robust = composite_summary.get("vertical_sigma_robust_m")
+            noise = None
+            if sigma:
+                noise = ribbon.registration_noise_spectrum(sigma, spacing, k_rb)
+                noise_robust = ribbon.registration_noise_spectrum(sigma_robust,
+                                                                  spacing, k_rb)
+                inside_band = (k_rb >= gap_band[0]) & (k_rb <= gap_band[1])
+                print(f"\nregistration noise floor (per-frame vertical sigma "
+                      f"{sigma * 1000:.0f} mm / {sigma_robust * 1000:.0f} mm robust, "
+                      f"frame spacing {spacing:.2f} m):")
+                print(f"  measured / noise floor in the gap band: "
+                      f"{np.median(w_rb[inside_band] / noise[inside_band]):.2f}x "
+                      f"({np.median(w_rb[inside_band] / noise_robust[inside_band]):.2f}x "
+                      f"using the robust sigma)")
+                out["noise_floor"] = {
+                    "sigma_m": sigma, "sigma_robust_m": sigma_robust,
+                    "frame_spacing_m": spacing,
+                    "measured_over_floor": float(np.median(
+                        w_rb[inside_band] / noise[inside_band])),
+                    "measured_over_floor_robust": float(np.median(
+                        w_rb[inside_band] / noise_robust[inside_band]))}
+
             if per_frame:
                 predicted = ribbon.w1_from_gamma2(k_rb, per_frame["gamma2"],
                                                   per_frame["w2"])
                 inside = (k_rb >= gap_band[0]) & (k_rb <= gap_band[1])
                 ratio = np.nanmedian(w_rb[inside] / predicted[inside])
+                if sigma:
+                    needed = ribbon.sigma_for_noise_floor(
+                        predicted[inside] / 10.0, spacing, k_rb[inside])
+                    out["sigma_needed_m"] = needed
+                    print(f"  to put the floor 10x BELOW the per-frame "
+                          f"prediction, per-frame vertical placement would have "
+                          f"to reach {needed * 1000:.0f} mm "
+                          f"(now {sigma * 1000:.0f} mm)")
                 out["extrapolation"] = {
                     "gamma1_ribbon": gap_fit["gamma"],
                     "gamma1_ribbon_err": gap_fit["gamma_err"],
@@ -794,6 +896,12 @@ def cmd_analyse(args):
                   label=f"per-frame fit extrapolated (gamma2={per_frame['gamma2']:.2f})")
         ax.axvspan(per_frame["fit_lo"], per_frame["fit_hi"], color="0.85",
                    label="band the per-frame fit was made in")
+    if ribbon_spectrum is not None and out.get("noise_floor"):
+        ax.loglog(ribbon_spectrum[2],
+                  ribbon.registration_noise_spectrum(
+                      out["noise_floor"]["sigma_m"],
+                      out["noise_floor"]["frame_spacing_m"], ribbon_spectrum[2]),
+                  "r:", lw=1.8, label="ribbon registration-noise floor")
     gap_lo, gap_hi = ribbon.wavelength_band_to_k(1.2, 3.0)
     ax.axvspan(gap_lo, gap_hi, color="orange", alpha=0.25,
                label="the 1.2-3 m scale gap")
@@ -1021,6 +1129,10 @@ def main(argv=None):
 
     s = strip_args(sub.add_parser("fetch", help="fetch + cache one micro-DEM per frame"))
     s.add_argument("--refresh", action="store_true", help="refetch cached frames")
+    s.add_argument("--direct-url", default=None,
+                   help="post straight at the GPU service, e.g. "
+                        "http://127.0.0.1:7871/roughness (no API key needed); "
+                        "also read from ROUGHNESS_DIRECT_URL")
     s.set_defaults(func=cmd_fetch)
 
     s = strip_args(sub.add_parser("inspect", help="sanity-check the fetched batch"))
@@ -1032,7 +1144,10 @@ def main(argv=None):
     s.add_argument("--north-up", action="store_true",
                    help="do not align the grid to the track (huge for a long ribbon)")
     s.add_argument("--max-cells", type=float, default=4e8)
-    s.set_defaults(func=cmd_composite)
+    s.add_argument("--no-level", dest="level", action="store_false",
+                   help="skip the vertical levelling (keep raw V_Depth heights)")
+    s.add_argument("--anchor-window", type=int, default=51)
+    s.set_defaults(func=cmd_composite, level=True)
 
     s = sub.add_parser("analyse", help="profile vs MBES + the scale-gap spectrum")
     s.set_defaults(func=cmd_analyse)

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Status** | `DONE` (phase 2 blocked — see the Progress Log) |
+| **Status** | `DONE` |
 | **Type** | feat |
 | **Worktree branch** | `feat/photogrammetric-ribbon` |
 | **Created** | 2026-09-17 |
@@ -188,11 +188,11 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv
 
 ### Phase 2 — fetch (the only API phase)
 
-- [ ] **4. Disk cache first, then fetch.** **BLOCKED — API key rejected (401).** `dem_format:"mm"`, `include_orthophoto`,
+- [x] **4. Disk cache first, then fetch.** 296/296 cached via the LOCAL GPU service (no API key). `dem_format:"mm"`, `include_orthophoto`,
       `geo` from the corrected `geo_from_record`, `dem_max_side` at the service default.
       ~300 calls; first is ~14 s cold, then ~0.5 s. Persist raw JSON per frame keyed by
       `frame_key` **before** any decoding, so a decode bug never costs a refetch.
-- [ ] **5. Sanity-check the batch** — implemented (`inspect`), blocked on task 4.: `quality == "ok"` rate, `altitude_mm` vs the metadata
+- [x] **5. Sanity-check the batch** — 98.0 % `ok`, altitude agrees to 37 mm.: `quality == "ok"` rate, `altitude_mm` vs the metadata
       `Altimeter` (they should agree to a few cm), `valid_fraction`, and that every
       `micro_dem` carries a nested `geo` block. Report the `insufficient_coverage` rate —
       on turbid frames it will not be zero.
@@ -206,17 +206,17 @@ ln -s /home/epinux/dev/groundtruther/.venv .venv
 - [x] **7. Blend the overlaps.** ~36–46 % along-track overlap means most cells are seen
       twice. Start with a distance-transform feather (what the service's mosaic does);
       keep the per-cell observation count as a QA band.
-- [x] **8. Write the outputs** — code done + run on the simulation; real GeoTIFFs blocked on task 4.: `ribbon_dem.tif` (1-band Float32, NaN nodata) and
+- [x] **8. Write the outputs** — real `ribbon_dem.tif` / `ribbon_ortho.tif` / `ribbon_count.tif`.: `ribbon_dem.tif` (1-band Float32, NaN nodata) and
       `ribbon_ortho.tif` (3-band RGB), both EPSG:32619, via `roughness_geo.write_geotiff`.
       Confirm they land on the bathymetry in QGIS.
-- [x] **9. Quantify the seams** — implemented and reported; 9.0 mm on the simulation, real value blocked on task 4. — where two frames overlap, the elevation difference
+- [x] **9. Quantify the seams** — 13.7 mm pixel-linked vs 119.3 mm nav-bridged, after levelling. — where two frames overlap, the elevation difference
       between them is the registration error. Report its distribution, split by whether
       the link was pixel-derived or nav-bridged. **This number is the honest quality
       statement for the whole product**; put it in the docs page.
 
 ### Phase 4 — the two analyses that justify it
 
-- [x] **10. Profile vs MBES.** — baseline re-measured on this strip (0.115 m, not 0.27 m); ribbon half blocked on task 4. Bin the ribbon to 1 m along track, compare against
+- [x] **10. Profile vs MBES.** — ribbon 0.185 m vs the 0.115 m baseline: it does NOT beat it. Bin the ribbon to 1 m along track, compare against
       `bathy_2015.tif` sampled at the USBL fix. **Baseline to beat: the vehicle's own
       `-(V_Depth + Altimeter)` already matches the MBES to 0.27 m median** (corr 0.662,
       n ≈ 78 000) — that measurement is in the `data-model-facts` memory. If the ribbon
@@ -455,3 +455,122 @@ resample → blend → profile → spectrum. No `website/` page changed, so no
   heading` precisely to confirm it on the first real fetch; it must be ~0.
 - No ribbon GeoTIFFs exist to look at in QGIS yet, so the user's manual checks
   cannot be done.
+
+---
+
+## Progress log — part 2 (2026-09-18): the service was local all along
+
+The user pointed out the roughness machine runs on this computer. Two facts came
+out of checking, and the first corrects the premise:
+
+- **`api.fastgis.eu` is NOT this machine.** It resolves to 65.21.215.94; this box
+  is 84.215.129.204. FastGIS keeps its keys in a Redis inside that remote
+  deployment (`app/auth/keys.py`), and no FastGIS or Redis container or process
+  exists here. **The expired key cannot be regenerated locally.**
+- **The roughness GPU service IS local** — container `stereo-roughness`, exited
+  cleanly 4 weeks ago — and `roughness_client` has a direct fast-path that posts
+  at it with **no auth header at all**. So the key was never needed.
+
+Its `/data` mount points at `/run/media/epinux/ssd1/...`, which a listing of
+`/run/media/epinux/` did not show — a mount-namespace artefact of the agent
+sandbox, not a missing drive. `lsblk` showed ssd1 mounted (`sdb1`, ext4) with the
+same 73 710-file archive, so per the user's instruction **nothing in the docker
+setup was changed**: `docker start stereo-roughness` and it came up with
+`archive_exists: true, gpu: true`. Added `--direct-url` to `fetch`.
+
+### The unverified assumption is now verified
+
+`geotransform heading − nav heading` = **+0.00°**, median over all 296 frames. The
+compositing convention derived from `INTERFACE.md` is correct, and this service
+does not carry stereo-roughness#1 on the client-supplied `geo` path.
+
+### Phase 2 — done
+
+296/296 fetched, **0 failures**, 312 MB cached, 73 min (~13 s/frame; the GPU is
+shared with another container). Batch: **98.0 % `quality == "ok"`**, 2.0 %
+`insufficient_coverage`; `altitude_mm` vs `Altimeter` median **37 mm**;
+`valid_fraction` median 0.837; γ₂ median 2.97 (IQR 2.66–3.15). The service picks
+its own cell size per frame — 2, 3, 4 and 5 mm all appear — which the compositor
+absorbs because every frame goes through its own affine.
+
+### A defect found in the real data, and fixed
+
+The first real composite gave seams of 58.7 mm (pixel-linked) and the spectrum
+came out 16.9× above the per-frame prediction. Before reporting that as a result I
+checked whether it was the ribbon's own noise — and it largely was. Diagnosis:
+**`V_Depth` is quantized to 10 mm and steps frame to frame with σ = 82 mm**,
+essentially the entire measured per-frame vertical scatter. The depth sensor, not
+the stereo, was making the seams.
+
+Added `level_vertically`: per-frame vertical offsets solved from the overlap
+medians by robust IRLS (plain least squares was wrecked by a few frames whose
+micro-DEM is metres out — 1.2 m p95 correction), using lag-1 **and lag-2** pairs
+so the chain closes loops instead of random-walking, and keeping only the
+high-frequency part so the datum still comes from the vehicle.
+
+| seam error | before | after |
+|---|---|---|
+| pixel-linked (n=356) | 62.0 mm | **13.7 mm** |
+| nav-bridged (n=38) | 235.5 mm | 119.3 mm |
+| per-frame vertical σ | 139.9 mm (66.2 robust) | 60.4 mm (21.1 robust) |
+
+**Pixel-linked seams are 8.7× better than nav-bridged** — the clearest
+vindication of registering the frames at all. The trade, stated plainly:
+levelling made the 1 m profile agree *less* with the MBES (0.147 → 0.185 m) while
+making seams 4.5× better, so some large corrections are probably over-fitting bad
+overlaps. Levelling is on by default because this product is for millimetre-to-
+metre scales; `--no-level` ships the raw version.
+
+### Task 11 — the answer, not rounded off
+
+**The ribbon shows 9.45× (+9.8 dB) more power in the 1.2–3 m band than the
+per-frame γ₂ law predicts, with γ₁ = 2.29 ± 1.56 against a predicted 1.97.**
+
+It is **suggestive, not conclusive**, and both reasons are quantified:
+
+- the slope's ±1.56 error bar spans every plausible value — one third of a decade
+  is not enough band to fit an exponent;
+- the amplitude excess is only **1.74×** above the ribbon's own registration-noise
+  floor at the measured σ = 60 mm (14× at the robust σ = 21 mm). Added
+  `registration_noise_spectrum`, because a per-frame vertical error is nearly
+  flat across exactly this band and without it the spectrum cannot be read.
+
+**What would settle it is now a number: per-frame vertical placement of ≈ 6 mm**,
+against the 60 mm achieved — a factor of ten, and a vertical bundle-adjustment
+problem, which the plan scoped out as a separate piece of work.
+
+Supporting: the MBES's own along-track spectrum is γ₁ = 3.60 ± 0.16 (γ₂ ≈ 4.60)
+over 2–40 m, far steeper than the per-frame 2.97, and the ribbon's gap-band γ₂ of
+3.29 sits between them — the shape of a gradual break. At ±1.56 that is a remark,
+not evidence.
+
+### Task 10 — the ribbon does not beat the baseline
+
+Ribbon (1 m bins) vs MBES: corr **+0.924**, median |dz| **0.185 m**, against the
+altimeter baseline's 0.115 m (corr 0.988) on this strip. **The ribbon adds
+texture, not vertical accuracy** — the result the plan said to state plainly if
+it fell this way.
+
+### Collateral: three tests were depending on a drive being unplugged
+
+`tests/unit/test_config_check.py` hard-coded
+`/run/media/epinux/ssd1/HBC/DATA/2015_stereo` as its example of an *unmounted*
+path. Mounting ssd1 made that path real and turned three tests red for reasons
+unrelated to the code. Replaced with a path that cannot exist on any machine.
+
+### Verification
+
+`.venv/bin/pytest` — **411 passed, 7 skipped**. All three GeoTIFFs open in
+EPSG:32619, 1256 × 48339 at 3 mm, track-aligned at 273.1°, 18.3 M valid cells,
+elevation −75.9 … −66.9 m.
+
+### Still open for the user
+
+- **Look at the ribbon over the bathymetry in QGIS** and judge the seams at full
+  resolution. The numbers say 13.7 mm between pixel-linked frames; you can say
+  whether that reads as a surface.
+- The ribbon's per-cell extremes reach −75.9 m where the MBES spans −71.3…−67.1 m;
+  that is a handful of bad frames in the cross-track tails, not the profile.
+- Decide whether the ~6 mm vertical accuracy needed to close the spectrum question
+  is worth a bundle-adjustment plan.
+

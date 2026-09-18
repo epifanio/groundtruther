@@ -22,23 +22,30 @@ unit-tested against synthetic inputs with no network.
 
 ## Status
 
-| phase | state |
-|---|---|
-| 1 — strip selection and the offline registration chain | **done, on real imagery** |
-| 2 — fetch the micro-DEMs from the roughness service | **blocked**: the API key in `config/config.yaml` is rejected (`401 invalid or revoked API key`) |
-| 3 — composite | code complete, **verified on a synthetic seabed**, never run on real micro-DEMs |
-| 4 — profile vs MBES, and the scale-gap spectrum | the service-independent halves are done on real data; the ribbon halves await phase 2 |
-
-To finish it, put a working FastGIS key in `Processing.grass_api_key` and run:
+Built and run end to end on strip 6663–6958. The service runs **on this machine**
+— container `stereo-roughness`, port 7871 — and the client posts straight at it
+with no auth header, so no FastGIS API key is involved:
 
 ```bash
-scripts/build_ribbon.py fetch     --start 6663 --n 296   # ~296 calls, cached to disk
-scripts/build_ribbon.py inspect   --start 6663 --n 296   # quality, altitude, geo checks
-scripts/build_ribbon.py composite                         # -> ribbon_dem.tif, ribbon_ortho.tif
-scripts/build_ribbon.py analyse                           # -> the two results
+scripts/build_ribbon.py inventory
+scripts/build_ribbon.py scan
+scripts/build_ribbon.py chain     --start 6663 --n 296
+scripts/build_ribbon.py fetch     --start 6663 --n 296 \
+    --direct-url http://127.0.0.1:7871/roughness
+scripts/build_ribbon.py inspect   --start 6663 --n 296
+scripts/build_ribbon.py composite
+scripts/build_ribbon.py analyse
 ```
 
-Phases 1 and 3–4 need no credentials; `simulate` stands in for phase 2.
+`api.fastgis.eu` is a *different* host (65.21.215.94) and its key store is a
+Redis inside that deployment, so an expired key cannot be regenerated locally —
+but with the GPU service on the same box, it does not need to be. `--direct-url`
+is also read from `ROUGHNESS_DIRECT_URL`. `simulate` still stands in for the
+fetch when neither is available.
+
+Outputs (gitignored, in `ribbon_work/`): `ribbon_dem.tif` (1256 × 48339 Float32,
+EPSG:32619, track-aligned at 273.1°, 18.3 M valid cells), `ribbon_ortho.tif`
+(3-band RGB) and `ribbon_count.tif` (observations per cell, 1–6).
 
 ## Choose the strip by texture, never by relief
 
@@ -201,53 +208,121 @@ planted exponent came back scattered by more than a unit. The spectrum is
 **band-averaged in log-spaced bins** before fitting, and `power_law_fit` reports
 a standard error on the exponent. Quote it.
 
-#### What can be said today
+#### The answer, and why it is not a clean one
 
-Real, service-independent, on this strip:
+**Measured on the ribbon: 9.45× (+9.8 dB) more power in the 1.2–3 m band than the
+per-frame γ₂ law predicts, with a fitted γ₁ = 2.29 ± 1.56 against a predicted
+1.97.**
 
-- **MBES along-track spectrum: γ₁ = 3.60 ± 0.16, i.e. γ₂ ≈ 4.60**, fitted over
-  2–40 m (r² 0.95, 27 bands). Per-frame γ₂ on this survey runs ~2.4–3.6, so the
-  metre-scale spectrum is **much steeper** than the frame-scale one. That is a
-  hint that the power law does *not* extrapolate — but it is only a hint, and it
-  must not be quoted as the answer: a 1 m MBES grid is smoothed by its own
-  gridding near the grid scale, which steepens a spectrum exactly here. The
-  ribbon is the instrument that settles it, because it measures both bands with
-  one sensor.
+Read that with both error bars in view, because neither is small:
 
-Verified on a synthetic seabed with a planted γ₂ = 3.00, run through the real
-`simulate → composite → analyse` path:
+- **The slope is unconstrained.** ±1.56 on an exponent spans essentially every
+  physically plausible value. The band is one third of a decade wide; that is all
+  a 145 m ribbon can offer, and it is not enough to fit a slope.
+- **The amplitude excess is only 1.7× above the ribbon's own noise floor.**
+  Independent per-frame vertical placement errors of standard deviation σ, held
+  across each frame and changing every 0.49 m, put a nearly flat spectrum right
+  across this band (`registration_noise_spectrum`). At the measured σ = 60 mm
+  that floor sits just 1.7× under the measurement. Using the *robust* σ = 21 mm —
+  which excludes a handful of frames whose micro-DEM is genuinely metres out — the
+  margin is 14×.
 
-- recovered **γ₁ = 2.35 ± 0.41** in the 1.2–3 m band (planted 2.00 — inside 1σ);
-- measured/predicted power in that band **1.02× (+0.1 dB)** — the extrapolation
-  identity survives the composite intact;
-- seam error **9.0 mm** median, which is the resampling-and-blending floor of the
-  method, since the simulation has no registration error by construction.
+So the honest statement is: **the ribbon shows excess power at metre scales
+relative to the per-frame extrapolation, and that is the interesting direction,
+but this ribbon cannot separate it from its own registration noise.** It is
+suggestive, not conclusive. A γ₂ extrapolated to an acoustic footprint would
+under-predict roughness if the excess is real — which is the result worth chasing,
+not one to claim on 1.7×.
 
-**The real answer is not in yet, and is not being guessed at.** It needs phase 2.
+**What would settle it is now a number.** To put the noise floor 10× below the
+predicted signal, per-frame vertical placement would have to reach **≈ 6 mm**,
+against the 60 mm achieved here — a factor of ten. That is a vertical
+bundle-adjustment problem, and it is the single thing standing between this
+product and a publishable answer.
+
+Two supporting measurements, both real:
+
+- **MBES along-track spectrum: γ₁ = 3.60 ± 0.16 (γ₂ ≈ 4.60)** over 2–40 m,
+  r² 0.95. Far steeper than the per-frame γ₂ of 2.97 — consistent with the power
+  law breaking somewhere between the two, but a 1 m grid is smoothed by its own
+  gridding exactly there, so on its own it proves nothing.
+- The ribbon's gap-band fit (γ₂ ≈ 3.29) sits *between* the frame scale (2.97) and
+  the MBES scale (4.60), which is what a gradual break would look like. At
+  ±1.56 that is a remark, not evidence.
+
+### Vertical levelling — and what it cost
+
+The dominant vertical error was not the photogrammetry. `V_Depth` is quantized to
+10 mm and steps frame to frame with σ = **82 mm**, which is essentially the whole
+of the measured per-frame vertical scatter (σ = 66 mm robust, before levelling).
+The micro-DEMs measure their own relative height far better than that wherever
+they overlap, so `level_vertically` solves for per-frame offsets from the overlap
+medians (robust IRLS, lag-1 and lag-2 pairs for loop closure) and keeps only the
+high-frequency part — the datum still belongs to the vehicle.
+
+| seam error, where two frames overlap | before | after |
+|---|---|---|
+| pixel-linked pairs (n = 356) | 62.0 mm | **13.7 mm** |
+| nav-bridged pairs (n = 38) | 235.5 mm | 119.3 mm |
+| all (n = 394) | 67.1 mm | 18.5 mm |
+| per-frame vertical σ | 139.9 mm (66.2 robust) | 60.4 mm (21.1 robust) |
+
+**Pixel-linked seams are 8.7× better than nav-bridged ones** (13.7 mm vs
+119.3 mm). That is the clearest single vindication of registering the frames at
+all.
+
+But levelling is not free, and the trade is worth stating: it made the 1 m-binned
+profile agree *less* well with the MBES (median |dz| 0.147 m → 0.185 m, corr
+0.971 → 0.924) while making the seams 4.5× better. The likely reason is that some
+of the large corrections — the p95 correction is 1.26 m, rescuing frames whose
+micro-DEM is badly wrong — are over-fitting bad overlaps rather than repairing bad
+frames. For this product's purpose (a spectrum at millimetre-to-metre scales)
+internal consistency is what matters, so levelling is on by default; `--no-level`
+ships the raw version.
 
 ## Honest quality numbers
 
-A ribbon without these is not finished. Report all four:
+A ribbon without these is not finished:
 
-| number | where it comes from | status |
-|---|---|---|
-| link rate | `chain` | **89.8 %** |
-| seam error, split pixel-linked vs nav-bridged | `composite` | 9.0 mm on the synthetic; **real value pending** |
-| `quality != "ok"` rate | `inspect` | **pending** (needs phase 2) |
-| γ from the gap band, with its standard error | `analyse` | **pending** |
+| number | value |
+|---|---|
+| link rate | **89.8 %** (265/295 pairs) |
+| `quality != "ok"` rate | **2.0 %** (6 of 296 frames, all `insufficient_coverage`) |
+| seam error, pixel-linked | **13.7 mm** median &#124;dz&#124; (rms 23.2, p95 45.4) |
+| seam error, nav-bridged | **119.3 mm** median &#124;dz&#124; — 8.7× worse |
+| per-frame vertical σ | **60.4 mm** (21.1 mm robust) |
+| γ₁ in the 1.2–3 m band | **2.29 ± 1.56** — the error bar is the result |
+| ribbon vs MBES, 1 m bins | corr +0.924, median &#124;dz&#124; **0.185 m** |
 
-## Things to check on the first real fetch
+Batch health from `inspect`: service `altitude_mm` agrees with the metadata
+`Altimeter` to a **median 37 mm**; `valid_fraction` median 0.837; γ₂ median 2.97
+(IQR 2.66–3.15); every `micro_dem` carried a nested `geo`. The service picks its
+own cell size per frame — **2, 3, 4 and 5 mm all appear** — which the compositor
+handles because each frame is resampled through its own affine.
 
-- `inspect` prints `geotransform heading - nav heading`. It **must** be ~0. The
-  compositing convention — image bottom→top is the heading, image-right is
-  starboard — was derived from `INTERFACE.md` and is consistent throughout
-  `gt/ribbon.py` and its tests, but it has never been confirmed against a real
-  response. If that number comes back near 180, the service still has
-  [stereo-roughness#1](https://github.com/epifanio/stereo-roughness/issues/1).
-- `altitude_mm` against the metadata `Altimeter` (expect a few cm).
-- That every `micro_dem` carries a **nested** `geo` block; there is no top-level
-  one.
-- The `insufficient_coverage` rate. On turbid frames it will not be zero.
+**Task 10's verdict: the ribbon does not beat the altimeter baseline.** On this
+strip `-(V_Depth + Altimeter)` matches the MBES to 0.115 m (corr 0.988) and the
+ribbon manages 0.185 m (corr 0.924). That is a legitimate result and the plan
+anticipated it: **the ribbon adds texture, not vertical accuracy**. Note the
+baseline here is much better than the survey-wide 0.27 m / 0.662, so this strip
+was a hard place to beat it.
+
+## Confirmed against the live service
+
+- **`geotransform heading − nav heading` = +0.00°**, median over all 296 frames.
+  The compositing convention — image bottom→top is the heading, image-right is
+  starboard — was derived from `INTERFACE.md` and is now verified against real
+  responses. This service does **not** have
+  [stereo-roughness#1](https://github.com/epifanio/stereo-roughness/issues/1) on
+  the client-supplied `geo` path.
+- `altitude_mm` against the metadata `Altimeter`: median 37 mm. ✔
+- Every `micro_dem` carries a **nested** `geo`; there is no top-level one. ✔
+- `insufficient_coverage` rate 2.0 % — non-zero, as expected on turbid frames. ✔
+
+Throughput on the local GPU is ~13 s/frame, not the ~0.5 s the interface quotes,
+most likely because the GPU is shared with another container. 296 frames took
+73 minutes and 312 MB of cache. Every response is written to disk before any
+decoding, so a rebuild needs no service at all.
 
 ## Out of scope, deliberately
 

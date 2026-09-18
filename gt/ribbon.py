@@ -951,3 +951,97 @@ def intersect_windows(window_a, window_b):
     def cut(w):
         return (slice(row0 - w[0], row1 - w[0]), slice(col0 - w[2], col1 - w[2]))
     return (row0, row1, col0, col1), cut(window_a), cut(window_b)
+
+
+# --------------------------------------------------------------------------
+# vertical levelling, and the noise floor it leaves behind
+# --------------------------------------------------------------------------
+def level_vertically(pairs, n_frames, *, anchor_window: int = 51,
+                     iterations: int = 5, huber_k: float = 2.0):
+    """Per-frame vertical offsets that make the overlaps agree.
+
+    ``pairs`` is a sequence of ``(i, j, d)``: frame *i* reads ``d`` metres higher
+    than frame *j* where they overlap (the **median** difference, so within-frame
+    stereo noise is already averaged out of it).  Returns an array of offsets to
+    **subtract** from each frame.
+
+    Why this is needed: each frame's heights arrive camera-relative and are
+    lifted onto the survey datum with the vehicle's own ``V_Depth``, which on
+    this survey is quantized to 10 mm and steps by a standard deviation of
+    ~82 mm from frame to frame.  That lands almost exactly on the measured
+    per-frame vertical scatter -- the depth sensor, not the stereo, is what makes
+    the seams.  The micro-DEMs measure their own relative height far better than
+    that wherever they overlap, so the overlaps can supply the high-frequency
+    levelling.
+
+    Solved as **iteratively reweighted** least squares on ``o_i - o_j = d_ij``
+    with ``sum(o) = 0``.  The reweighting is not optional: a handful of frames
+    return a partly wrong micro-DEM and disagree with their neighbours by more
+    than a metre, and plain least squares spreads that over the whole chain (it
+    produced a 1.2 m 95th-percentile correction on real data, against a 0.1 m
+    median).  Huber weights on a robustly scaled residual leave those pairs
+    outvoted.  Only
+    the **high-frequency** part of the solution is kept: the correction is
+    high-passed over ``anchor_window`` frames so the absolute datum still comes
+    from the vehicle's depth, exactly as :func:`chain_track` leaves absolute
+    position to the navigation.  Without that, a chain of pairwise differences
+    is a random walk and the ribbon's far end would drift away in depth.
+    """
+    n = int(n_frames)
+    pairs = [(int(i), int(j), float(d)) for i, j, d in pairs
+             if 0 <= int(i) < n and 0 <= int(j) < n and np.isfinite(d)]
+    if not pairs:
+        return np.zeros(n)
+    design = np.zeros((len(pairs) + 1, n))
+    observed = np.zeros(len(pairs) + 1)
+    for row, (i, j, d) in enumerate(pairs):
+        design[row, i] = 1.0
+        design[row, j] = -1.0
+        observed[row] = d
+    design[-1, :] = 1.0          # gauge: the mean offset is zero
+    weights = np.ones(len(pairs) + 1)
+    offsets = np.zeros(n)
+    for _ in range(int(iterations)):
+        scaled = design * weights[:, None]
+        offsets, *_ = np.linalg.lstsq(scaled, observed * weights, rcond=None)
+        residual = design[:-1] @ offsets - observed[:-1]
+        spread = np.median(np.abs(residual - np.median(residual))) / 0.6745
+        if not np.isfinite(spread) or spread <= 0:
+            break
+        cut = huber_k * spread
+        weights[:-1] = np.minimum(1.0, cut / np.maximum(np.abs(residual), 1e-12))
+    # keep the high frequencies, hand the low frequencies back to V_Depth
+    return offsets - _smooth(offsets, anchor_window)
+
+
+def registration_noise_spectrum(sigma_m, spacing_m, k):
+    """The along-track spectrum a per-frame vertical placement error produces.
+
+    **Without this the ribbon's spectrum cannot be interpreted.**  Independent
+    vertical offsets of standard deviation ``sigma_m``, held constant across each
+    frame and changing every ``spacing_m``, are a staircase of random steps whose
+    two-sided spectral density is
+
+        W1_noise(k) = sigma^2 * ds / (2*pi) * sinc^2(k*ds/2)
+
+    (it integrates to ``sigma^2``, as it must).  For a 0.49 m frame spacing that
+    is essentially flat right across the 1.2-3 m band this product exists to
+    measure, so it competes directly with the seabed roughness there.  Compare it
+    with the measured spectrum before claiming any excess is the seabed.
+    """
+    sigma = float(sigma_m)
+    spacing = float(spacing_m)
+    k = np.asarray(k, dtype=float)
+    return (sigma ** 2 * spacing / (2.0 * np.pi)) * np.sinc(k * spacing / (2.0 * np.pi)) ** 2
+
+
+def sigma_for_noise_floor(target_w1, spacing_m, k):
+    """The per-frame vertical accuracy needed to push the noise below *target_w1*.
+
+    Inverts :func:`registration_noise_spectrum`.  Use it to say what a future
+    attempt would have to achieve rather than just that this one fell short.
+    """
+    unit = registration_noise_spectrum(1.0, spacing_m, k)
+    unit = np.asarray(unit, dtype=float)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        return float(np.sqrt(np.min(np.asarray(target_w1, float) / unit)))
