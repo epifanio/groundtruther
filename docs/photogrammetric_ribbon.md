@@ -47,6 +47,23 @@ Outputs (gitignored, in `ribbon_work/`): `ribbon_dem.tif` (1256 × 48339 Float32
 EPSG:32619, track-aligned at 273.1°, 18.3 M valid cells), `ribbon_ortho.tif`
 (3-band RGB) and `ribbon_count.tif` (observations per cell, 1–6).
 
+## The founding question: is the georeferencing orientation correct?
+
+Short answer: **the 180° is settled, the service round-trips exactly, and the
+physical mount handedness is still untested.** Of 250 registered pairs, 100 %
+support `heading_deg = bearing + 180` (the
+[#31](https://github.com/epifanio/groundtruther/issues/31) fix) and 0 % support the
+former `heading_deg = bearing`; the +3.9° residual also bounds single-frame heading
+accuracy at ≈ 4°.
+
+**Do not cite the 13.7 mm seams as evidence for it** — recomposing with the
+pre-#31 heading moves them only 67.1 → 85.6 mm, because rotating a frame about its
+own centre preserves its mean and this seabed is smooth at frame scale. The ribbon
+is a weak instrument for this question.
+
+Full evidence, the handedness caveat and what would settle it:
+[results_seabed_ribbon_6663.md §5.1](results_seabed_ribbon_6663.md#51-the-founding-question-is-the-georeferencing-orientation-correct).
+
 ## Choose the strip by texture, never by relief
 
 This is the finding that shapes everything else. Consecutive frames can only be
