@@ -222,9 +222,17 @@ def test_yaml_boolean_spellings_are_accepted(good, value):
 # The removable-media hint — the reported failure
 # ---------------------------------------------------------------------------
 
+#: A removable-media path that cannot exist on the machine running the tests.
+#: It used to be spelled ``/run/media/epinux/ssd1/HBC/DATA/2015_stereo`` — the
+#: real path from the bug report — and the tests below passed only for as long
+#: as nobody plugged that drive in.  Mounting it turned three of them red for a
+#: reason that had nothing to do with the code.
+UNMOUNTED = "/run/media/no-such-user/no-such-drive-9f3a1c/HBC/DATA/2015_stereo"
+
+
 @pytest.mark.parametrize("prefix", ["/run/media", "/media", "/mnt", "/Volumes"])
 def test_removable_media_hint(good, prefix):
-    good["HabCam"]["imagepath"] = f"{prefix}/epinux/ssd1/HBC/DATA/2015_stereo"
+    good["HabCam"]["imagepath"] = f"{prefix}/no-such-user/no-such-drive-9f3a1c/x"
     report = check_settings(good)
     assert "the drive may not be mounted" in report.errors[0].reason
 
@@ -247,7 +255,7 @@ def test_broken_imagepath_does_not_blank_the_soundings(good):
     the dock's constructor.
     """
     soundings = good["Mbes"]["soundings"]
-    good["HabCam"]["imagepath"] = "/run/media/epinux/ssd1/HBC/DATA/2015_stereo"
+    good["HabCam"]["imagepath"] = UNMOUNTED
 
     report = check_settings(good)
     degraded = degrade(good, report)
@@ -309,10 +317,10 @@ def test_bad_section_blanks_only_that_section(good):
 # ---------------------------------------------------------------------------
 
 def test_summary_names_the_key_and_the_value(good):
-    good["HabCam"]["imagepath"] = "/run/media/epinux/ssd1/HBC/DATA/2015_stereo"
+    good["HabCam"]["imagepath"] = UNMOUNTED
     summary = check_settings(good).summary()
     assert "HabCam.imagepath" in summary
-    assert "/run/media/epinux/ssd1/HBC/DATA/2015_stereo" in summary
+    assert UNMOUNTED in summary
     assert "the drive may not be mounted" in summary
 
 
