@@ -47,6 +47,74 @@ Outputs (gitignored, in `ribbon_work/`): `ribbon_dem.tif` (1256 × 48339 Float32
 EPSG:32619, track-aligned at 273.1°, 18.3 M valid cells), `ribbon_ortho.tif`
 (3-band RGB) and `ribbon_count.tif` (observations per cell, 1–6).
 
+## The founding question: is the georeferencing orientation correct?
+
+This is what the exercise was built to answer. GroundTruther used to send
+`heading_deg = bearing`, but `bearing` is the compass direction of the layback
+offset — ship to towed body — so it points **astern**, and every georeferenced
+roughness raster was rotated 180°. The fix landed as
+[#31](https://github.com/epifanio/groundtruther/issues/31) before this work
+started. Three separate questions hide inside "orientation", with three different
+answers.
+
+### 1 · The 180° — settled, decisively
+
+Each registered pair says which way the platform moved *in its own body frame*,
+straight from the pixels. Rotating that into the world needs a heading, and the
+nav offers two candidates; only one can reproduce the course over ground, taken
+independently from the USBL positions over a ±15-frame baseline.
+
+| hypothesis | median residual | IQR | within 30° |
+|---|---|---|---|
+| H1 · `heading = bearing` (old behaviour) | **−175.3°** | −176.8 … −173.3 | **0.0 %** |
+| H2 · `heading = bearing + 180` (the #31 fix) | **+3.9°** | +2.2 … +5.6 | **100.0 %** |
+
+n = 250 registered pairs. **Every pair backs H2 and none backs H1.** This
+replicates the original finding — which rested on 59 template matches — with a
+more sensitive matcher and four times the sample. The **+3.9°** residual is camera
+yaw, USBL noise and cross-track drift together, and it is also the accuracy of a
+single frame's heading: **about 4°**.
+
+Reproduce it from the cached links with no service and no imagery: `links.csv`
+plus `poses.csv` are all it needs.
+
+### 2 · Does the service apply what it is sent? — yes, exactly
+
+`geotransform heading − nav heading` = **+0.00°**, median over all 296 frames
+(`build_ribbon.py inspect` prints it). The contract round-trips exactly, and this
+service does not carry
+[stereo-roughness#1](https://github.com/epifanio/stereo-roughness/issues/1) on the
+client-supplied `geo` path.
+
+### 3 · Handedness — the contract holds, the physical mount is untested
+
+A mirror is a reflection, not a rotation, so nothing above touches it. Measured
+directly on the returned grids, the `+col` axis sits at **+90.00°** from the
+`−row` axis on all 290 usable frames: image-right is starboard *in the grid*,
+as the mount contract says, with no mirror applied.
+
+**That is not proof the physical camera's right side is starboard.** A mirror
+applied consistently to every frame leaves the seams, the chain closure and the
+multibeam comparison all unchanged — adjacent frames are reflected identically, so
+they still agree. The ribbon is ~1.2 m across and the multibeam grid is 1 m, so
+neither resolves cross-track structure well enough to catch it. The H1/H2 residual
+cannot separate it either: flipping handedness would move that residual from
++3.9° to about −3.7°, and the true camera yaw is unknown. **Settling it needs a
+target of known handedness, not more of this data.**
+
+### What the ribbon can and cannot test
+
+It is tempting to cite the 13.7 mm seams as proof the orientation is right. It is
+not. Recomposing with the pre-#31 heading — positions, chain, levelling and
+blending all held identical, so the only variable is the per-frame rotation —
+moves the seam error from **67.1 mm to 85.6 mm**. Right direction, but only a 28 %
+degradation, because rotating a frame about its own centre preserves its mean
+elevation and this seabed is smooth at the 1.2 m frame scale. **The ribbon is a
+weak instrument for the orientation question; the H1/H2 test is the strong one.**
+Likewise the ribbon's +0.924 correlation with the multibeam drops to −0.789 when
+reversed, but that only shows the strip is not globally backwards, which was never
+in doubt.
+
 ## Choose the strip by texture, never by relief
 
 This is the finding that shapes everything else. Consecutive frames can only be
