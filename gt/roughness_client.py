@@ -270,12 +270,31 @@ def _post_json(body: dict, *, endpoint, api_key, route, direct_url, timeout,
 def _build_mosaic_body(reference_key, window, mode, out_gsd_m, epsg, *,
                        max_side=None, interp=None, supersample=None,
                        alpha=False, nodata=None, overlap_threshold=None,
-                       illumination_correct=None, gain_compensate=None) -> dict:
-    """Assemble the mode-A mosaic request JSON (reference + window + controls)."""
-    if not (reference_key and str(reference_key).strip()):
-        raise RoughnessError("A reference_key is required")
-    body: dict = {"reference_key": str(reference_key), "window": int(window),
-                  "mode": str(mode)}
+                       illumination_correct=None, gain_compensate=None,
+                       frames=None) -> dict:
+    """Assemble the mosaic request JSON.
+
+    Two shapes, decided by *frames*:
+
+    * **mode A** (``frames`` is None) — ``reference_key`` + ``window``; the
+      service pulls the navigation and anchors on that one frame's **raw** USBL
+      fix.
+    * **mode B** (``frames`` given) — an ordered list of
+      ``{frame_key, easting, northing, heading_deg, ...}``; we place the frames.
+      Used so the anchor can be a *smoothed* fix rather than one sitting on a
+      USBL step (see :mod:`groundtruther.gt.mosaic_nav`).
+
+    ``mode`` still selects flat/ortho/pixel in both.  Note that ``auto`` judges
+    overlap from whatever positions it is given, and on smoothed input it tends
+    to choose *flat* — so callers using mode B should ask for a concrete mode.
+    """
+    if frames:
+        body: dict = {"frames": list(frames), "mode": str(mode)}
+    else:
+        if not (reference_key and str(reference_key).strip()):
+            raise RoughnessError("A reference_key is required")
+        body = {"reference_key": str(reference_key), "window": int(window),
+                "mode": str(mode)}
     if out_gsd_m is not None:
         body["out_gsd_m"] = float(out_gsd_m)
     if epsg is not None:
@@ -311,7 +330,8 @@ def mosaic_by_reference(reference_key, *, window: int = 5, mode: str = "auto",
                         gain_compensate: bool | None = None,
                         endpoint: str | None = None, api_key: str | None = None,
                         route: str = MOSAIC_ROUTE, direct_url: str | None = None,
-                        timeout: int = _TIMEOUT_MOSAIC) -> dict:
+                        timeout: int = _TIMEOUT_MOSAIC,
+                        frames: list | None = None) -> dict:
     """Mosaic **mode A** — composite the ±*window* contiguous frames around
     *reference_key* into one georeferenced UTM raster.
 
@@ -351,7 +371,7 @@ def mosaic_by_reference(reference_key, *, window: int = 5, mode: str = "auto",
                               supersample=supersample, alpha=alpha, nodata=nodata,
                               overlap_threshold=overlap_threshold,
                               illumination_correct=illumination_correct,
-                              gain_compensate=gain_compensate)
+                              gain_compensate=gain_compensate, frames=frames)
     return _post_json(body, endpoint=endpoint, api_key=api_key, route=route,
                       direct_url=direct_url, timeout=timeout, what="mosaic")
 

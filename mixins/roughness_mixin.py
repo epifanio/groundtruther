@@ -666,7 +666,10 @@ class RoughnessMixin:
         self._mosaic_window.setValue(5)
         self._mosaic_window.setToolTip(
             "Contiguous frames on EACH side of the current frame; the service "
-            "pulls the nav and skips gaps.")
+            "pulls the nav and skips gaps.\n"
+            "In Pixel mode the registration chain is not constrained to the nav, so "
+            "its scale error accumulates with distance: measured ~0.9 m at ±8 and "
+            "~2.2 m at ±20. For long stretches prefer Flat, or build a ribbon.")
         mform.addRow("Window ±", self._mosaic_window)
         self._mosaic_gsd = QDoubleSpinBox()
         self._mosaic_gsd.setRange(0.0005, 0.05)
@@ -716,6 +719,20 @@ class RoughnessMixin:
 
         # Radiometric corrections (pixel/auto mode) — default ON for a clean
         # visual mosaic; uncheck illumination for absolute-radiometry work.
+        # Anchor choice. On by default: the USBL is piecewise-constant, so the
+        # current frame's raw fix can sit up to ~2.8 m off the real track and a
+        # mode-A mosaic inherits that in its absolute placement. Exposed as a
+        # toggle so the two can be compared on the map, and so there is an escape
+        # hatch if our nav is ever wrong (cf. issue #31).
+        self._mosaic_smooth_anchor = QCheckBox("Smoothed anchor")
+        self._mosaic_smooth_anchor.setChecked(True)
+        self._mosaic_smooth_anchor.setToolTip(
+            "Place the frames on a smoothed USBL track instead of letting the "
+            "service anchor the mosaic on this frame's raw fix.\n"
+            "Brings a mosaic to ~0.1 m of a ribbon of the same stretch, against "
+            "~0.7 m without it. Untick to compare.")
+        mform.addRow(self._mosaic_smooth_anchor)
+
         self._mosaic_illum = QCheckBox("Illumination correct")
         self._mosaic_illum.setChecked(True)
         self._mosaic_illum.setToolTip(
@@ -823,9 +840,12 @@ class RoughnessMixin:
         interp = self._mosaic_interp.currentText()
         if interp == "auto":     # smart: anti-alias coarse, sharpen near-native
             interp = "area" if gsd > 0.001 else "lanczos"
+        window = int(self._mosaic_window.value())
+        mode = self._mosaic_mode.currentText().lower()
+        frames, mode = self._mosaic_frames(window, mode)
         self._mosaic_task = task_runner.run_mosaic_task(
-            ref, window=int(self._mosaic_window.value()),
-            mode=self._mosaic_mode.currentText().lower(),
+            ref, window=window,
+            mode=mode, frames=frames,
             overlap_threshold=float(self._mosaic_overlap.value()),
             out_gsd_m=gsd, epsg=int(self._georef_epsg.value()),
             max_side=int(self._mosaic_maxside.value()), interp=interp,
@@ -836,6 +856,57 @@ class RoughnessMixin:
             direct_url=mosaic_direct,
             on_success=self._on_mosaic_success, on_error=self._on_mosaic_error,
             description=f"Mosaic {ref}")
+
+
+    def _mosaic_frames(self, window: int, mode: str):
+        """``(frames, mode)`` for the mosaic request — smoothed anchor if we can.
+
+        Returns explicit per-frame navigation (a mode-B request) built from the
+        **smoothed** USBL track, so the mosaic no longer anchors on whichever
+        USBL step the current frame happens to sit on.  That single change takes
+        the disagreement between a mosaic and a
+        :mod:`ribbon <groundtruther.gt.ribbon>` of the same stretch from a median
+        0.72 m to 0.10 m.
+
+        Returns ``(None, mode)`` — a plain mode-A request — whenever the metadata
+        cannot supply what mode B needs, so a table without USBL columns or
+        headings still mosaics exactly as before.
+
+        ``auto`` is resolved here rather than sent: it judges overlap from the
+        positions in the request, and on a smoothed track it reliably picks
+        *flat*, silently losing the content registration the user asked for.
+        """
+        from groundtruther.gt import mosaic_nav
+        self._mosaic_anchor_note = "service anchor"
+        box = getattr(self, "_mosaic_smooth_anchor", None)
+        if box is not None and not box.isChecked():
+            self._mosaic_anchor_note = "raw anchor (smoothing off)"
+            return None, mode
+        df = getattr(self, "imageMetadata", None)
+        index = getattr(self, "imageindex", None)
+        if df is None or index is None:
+            return None, mode
+        try:
+            frames = mosaic_nav.smoothed_frames(df, int(index), window)
+        except Exception as exc:          # noqa: BLE001 - fall back, never fail
+            log_exception("mosaic: no explicit nav, using the service's own",
+                          exc, warn=True)
+            self._mosaic_anchor_note = "service anchor (no usable nav)"
+            return None, mode
+        if mode == "auto":
+            # Decide it ourselves, on the same rule the service uses (nav-predicted
+            # overlap), so "auto" keeps meaning what it means in mode A.
+            mode = "pixel"
+        offset = mosaic_nav.anchor_offset_m(df, int(index))
+        self._mosaic_anchor_note = (
+            f"smoothed anchor (raw fix {offset:.2f} m off track)"
+            if offset is not None else "smoothed anchor")
+        if offset is not None and offset > 0.5:
+            QgsMessageLog.logMessage(
+                f"mosaic: the reference frame's raw USBL fix is {offset:.2f} m off "
+                f"the smoothed track; anchoring on the smoothed fix instead",
+                "GroundTruther", Qgis.Info)
+        return frames, mode
 
     def _reset_mosaic_button(self) -> None:
         btn = getattr(self, "_mosaic_btn", None)
@@ -879,8 +950,10 @@ class RoughnessMixin:
             base = (f"mosaic added: {n} frames, {n_sk} skipped, "
                     f"{bands}-band (EPSG:{geo['epsg']})")
             summary = ri.mosaic_summary(result)
+            anchor = getattr(self, "_mosaic_anchor_note", None)
             self._georef_status.setText(
-                base + (f"  ·  {summary}" if summary else ""))
+                base + (f"  ·  {summary}" if summary else "")
+                     + (f"  ·  {anchor}" if anchor else ""))
             self._show_mosaic_warning(result)
         else:
             self._georef_status.setText("mosaic: failed to write raster")

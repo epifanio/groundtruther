@@ -205,7 +205,7 @@ class MosaicTask(QgsTask):
                  illumination_correct=None, gain_compensate=None,
                  endpoint=None, api_key=None,
                  route=roughness_client.MOSAIC_ROUTE, direct_url=None,
-                 description=None):
+                 description=None, frames=None):
         super().__init__(description or f"Mosaic {reference_key}",
                          QgsTask.Flag.CanCancel)
         self.reference_key = str(reference_key)
@@ -225,6 +225,10 @@ class MosaicTask(QgsTask):
         self.api_key = api_key
         self.route = route
         self.direct_url = direct_url
+        # Explicit per-frame nav (mode B). When set the service places the
+        # frames where we say, so the mosaic can anchor on a smoothed USBL fix
+        # instead of whichever step the reference frame happens to sit on.
+        self.frames = frames
         self._result = None
         self._error = None
 
@@ -239,7 +243,8 @@ class MosaicTask(QgsTask):
                 illumination_correct=self.illumination_correct,
                 gain_compensate=self.gain_compensate,
                 endpoint=self.endpoint, api_key=self.api_key,
-                route=self.route, direct_url=self.direct_url)
+                route=self.route, direct_url=self.direct_url,
+                frames=self.frames)
             return True
         except roughness_client.RoughnessError as exc:
             self._error = str(exc)
@@ -258,6 +263,7 @@ def run_mosaic_task(reference_key, *, window=5, mode="auto", out_gsd_m=None,
                     illumination_correct=None, gain_compensate=None,
                     endpoint=None, api_key=None,
                     route=roughness_client.MOSAIC_ROUTE, direct_url=None,
+                    frames=None,
                     on_success=None, on_error=None,
                     description=None) -> MosaicTask:
     """Create, wire, and dispatch a :class:`MosaicTask` (added to the task manager).
@@ -271,7 +277,7 @@ def run_mosaic_task(reference_key, *, window=5, mode="auto", out_gsd_m=None,
         nodata=nodata, overlap_threshold=overlap_threshold,
         illumination_correct=illumination_correct, gain_compensate=gain_compensate,
         endpoint=endpoint, api_key=api_key, route=route,
-        direct_url=direct_url, description=description)
+        direct_url=direct_url, description=description, frames=frames)
     if on_success:
         task.succeeded.connect(on_success)
     if on_error:
