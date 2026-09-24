@@ -4,23 +4,22 @@ The brief for each figure: what it must show, and why.
 
 ## Status (2026-09-24)
 
-**Installed — 14**
+**Installed — 16**
 
 `index-hero.jpg` · `query-builder-1.jpg` · `query-builder-ara.png` ·
 `query-builder-histogram.png` · `image-browser-1.jpg` · `roughness-metrics-1.png` ·
 `roughness-spectrum-1.png` · `roughness-spectrum-6900.png` ·
 `roughness-microdem-3d.jpg` · `roughness-mosaic-navplaced.png` ·
 `mosaic-scale-check.png` · `roughness-mosaic-1.jpg` ·
+`ribbon-1.jpg` · `ribbon-count.jpg` ·
 `settings-dialog-1.png` · `grass-settings-1.png`
 
 Photo-dominated captures are **JPEG** (q90), plot/line-art **PNG**.
 
-**Still needed — 7 placeholders + 3 optional**
+**Still needed — 5 placeholders + 3 optional**
 
 | # | file | page | notes |
 |---|---|---|---|
-| 1 | `ribbon-1.png` | Seabed Ribbon (hero) | rasters already on disk, see below |
-| 2 | `ribbon-count.png` | Seabed Ribbon | the honesty layer |
 | 3 | `video-player-1.png` | Video Player | |
 | 4 | `annotation-image-1.png` | Annotation | |
 | 5 | `annotation-video-1.png` | Annotation | |

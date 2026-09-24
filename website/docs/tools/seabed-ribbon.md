@@ -73,6 +73,22 @@ So nearly a third of the ribbon rests on one frame. The 13.7 mm seam figure belo
 describes the other two-thirds, where frames overlap and the seam can be measured
 at all.
 
+<figure markdown>
+  ![The observation-count layer](../assets/img/ribbon-count.jpg){ width="1100" }
+  <figcaption>The same stretch as a paletted count layer. Purple is 2 — most of the
+  ribbon, where consecutive frames overlap. The teal bands are 3, where the platform
+  slowed and a third frame caught up. The green fringes along both edges are 1: the
+  cross-track margins only one frame ever saw, and the only part of the ribbon with
+  nothing to check it against.</figcaption>
+</figure>
+
+!!! tip "Style it as *Paletted / Unique values*, not a stretch"
+    A default linear stretch runs 1 → 6, and since 94 % of cells are 1 or 2 they land
+    in the bottom fifth of the ramp — everything renders near-black and the layer
+    reads as a silhouette. Classify it into its six discrete values and give 1 a
+    colour that stands out; that is the reading that tells you which parts of the
+    ribbon are corroborated.
+
 !!! warning "The DEM will look flat until you hillshade it"
     `ribbon_dem.tif` holds **absolute depth**, and over 145 m the vehicle follows
     the seabed down through **−67.0 m to −74.9 m**. The relief you actually came
