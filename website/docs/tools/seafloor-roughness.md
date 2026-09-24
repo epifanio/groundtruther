@@ -97,6 +97,19 @@ Metrics tab:
 
 The spectrum is always requested; it is a small payload.
 
+The same plot on a different seabed is the quickest way to see what γ₂ is actually
+responding to. Both of these frames pass the trust gate, and both fit cleanly:
+
+<figure markdown>
+  ![A steeper spectrum](../assets/img/roughness-spectrum-1.png){ width="470" }
+  ![A shallower spectrum](../assets/img/roughness-spectrum-6900.png){ width="470" }
+  <figcaption>Left: image index 34941 — <code>γ₂=3.72 · w₂=0.175 cm⁴ · R²=0.950</code>.
+  Right: image index 6900 — <code>γ₂=3.00 · w₂=0.0159 cm⁴ · R²=0.975</code>. A shallower
+  slope and <b>eleven times less spectral strength</b>: the second is a smoother,
+  finer-grained seabed. Both curves flatten above ~1 krad/m into the same stereo
+  noise floor.</figcaption>
+</figure>
+
 <figure markdown>
   ![The relief power spectrum](../assets/img/roughness-spectrum-1.png){ width="800" }
   <figcaption>The same frame's spectrum: W (µm⁴) against K (krad/m) on log-log
@@ -200,6 +213,21 @@ GeoTIFFs and adds them to your project:
 Both land in your survey CRS, so they overlay the bathymetry and backscatter
 directly.
 
+!!! tip "Check the scale once, with QGIS's own ruler"
+    The quickest confirmation that a mosaic is georeferenced at true scale — not just
+    placed in roughly the right spot — is to measure across it with the QGIS
+    **Measure** tool and compare against the navigation.
+
+    <figure markdown>
+      ![Measuring across a mosaic](../assets/img/mosaic-scale-check.png){ width="470" }
+      <figcaption>20.164 m measured across a mosaic built around image index 6900.</figcaption>
+    </figure>
+
+    Those two points sit at rows 6873 and 6919; the calibrated USBL fix puts that
+    stretch at 17.7 m along track for a ±15 window and 24.8 m for ±20, so a ~20 m
+    span across the mosaic is the right size. If your measurement comes back a factor
+    off, suspect the altitude or the EPSG before the mount.
+
 !!! info "QGIS redraws rotated rasters north-up"
     The geotransform is a **rotated** affine — the grid is aligned to the
     vehicle's heading, not to north. QGIS's GDAL provider warps such a raster to
@@ -289,6 +317,27 @@ and **Publication** (ortho, 0.8 mm, lanczos, 8192 px, RGBA).
 
 The **window** is capped at **±20**: the service refuses more than 41 frames in one
 mosaic and returns a bare `too many frames (51 > 41)` above that.
+
+!!! info "The mosaic is a picture, not a surface"
+    There is **no mosaicked 3-D surface**. The mosaic response carries an RGB image
+    and a geotransform — no height band, no DEM — so what you get is a georeferenced
+    *photograph* of the stretch. The Micro-DEM 3D tab stays **per frame**: one patch
+    about 1.2 m across, never a composite.
+
+    Compositing the micro-DEMs themselves into a continuous height model is what the
+    [photogrammetric seabed ribbon](seabed-ribbon.md) does, and it is a script rather
+    than a dock — partly because doing it properly needs frame-to-frame registration
+    and vertical levelling that a per-window mosaic call has no way to solve.
+
+!!! warning "A mosaic is many frames; the roughness beside it is one"
+    Every number on the Metrics and Spectrum tabs — γ₂, w₂, rms, the fit — comes from
+    the **single frame** you are on, measured over a patch about 1.2 m across. A ±20
+    mosaic spans 41 frames and roughly 20 m. They are shown in the same dock and it is
+    easy to read the metrics as describing the mosaic; they do not.
+
+    If you want roughness *for* the mosaicked stretch, compute it frame by frame and
+    aggregate — that is what the [HRS1508 analysis](#how-well-does-this-actually-work)
+    does, with a minimum of three frames per 25 m cell.
 
 !!! warning "Content registration is patchy on this imagery — and it is not your frames"
     In *pixel* and *auto* modes the service reports how many frame pairs it actually
