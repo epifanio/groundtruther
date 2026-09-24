@@ -716,6 +716,20 @@ class RoughnessMixin:
 
         # Radiometric corrections (pixel/auto mode) — default ON for a clean
         # visual mosaic; uncheck illumination for absolute-radiometry work.
+        # Anchor choice. On by default: the USBL is piecewise-constant, so the
+        # current frame's raw fix can sit up to ~2.8 m off the real track and a
+        # mode-A mosaic inherits that in its absolute placement. Exposed as a
+        # toggle so the two can be compared on the map, and so there is an escape
+        # hatch if our nav is ever wrong (cf. issue #31).
+        self._mosaic_smooth_anchor = QCheckBox("Smoothed anchor")
+        self._mosaic_smooth_anchor.setChecked(True)
+        self._mosaic_smooth_anchor.setToolTip(
+            "Place the frames on a smoothed USBL track instead of letting the "
+            "service anchor the mosaic on this frame's raw fix.\n"
+            "Brings a mosaic to ~0.1 m of a ribbon of the same stretch, against "
+            "~0.7 m without it. Untick to compare.")
+        mform.addRow(self._mosaic_smooth_anchor)
+
         self._mosaic_illum = QCheckBox("Illumination correct")
         self._mosaic_illum.setChecked(True)
         self._mosaic_illum.setToolTip(
@@ -860,6 +874,11 @@ class RoughnessMixin:
         *flat*, silently losing the content registration the user asked for.
         """
         from groundtruther.gt import mosaic_nav
+        self._mosaic_anchor_note = "service anchor"
+        box = getattr(self, "_mosaic_smooth_anchor", None)
+        if box is not None and not box.isChecked():
+            self._mosaic_anchor_note = "raw anchor (smoothing off)"
+            return None, mode
         df = getattr(self, "imageMetadata", None)
         index = getattr(self, "imageindex", None)
         if df is None or index is None:
@@ -869,12 +888,16 @@ class RoughnessMixin:
         except Exception as exc:          # noqa: BLE001 - fall back, never fail
             log_exception("mosaic: no explicit nav, using the service's own",
                           exc, warn=True)
+            self._mosaic_anchor_note = "service anchor (no usable nav)"
             return None, mode
         if mode == "auto":
             # Decide it ourselves, on the same rule the service uses (nav-predicted
             # overlap), so "auto" keeps meaning what it means in mode A.
             mode = "pixel"
         offset = mosaic_nav.anchor_offset_m(df, int(index))
+        self._mosaic_anchor_note = (
+            f"smoothed anchor (raw fix {offset:.2f} m off track)"
+            if offset is not None else "smoothed anchor")
         if offset is not None and offset > 0.5:
             QgsMessageLog.logMessage(
                 f"mosaic: the reference frame's raw USBL fix is {offset:.2f} m off "
@@ -924,8 +947,10 @@ class RoughnessMixin:
             base = (f"mosaic added: {n} frames, {n_sk} skipped, "
                     f"{bands}-band (EPSG:{geo['epsg']})")
             summary = ri.mosaic_summary(result)
+            anchor = getattr(self, "_mosaic_anchor_note", None)
             self._georef_status.setText(
-                base + (f"  ·  {summary}" if summary else ""))
+                base + (f"  ·  {summary}" if summary else "")
+                     + (f"  ·  {anchor}" if anchor else ""))
             self._show_mosaic_warning(result)
         else:
             self._georef_status.setText("mosaic: failed to write raster")
