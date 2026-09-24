@@ -46,6 +46,32 @@ Three track-aligned GeoTIFFs in `ribbon_work/`:
 | `ribbon_ortho.tif` | 3-band RGB, co-registered cell-for-cell |
 | `ribbon_count.tif` | **observations per cell** (1–6) — read this one |
 
+All three are the same grid: **1256 × 48 339 cells at 3.00 mm**, which is
+**3.77 m across × 145 m along**, track-aligned.
+
+Measured on this ribbon, the count layer breaks down as:
+
+| observations | share of cells |
+|---|---|
+| **1** | **31.1 %** — a single frame, nothing to cross-check against |
+| 2 | 63.3 % |
+| 3 | 4.8 % |
+| 4–6 | 0.8 % |
+
+So nearly a third of the ribbon rests on one frame. The 13.7 mm seam figure below
+describes the other two-thirds, where frames overlap and the seam can be measured
+at all.
+
+!!! warning "The DEM will look flat until you hillshade it"
+    `ribbon_dem.tif` holds **absolute depth**, and over 145 m the vehicle follows
+    the seabed down through **−67.0 m to −74.9 m**. The relief you actually came
+    for is ~50 mm — about **1/150th** of that range — so a default stretch renders
+    a smooth along-track gradient and no texture at all.
+
+    Load it, then either apply a **hillshade** (scale-free, so millimetre bumps
+    show at any zoom), or stretch a short sub-section to its local min/max. The
+    orthophoto needs none of this.
+
 !!! tip "Always load `ribbon_count.tif` next to the DEM"
     It is the ribbon's honesty layer. Where it falls to **zero** the frame was
     turbid and the service returned `insufficient_coverage` — there is no
