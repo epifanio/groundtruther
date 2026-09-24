@@ -18,7 +18,7 @@
         <link rel="prev" href="../query-builder/">
       
       
-        <link rel="next" href="../report-builder/">
+        <link rel="next" href="../seabed-ribbon/">
       
       
         
@@ -610,6 +610,8 @@
       
         
       
+        
+      
     
     
     
@@ -870,6 +872,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-well-does-this-actually-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How well does this actually work?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#micro-dem-3d-tab" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -939,6 +952,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Mosaic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-anchor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The anchor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -956,6 +986,34 @@
   
 </nav>
       
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../seabed-ribbon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Photogrammetric Seabed Ribbon
+  
+
+    
+  </span>
+  
+  
+
+      </a>
     </li>
   
 
@@ -1396,6 +1454,17 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#how-well-does-this-actually-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How well does this actually work?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#micro-dem-3d-tab" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1465,6 +1534,23 @@
     </span>
   </a>
   
+    <nav class="md-nav" aria-label="Mosaic">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-anchor" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The anchor
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
 </li>
       
         <li class="md-nav__item">
@@ -1504,10 +1590,12 @@ from the stereo imagery itself, independently of the acoustics. It gives you a
 quantitative texture descriptor to set beside the backscatter, plus a real-height
 micro-DEM of the patch the camera is looking at.</p>
 <figure>
-<!-- TODO: replace src with assets/img/roughness-metrics-1.png -->
-<p><img alt="The Seafloor Roughness dock" src="../../assets/img/placeholder.svg" width="900" />
+<p><img alt="The Seafloor Roughness dock" src="../../assets/img/roughness-metrics-1.png" width="677" />
   </p>
-<figcaption>The Seafloor Roughness dock — Metrics tab.</figcaption>
+<figcaption>The Metrics tab for one HabCam frame. γ₂ leads because it is the
+  trustworthy output; below it the indicative substrate and texture lines, then
+  w₂ and rms height carrying the service's per-frame trust flag — green here,
+  which is the good case rather than the usual one.</figcaption>
 </figure>
 <p>Open it with the <strong>cubes</strong> icon on the GroundTruther toolbar; it docks on the
 right and follows whichever frame the <a href="../image-browser/">Image Browser</a> is on.</p>
@@ -1619,11 +1707,110 @@ Metrics tab:</p>
   assumes isotropy, so γ₂ means less there.</li>
 </ul>
 <p>The spectrum is always requested; it is a small payload.</p>
+<p>The same plot on a different seabed is the quickest way to see what γ₂ is actually
+responding to. Both of these frames pass the trust gate, and both fit cleanly:</p>
+<figure>
+<p><img alt="A steeper spectrum" src="../../assets/img/roughness-spectrum-1.png" width="470" />
+  <img alt="A shallower spectrum" src="../../assets/img/roughness-spectrum-6900.png" width="470" />
+  </p>
+<figcaption>Left: image index 34941 — <code>γ₂=3.72 · w₂=0.175 cm⁴ · R²=0.950</code>.
+  Right: image index 6900 — <code>γ₂=3.00 · w₂=0.0159 cm⁴ · R²=0.975</code>. A shallower
+  slope and <b>eleven times less spectral strength</b>: the second is a smoother,
+  finer-grained seabed. Both curves flatten above ~1 krad/m into the same stereo
+  noise floor.</figcaption>
+</figure>
+<figure>
+<p><img alt="The relief power spectrum" src="../../assets/img/roughness-spectrum-1.png" width="800" />
+  </p>
+<figcaption>The same frame's spectrum: W (µm⁴) against K (krad/m) on log-log
+  axes, the fitted power law in red and the fit band shaded. The read-out is
+  <code>γ₂=3.72 · w₂=0.175 cm⁴ ✓ · R²=0.950 · fit band 125–1257 rad/m</code>, and
+  above ~1 krad/m the measured curve flattens away from the fit — that tail is the
+  stereo noise floor, not the seabed.</figcaption>
+</figure>
+<h2 id="how-well-does-this-actually-work">How well does this actually work?<a class="headerlink" href="#how-well-does-this-actually-work" title="Permanent link">&para;</a></h2>
+<p>Roughness from this stereo has been tested against an independent label set on the
+HRS1508 survey — 217 cells of a 25 m grid with single-substrate ground truth,
+random forest, five-fold cross-validation on <strong>200 m spatial blocks</strong> (not random
+folds, which would leak geography between train and test).</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th>accuracy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>backscatter angular response alone</td>
+<td>0.659</td>
+</tr>
+<tr>
+<td>+ γ₂</td>
+<td>0.691</td>
+</tr>
+<tr>
+<td>+ γ₂ and rugosity</td>
+<td>0.714</td>
+</tr>
+<tr>
+<td><strong>+ all roughness features</strong></td>
+<td><strong>0.756</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The gain of <strong>+0.097</strong> has a 95 % confidence interval of 0.039–0.155 and a
+block-permutation <em>p</em> &lt; 0.001, and <strong>γ₂ ranked first of all ten features</strong> — above
+every backscatter descriptor. Minority-class recall went from 0.43 to 0.60. So the
+headline claim on this page — that γ₂ carries real substrate information that
+backscatter does not — is measured, not asserted.</p>
+<p>Three limits came out of the same work, and they matter when you use this tool:</p>
+<div class="admonition warning">
+<p class="admonition-title"><code>insufficient_coverage</code> is not a random failure</p>
+<p>Frames rejected by the coverage gate are <strong>biased by substrate</strong>. On HRS1508,
+2.7 % of cells over one substrate were rejected against <strong>12.9 %</strong> over
+another — a Fisher odds ratio of <strong>5.3</strong> (<em>p</em> ≈ 2×10⁻²⁵). Turbidity over fine
+sediment is what drives it. Consequently the frames you <em>successfully</em> measure
+are not a representative sample of the seabed you flew over, and coverage maps
+built from roughness will under-represent exactly the softest ground. Report
+the rejection rate per class, don't just drop the failures.</p>
+</div>
+<ul>
+<li><strong>w₂ and rms height were excluded from that analysis entirely</strong> — not
+  de-weighted, excluded. Amplitude is not recoverable from this stereo, which is
+  the same conclusion the per-frame trust flag reaches one frame at a time.</li>
+<li><strong>Rugosity is amplitude-derived like w₂, yet it ranks third.</strong> It is a
+  useful discriminator here; treat it as an empirical feature rather than a
+  calibrated physical quantity.</li>
+</ul>
+<p>Per-frame health on a 296-frame line, for comparison with your own data: 2.0 %
+rejected (all <code>insufficient_coverage</code>), service altitude agreeing with the
+metadata <code>Altimeter</code> to a <strong>median 37 mm</strong>, and γ₂ median 2.97 (IQR 2.66–3.15).</p>
 <h2 id="micro-dem-3d-tab">Micro-DEM 3D tab<a class="headerlink" href="#micro-dem-3d-tab" title="Permanent link">&para;</a></h2>
 <p>The real-height micro-DEM as an interactive 3-D mesh, draped with the orthophoto
 as a 1:1 texture (one texel per vertex) when the surface outputs were requested.
 Heights are in millimetres and sit near −altitude, so the mesh is a true
 representation of the patch under the camera, not a high-passed roughness field.</p>
+<figure>
+<p><img alt="Photo-textured micro-DEM" src="../../assets/img/roughness-microdem-3d.jpg" width="800" />
+  </p>
+<figcaption>The same frame again, as a photo-textured mesh, with a two-point
+  measurement across the patch: <code>Profile (3-D) 803.7 mm · Plan (2-D) 773.5 mm
+  · ΔZ A→B −26.6 mm · Z-range 50.1 mm</code> — the 3-D distance exceeds the plan
+  distance by 30 mm, which is the relief. The black patches are no-data cells culled
+  by <b>Trim 4 / Clip σ 2.0 / Erode 1</b>, not flat seabed, and <b>Stretch</b> is on.
+  </figcaption>
+</figure>
+<div class="admonition note">
+<p class="admonition-title">The cell size is the service's choice, not yours</p>
+<p><code>Roughness.res_mm</code> is a <strong>request</strong>. The service picks the grid spacing per
+frame and reports what it used as <code>dx_mm</code>. The nominal default is 1 mm and some
+frames do return it, but across one line of the reference dataset <strong>2, 3, 4 and
+5 mm all appear</strong>. So a micro-DEM's resolution is a property of that frame, not
+of your settings: two frames' grids are not necessarily comparable cell-for-cell,
+and anything that combines frames has to resample each through its own
+geotransform. Read <code>dx_mm</code> rather than assuming.</p>
+</div>
 <p>The stereo DEM is unreliable at the grid border and around no-data holes, which
 otherwise shows up as spikes draped in stretched texture. Three live controls
 mask them; their starting values come from
@@ -1662,6 +1849,20 @@ GeoTIFFs and adds them to your project:</p>
 </table>
 <p>Both land in your survey CRS, so they overlay the bathymetry and backscatter
 directly.</p>
+<div class="admonition tip">
+<p class="admonition-title">Check the scale once, with QGIS's own ruler</p>
+<p>The quickest confirmation that a mosaic is georeferenced at true scale — not just
+placed in roughly the right spot — is to measure across it with the QGIS
+<strong>Measure</strong> tool and compare against the navigation.</p>
+<p><figure markdown>
+  <img alt="Measuring across a mosaic" src="../../assets/img/mosaic-scale-check.png" width="470" />
+  <figcaption>20.164 m measured across a mosaic built around image index 6900.</figcaption>
+</figure></p>
+<p>Those two points sit at rows 6873 and 6919; the calibrated USBL fix puts that
+stretch at 17.7 m along track for a ±15 window and 24.8 m for ±20, so a ~20 m
+span across the mosaic is the right size. If your measurement comes back a factor
+off, suspect the altitude or the EPSG before the mount.</p>
+</div>
 <div class="admonition info">
 <p class="admonition-title">QGIS redraws rotated rasters north-up</p>
 <p>The geotransform is a <strong>rotated</strong> affine — the grid is aligned to the
@@ -1772,14 +1973,147 @@ skips frames whose image is missing from its archive.</p>
 </table>
 <p>Two presets set the rest for you: <strong>Browse</strong> (3 mm, anti-aliased, fast overview)
 and <strong>Publication</strong> (ortho, 0.8 mm, lanczos, 8192 px, RGBA).</p>
-<div class="admonition note">
-<p class="admonition-title">When the mosaic is nav-placed anyway</p>
-<p>Featureless seabed — smooth mud with no clasts — cannot be content-registered
-by any method. In <em>pixel</em> and <em>auto</em> modes the service reports how many frame
-pairs it actually registered by content, and GroundTruther shows a banner
-when that fraction is low ("only 0/10 pairs registered — low texture, mosaic
-is nav-placed"). That is a limit of the data, not a fault: read the mosaic as
-nav-accurate, not pixel-accurate, in those stretches.</p>
+<figure>
+<p><img alt="A registered mosaic over a ribbon" src="../../assets/img/roughness-mosaic-1.jpg" width="1100" />
+  </p>
+<figcaption>A fully content-registered mosaic at image index 6900 (window ±8,
+  pixel mode) laid over the photogrammetric ribbon of the same line. The status
+  line reports what was actually done — <code>17 frames, 0 skipped, 3-band
+  (EPSG:32619) · pixel · 16/16 by content · smoothed anchor (raw fix 1.38 m off
+  track)</code>.</figcaption>
+</figure>
+<h3 id="the-anchor">The anchor<a class="headerlink" href="#the-anchor" title="Permanent link">&para;</a></h3>
+<p><strong>Smoothed anchor</strong>, on by default, is what makes that overlay line up. The USBL is
+piecewise-constant, so the current frame's raw fix can sit metres off the real track
+and a mosaic anchored on it inherits that error whole. With the box ticked
+GroundTruther places the frames on a smoothed USBL track instead, and the status line
+tells you how large the correction was.</p>
+<p>Untick it to get the old behaviour and compare the two on the map — at index 6900 they
+land about <strong>1.4 m</strong> apart. The setting falls back silently when the metadata carries
+no USBL columns or no heading, and the status line says so (<code>service anchor (no usable
+nav)</code>) rather than pretending.</p>
+<p>The <strong>window</strong> is capped at <strong>±20</strong>: the service refuses more than 41 frames in one
+mosaic and returns a bare <code>too many frames (51 &gt; 41)</code> above that.</p>
+<div class="admonition info">
+<p class="admonition-title">The mosaic is a picture, not a surface</p>
+<p>There is <strong>no mosaicked 3-D surface</strong>. The mosaic response carries an RGB image
+and a geotransform — no height band, no DEM — so what you get is a georeferenced
+<em>photograph</em> of the stretch. The Micro-DEM 3D tab stays <strong>per frame</strong>: one patch
+about 1.2 m across, never a composite.</p>
+<p>Compositing the micro-DEMs themselves into a continuous height model is what the
+<a href="../seabed-ribbon/">photogrammetric seabed ribbon</a> does, and it is a script rather
+than a dock — partly because doing it properly needs frame-to-frame registration
+and vertical levelling that a per-window mosaic call has no way to solve.</p>
+<p>If you overlay both they land within about <strong>0.1 m</strong> of each other: the mosaic is
+sent an explicitly smoothed USBL track rather than anchoring on whichever step the
+reference frame's raw fix happens to sit on. Where that smoothing is unavailable —
+no USBL columns, or no heading — the mosaic falls back to the reference frame and
+the disagreement grows to a median 0.72 m.
+<a href="../seabed-ribbon/#pixels-where-they-work-navigation-everywhere-else">Measured and explained here</a>.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">A mosaic is many frames; the roughness beside it is one</p>
+<p>Every number on the Metrics and Spectrum tabs — γ₂, w₂, rms, the fit — comes from
+the <strong>single frame</strong> you are on, measured over a patch about 1.2 m across. A ±20
+mosaic spans 41 frames and roughly 20 m. They are shown in the same dock and it is
+easy to read the metrics as describing the mosaic; they do not.</p>
+<p>If you want roughness <em>for</em> the mosaicked stretch, compute it frame by frame and
+aggregate — that is what the <a href="#how-well-does-this-actually-work">HRS1508 analysis</a>
+does, with a minimum of three frames per 25 m cell.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Content registration is patchy on this imagery — and it is not your frames</p>
+<p>In <em>pixel</em> and <em>auto</em> modes the service reports how many frame pairs it actually
+registered by content, and GroundTruther shows a banner when that fraction is low
+(<em>"only 0/10 pairs registered — low texture, mosaic is nav-placed"</em>). On the
+reference dataset that banner is common, and <strong>where you are matters far more than
+you would expect</strong>. Measured with <code>mode=pixel</code>, <code>window=±8</code>:</p>
+<table>
+<thead>
+<tr>
+<th>image index</th>
+<th>pairs registered</th>
+<th>quality</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6700</td>
+<td>0 / 16</td>
+<td><code>none</code></td>
+</tr>
+<tr>
+<td>6800</td>
+<td>3 / 16</td>
+<td><code>low</code></td>
+</tr>
+<tr>
+<td><strong>6900</strong></td>
+<td><strong>16 / 16</strong></td>
+<td><strong><code>ok</code></strong></td>
+</tr>
+<tr>
+<td>6920</td>
+<td>16 / 16</td>
+<td><code>ok</code></td>
+</tr>
+<tr>
+<td>34941</td>
+<td>0 / 16</td>
+<td><code>none</code></td>
+</tr>
+</tbody>
+</table>
+<p>Those first three rows are <strong>the same survey line, 200 frames apart</strong>. Part of this
+is real — featureless mud cannot be content-registered by any method. But part is
+the matcher: the service registers on <strong>CLAHE-enhanced greys</strong>, and the
+<a href="../seabed-ribbon/#choose-the-strip-by-texture-never-by-relief">ribbon work</a>
+measured that CLAHE and flat-fielding both <em>lower</em> the inlier count on these dark
+frames, and that a loose Lowe ratio plus an overlap mask are needed. With that
+tuning, the strip containing rows 6663–6958 registers at <strong>89.8 %</strong> end to end —
+far better than the service manages on the same frames.</p>
+<p>So: a <code>low</code> or <code>none</code> banner is not necessarily a bad patch of seabed. Read the
+mosaic as nav-accurate rather than pixel-accurate there, and if you need a
+registered example, <strong>start at image index 6900</strong> (good from about 6880 to 6958).</p>
+</div>
+<figure>
+<p><img alt="A nav-placed mosaic warning" src="../../assets/img/roughness-mosaic-navplaced.png" width="860" />
+  </p>
+<figcaption>The Georef tab after building a mosaic at image index 34941: the
+  mosaic was added (17 frames, 3-band, EPSG:32619) but <code>0/16 by content</code>,
+  so the banner warns it is nav-placed.</figcaption>
+</figure>
+<div class="admonition danger">
+<p class="admonition-title">"Featureless seabed" is not a safe reading of that banner</p>
+<p>Index 34941 is where the service reports a featureless seabed. It is also the
+frame on the <a href="#metrics-tab">Metrics tab above</a> — cobbles and shell hash, a
+micro-DEM full of structure. Running the <strong>ribbon's tuned ORB</strong> over the same
+sixteen frames:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>service</th>
+<th>ribbon matcher</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>index 34941</td>
+<td><strong>0 / 16</strong></td>
+<td><strong>10 / 15 linked</strong>, median 37 inliers</td>
+</tr>
+<tr>
+<td>index 6900</td>
+<td>16 / 16</td>
+<td>15 / 15 linked, median 516 inliers</td>
+</tr>
+</tbody>
+</table>
+<p>Two-thirds of those pairs <em>are</em> registrable. 34941 is genuinely harder ground
+than 6900 — 37 inliers against 516 — but harder is not featureless. <strong>Treat a
+<code>none</code> banner as "this matcher did not register it", not as a verdict on the
+seabed</strong>, and judge the texture by looking at single frames.</p>
 </div>
 <p><strong>Illumination correct</strong> (flat-fields the strobe vignette and equalises
 brightness) and <strong>Gain compensate</strong> are on by default and are what make a mosaic

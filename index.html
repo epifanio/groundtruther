@@ -697,6 +697,8 @@
       
         
       
+        
+      
     
     
     
@@ -869,6 +871,34 @@
     
   
     Seafloor Roughness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="tools/seabed-ribbon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Photogrammetric Seabed Ribbon
   
 
     
@@ -1358,10 +1388,11 @@ GroundTruther brings them onto the same canvas so you can move fluidly between
 look like here?"</em> — and build defensible, reproducible interpretations that link
 <strong>morphology, backscatter, and observed biota</strong>.</p>
 <figure>
-<!-- TODO: replace with a hero screenshot of the full plugin in QGIS -->
-<p><img alt="GroundTruther in QGIS" src="assets/img/placeholder.svg" width="900" />
+<p><img alt="GroundTruther in QGIS" src="assets/img/index-hero.jpg" width="1100" />
   </p>
-<figcaption>GroundTruther running inside QGIS 4.</figcaption>
+<figcaption>GroundTruther in QGIS 4: backscatter and bathymetry on the map, a
+  depth profile across the sampling unit, and a photo-textured stereo micro-DEM
+  being measured in 3-D — acoustics and optical geometry in one project.</figcaption>
 </figure>
 <h2 id="what-you-can-do">What you can do<a class="headerlink" href="#what-you-can-do" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1373,9 +1404,17 @@ look like here?"</em> — and build defensible, reproducible interpretations tha
   confidence scores.</li>
 <li><strong>Query MBES products acoustically</strong> — pull backscatter / bathymetric-derivative
   values under points or sampling shapes via a remote GRASS GIS service.</li>
+<li><strong>Reconstruct the seabed in 3-D from stereo imagery</strong> — a real-height
+  micro-DEM of the patch under the camera, viewable as a photo-textured mesh and
+  exportable as a georeferenced GeoTIFF.</li>
 <li><strong>Measure seafloor roughness from the imagery itself</strong> — per-frame spectral
-  roughness, a real-height micro-DEM and georeferenced photo mosaics, computed
-  from the HabCam stereo pairs.</li>
+  roughness (γ₂) and its relief power spectrum, validated against independent
+  substrate labels, computed from the HabCam stereo pairs.</li>
+<li><strong>Composite frames into georeferenced photo mosaics</strong>, and — via a companion
+  script — into an along-track
+  <strong><a href="tools/seabed-ribbon/">seabed ribbon</a></strong> spanning millimetres to ~170 m.</li>
+<li><strong>View the acoustic surface in 3-D</strong> with pick-and-measure read-out over either
+  the selected soundings or a reference bathymetry raster.</li>
 <li><strong>Run any GRASS module on demand</strong> — the toolbox builds a dialog from the
   module's own interface description and returns results straight to QGIS.</li>
 <li><strong>Generate quantitative reports</strong> that tie the acoustic and optical evidence
@@ -1426,6 +1465,10 @@ section documents every column GroundTruther reads.</p>
 <tr>
 <td><strong>Acoustic/GRASS backend</strong></td>
 <td><a href="tools/grass-fastgis/">FastGIS GRASS API</a> (<code>api.fastgis.eu</code>)</td>
+</tr>
+<tr>
+<td><strong>Stereo backend</strong></td>
+<td>GPU stereo-roughness service, reached through FastGIS or directly</td>
 </tr>
 <tr>
 <td><strong>Configuration</strong></td>

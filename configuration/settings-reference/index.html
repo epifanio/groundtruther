@@ -608,6 +608,8 @@
       
         
       
+        
+      
     
     
     
@@ -780,6 +782,34 @@
     
   
     Seafloor Roughness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../tools/seabed-ribbon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Photogrammetric Seabed Ribbon
   
 
     
@@ -1873,8 +1903,8 @@ service. All optional; all have working defaults.</p>
 <td>float ≥ 0</td>
 <td><em>(unset)</em></td>
 <td>no</td>
-<td>Requested micro-DEM cell size in millimetres, forwarded to the service.</td>
-<td>Unset — the dialog shows <em>"service default"</em> — means the server chooses (1.0 mm). This is the recommended setting.</td>
+<td><strong>Requested</strong> micro-DEM cell size in millimetres, forwarded to the service.</td>
+<td>Unset — the dialog shows <em>"service default"</em> — is the recommended setting. The service's nominal default is 1.0 mm, but it chooses the cell size <strong>per frame</strong> and the value it actually used comes back as <code>dx_mm</code> — 1 mm on some frames of the reference dataset, 2–5 mm on others. Treat this key as a request, not a guarantee, and read <code>dx_mm</code>.</td>
 </tr>
 <tr>
 <td><code>Roughness.n_water</code></td>

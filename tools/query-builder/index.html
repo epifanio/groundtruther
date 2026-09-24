@@ -610,6 +610,8 @@
       
         
       
+        
+      
     
     
     
@@ -820,6 +822,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-angular-response-ara" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The angular response (ARA)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-3-d-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The 3-D surface
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The 3-D surface">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reading-it-quantitatively" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading it quantitatively
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resolution-and-crs-caveats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resolution and CRS caveats
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-to-use" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -865,6 +917,34 @@
     
   
     Seafloor Roughness
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../seabed-ribbon/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Photogrammetric Seabed Ribbon
   
 
     
@@ -1291,6 +1371,56 @@
 </li>
       
         <li class="md-nav__item">
+  <a href="#the-angular-response-ara" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The angular response (ARA)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-3-d-surface" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The 3-D surface
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The 3-D surface">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#reading-it-quantitatively" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading it quantitatively
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#resolution-and-crs-caveats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Resolution and CRS caveats
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
   <a href="#how-to-use" class="md-nav__link">
     <span class="md-ellipsis">
       
@@ -1337,10 +1467,11 @@
 points and sampling shapes, and summarise their distributions. This is where the
 acoustic side of the "ground-truthing" happens.</p>
 <figure>
-<!-- TODO: replace src with assets/img/query-builder-1.png -->
-<p><img alt="Acoustic Query Builder" src="../../assets/img/placeholder.svg" width="900" />
+<p><img alt="Acoustic Query Builder" src="../../assets/img/query-builder-1.jpg" width="1100" />
   </p>
-<figcaption>Querying backscatter / derivatives under a sampling shape.</figcaption>
+<figcaption>The sampling unit defined (ellipse, 10 × 5 m, oriented 105°) over the
+  backscatter and bathymetry, with the angular response of the soundings inside
+  it.</figcaption>
 </figure>
 <h2 id="what-it-does">What it does<a class="headerlink" href="#what-it-does" title="Permanent link">&para;</a></h2>
 <ul>
@@ -1355,6 +1486,181 @@ acoustic side of the "ground-truthing" happens.</p>
   response / density) with <code>plotnine</code>/<code>matplotlib</code>, ready to compare against the
   optical evidence.</li>
 </ul>
+<h2 id="the-angular-response-ara">The angular response (ARA)<a class="headerlink" href="#the-angular-response-ara" title="Permanent link">&para;</a></h2>
+<p>The <strong>ARA</strong> tab is the acoustic read-out of a sampling unit: every selected
+sounding plotted as <strong>backscatter against incidence angle</strong>, with a polynomial fit
+(the <strong>Deg</strong> spinner sets the degree) through the cloud. The angular response curve
+— high near nadir, falling and flattening toward grazing — is the shape that
+carries substrate information, and it is what the
+<a href="../seafloor-roughness/">roughness metrics</a> are set beside.</p>
+<p>The <strong>Data Model</strong> radios pick which beams contribute:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Raw</strong></td>
+<td>every selected beam, port and starboard together</td>
+</tr>
+<tr>
+<td><strong>L</strong> / <strong>R</strong></td>
+<td>one side only — use these when the two sides disagree, which is itself diagnostic</td>
+</tr>
+<tr>
+<td><strong>Fold</strong></td>
+<td>the two sides folded onto a common |angle| axis, so port and starboard stack</td>
+</tr>
+</tbody>
+</table>
+<p>Sibling tabs cover the rest of the selection: <strong>Stat</strong> (summary statistics),
+<strong>Histogram</strong> (value distribution), <strong>Image Selection</strong> (the seafloor frames that
+fall inside the shape), and the two 3-D views below.</p>
+<figure>
+<p><img alt="ARA angular response" src="../../assets/img/query-builder-ara.png" width="760" />
+  </p>
+<figcaption>The ARA tab: backscatter against incidence angle for the selected
+  soundings, folded across nadir, with a degree-3 fit. The axes are unlabelled in
+  the widget — x is incidence angle in degrees, y is the backscatter field named in
+  the <b>BS</b> selector above (here <code>BS_area_dB</code>).</figcaption>
+</figure>
+<p>The <strong>Histogram</strong> tab is worth singling out: it splits the selection <strong>by survey
+line</strong>, so systematic differences between lines are visible directly.</p>
+<figure>
+<p><img alt="Per-line backscatter histograms" src="../../assets/img/query-builder-histogram.png" width="800" />
+  </p>
+<figcaption>Density of <code>BS_area_dB</code> per line inside one sampling unit.
+  Lines offset from one another by several dB over the same seabed is exactly the
+  per-line variation that has to be normalised away before backscatter can be
+  compared across a survey.</figcaption>
+</figure>
+<h2 id="the-3-d-surface">The 3-D surface<a class="headerlink" href="#the-3-d-surface" title="Permanent link">&para;</a></h2>
+<p>Two tabs show the selected area in 3-D, and <strong>they are not the same product</strong> —
+read this before putting either in a report.</p>
+<table>
+<thead>
+<tr>
+<th>tab</th>
+<th>where the surface comes from</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>WGL</strong></td>
+<td>The <strong>selected soundings</strong>, gridded on the fly. Always available.</td>
+</tr>
+<tr>
+<td><strong>Reference 3D</strong></td>
+<td>The <code>reference_surface</code> GeoTIFF, clipped to the sampling shape. Only when that setting points at a readable, north-up raster.</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">WGL needs a large selection to mean anything</p>
+<p>The soundings grid is built at a fixed <strong>1.5 nodes per metre across the
+selection's bounding box</strong>, so its resolution is set by how big your selection
+is, not by how dense the pings are:</p>
+<table>
+<thead>
+<tr>
+<th>selection extent</th>
+<th>grid</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>250 m</td>
+<td>375 × 375 — a real surface</td>
+</tr>
+<tr>
+<td>25 m</td>
+<td>37 × 37</td>
+</tr>
+<tr>
+<td>5 m</td>
+<td>7 × 7 — barely a surface</td>
+</tr>
+<tr>
+<td>2 m</td>
+<td>3 × 3 — meaningless</td>
+</tr>
+<tr>
+<td>under ~0.7 m</td>
+<td><strong>empty</strong></td>
+</tr>
+</tbody>
+</table>
+<p>A sampling unit sized for ground-truthing — metres across — therefore produces
+a handful of nodes, and reading relief off it is not justified. <strong>Use WGL for a
+broad survey-scale selection; for a sampling unit, read the acoustics from the
+<a href="#the-angular-response-ara">ARA tab</a> and the relief from Reference 3D</strong>, which
+is clipped from the bathymetry raster and keeps its own resolution regardless
+of how small the shape is.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Both surfaces fill space that has no data</p>
+<p>Neither tab distinguishes <em>measured</em> seabed from <em>inferred</em> seabed. The
+filling is different in each, and in both cases it looks like real relief:</p>
+<ul>
+<li><strong>WGL</strong> grids the soundings with <strong>nearest-neighbour</strong> interpolation over the
+  full <strong>bounding box</strong> of your selection. Nearest-neighbour has no concept of
+  a data boundary, so the corners of the box — outside the sampling shape, and
+  possibly far from any ping — are filled with the value of the closest
+  sounding. The result is a complete rectangle of "surface" whose edges may be
+  pure extrapolation. The grid is built at a fixed <strong>1.5 nodes per metre</strong>
+  regardless of actual sounding density, so where the data is sparser than that
+  the surface is visibly blocky — those flat tiles are one sounding each, not
+  resolved seabed.</li>
+<li><strong>Reference 3D</strong> replaces every <strong>NoData</strong> cell in the clipped window with the
+  <strong>median height of that window</strong>. A gap in the bathymetry therefore appears as
+  a smooth plate at typical depth, not as a hole.</li>
+</ul>
+<p>Read a wide, featureless area in either tab as <em>"no information here"</em> rather
+than <em>"flat seabed here"</em>. Cross-check against the raster itself in the map
+canvas if it matters.</p>
+</div>
+<h3 id="reading-it-quantitatively">Reading it quantitatively<a class="headerlink" href="#reading-it-quantitatively" title="Permanent link">&para;</a></h3>
+<p>The <strong>Reference 3D</strong> tab is the one built for measurement:</p>
+<ul>
+<li>A live <strong>cursor read-out</strong> of Easting / Northing / Elevation, <strong>snapped to the
+  nearest grid sample</strong> so the number is a real cell value rather than an
+  interpolated guess at the pointer.</li>
+<li><strong>Click to drop a marker</strong>, and a two-point <strong>measure</strong> tool reporting 3-D
+  distance with its horizontal and vertical components.</li>
+<li>A <strong>vertical-exaggeration</strong> slider, <strong>1× … 20×, defaulting to 1×</strong>. Picking and
+  measuring read the true elevation and are unaffected by it — but everything you
+  <em>see</em> above 1× overstates the relief. Note the VE whenever you show a screenshot.</li>
+</ul>
+<p>The <strong>WGL</strong> tab has none of these: it is a plain surface for orientation, with no
+read-out, no picking and no exaggeration control.</p>
+<h3 id="resolution-and-crs-caveats">Resolution and CRS caveats<a class="headerlink" href="#resolution-and-crs-caveats" title="Permanent link">&para;</a></h3>
+<ul>
+<li>The clipped reference surface is <strong>downsampled so its longer side is at most 300
+  cells</strong>. A large sampling shape is therefore shown much coarser than the source
+  raster — the 3-D view is a preview of the DEM, never a substitute for it.</li>
+<li>Only <strong>north-up</strong> GeoTIFFs are supported. A rotated raster — such as a
+  georeferenced micro-DEM or mosaic from the
+  <a href="../seafloor-roughness/">Seafloor Roughness</a> tool — is rejected, and the tab
+  falls back to the soundings surface.</li>
+<li>If the raster is <strong>geographic</strong> (degrees), the horizontal axes are converted to
+  local metres by an <strong>equirectangular approximation</strong> about the window centre, so
+  that the vertical and horizontal units match. Over a sampling-shape-sized window
+  the error is negligible; it is still an approximation, not a reprojection.</li>
+<li>Any failure to clip — missing file, wrong CRS, no overlap, all-NoData — is
+  <strong>logged to the <code>GroundTruther</code> message-log tab</strong> and the tab silently falls back
+  to the soundings surface. If you expected the GeoTIFF, check the log rather than
+  assuming you are looking at it.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Which surface ends up in the report</p>
+<p><a href="../report-builder/">Report Builder</a> captures the <strong>Reference 3D</strong> tab when it is
+showing a surface, and the <strong>WGL</strong> soundings surface otherwise. The exported
+image is not labelled with its source, so state in your report text which one
+it is — and at what vertical exaggeration.</p>
+</div>
 <h2 id="how-to-use">How to use<a class="headerlink" href="#how-to-use" title="Permanent link">&para;</a></h2>
 <ol>
 <li>In the GRASS toolbox, <strong>select an environment</strong> and choose which raster layers
