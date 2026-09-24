@@ -6,9 +6,11 @@ quantitative texture descriptor to set beside the backscatter, plus a real-heigh
 micro-DEM of the patch the camera is looking at.
 
 <figure markdown>
-  <!-- TODO: replace src with assets/img/roughness-metrics-1.png (Metrics tab) -->
-  ![The Seafloor Roughness dock](../assets/img/placeholder.svg){ width="900" }
-  <figcaption>The Seafloor Roughness dock — Metrics tab.</figcaption>
+  ![The Seafloor Roughness dock](../assets/img/roughness-metrics-1.png){ width="677" }
+  <figcaption>The Metrics tab for one HabCam frame. γ₂ leads because it is the
+  trustworthy output; below it the indicative substrate and texture lines, then
+  w₂ and rms height carrying the service's per-frame trust flag — green here,
+  which is the good case rather than the usual one.</figcaption>
 </figure>
 
 Open it with the **cubes** icon on the GroundTruther toolbar; it docks on the
@@ -97,10 +99,11 @@ The spectrum is always requested; it is a small payload.
 
 <figure markdown>
   ![The relief power spectrum](../assets/img/roughness-spectrum-1.png){ width="800" }
-  <figcaption>W(K) on log-log axes with the fitted power law and the shaded fit
-  band. Note the read-out: <code>γ₂=3.72 · w₂=0.175 cm⁴ · R²=0.950 · fit band
-  125–1257 rad/m</code> — and the measured curve peeling away from the fit at
-  high K, which is the stereo noise floor rather than the seabed.</figcaption>
+  <figcaption>The same frame's spectrum: W (µm⁴) against K (krad/m) on log-log
+  axes, the fitted power law in red and the fit band shaded. The read-out is
+  <code>γ₂=3.72 · w₂=0.175 cm⁴ ✓ · R²=0.950 · fit band 125–1257 rad/m</code>, and
+  above ~1 krad/m the measured curve flattens away from the fit — that tail is the
+  stereo noise floor, not the seabed.</figcaption>
 </figure>
 
 ## How well does this actually work?
@@ -154,10 +157,12 @@ representation of the patch under the camera, not a high-passed roughness field.
 
 <figure markdown>
   ![Photo-textured micro-DEM](../assets/img/roughness-microdem-3d.jpg){ width="800" }
-  <figcaption>The micro-DEM draped with its orthophoto, with a two-point
+  <figcaption>The same frame again, as a photo-textured mesh, with a two-point
   measurement across the patch: <code>Profile (3-D) 803.7 mm · Plan (2-D) 773.5 mm
-  · ΔZ A→B −26.6 mm · Z-range 50.1 mm</code>. The black patches are no-data cells
-  culled by the mitigation controls, not flat seabed.</figcaption>
+  · ΔZ A→B −26.6 mm · Z-range 50.1 mm</code> — the 3-D distance exceeds the plan
+  distance by 30 mm, which is the relief. The black patches are no-data cells culled
+  by <b>Trim 4 / Clip σ 2.0 / Erode 1</b>, not flat seabed, and <b>Stretch</b> is on.
+  </figcaption>
 </figure>
 
 !!! note "The cell size is the service's choice, not yours"
