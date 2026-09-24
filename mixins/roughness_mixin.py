@@ -30,9 +30,14 @@ from qgis.core import (
 from groundtruther.configure import log_exception
 from groundtruther.gt import config_check
 from groundtruther.gt import roughness_client
+from groundtruther.gt import roughness_dem
 from groundtruther.gt import task_runner
 
 _CACHE_MAX = 64
+# Surface outputs are fetched by default (free in compute, ~1 MB each), so a
+# 64-entry cache is ~70 MB and, with the 2-D overlay ticked, ~345 MB. Cap the
+# total too; the frame in view is never evicted.
+_CACHE_MAX_BYTES = 192 * 1024 * 1024
 
 # Shared panel palette / styles (also used by the image-metadata panel).
 from groundtruther.mixins.ui_style import (  # noqa: E402
@@ -189,17 +194,33 @@ class RoughnessMixin:
         self._rough_status.setStyleSheet(f"color: {_C_MUTED}; font-size: 12px;")
         vbox.addWidget(self._rough_status)
 
-        # Controls — request only the optional outputs you want rendered.
+        # Controls — which optional outputs to fetch.
+        #
+        # The surface is ON by default because it is *free in time*: the stereo
+        # match dominates the request (~14 s) and the service computes the DEM and
+        # orthophoto on the way there regardless — measured, asking for them adds
+        # no compute, only ~1 MB of payload (32 KiB -> 1.1 MiB). The service does
+        # NOT cache, so a frame fetched without them costs another full ~14 s to
+        # re-request; paying 1 MB up front avoids that. The 2-D overlay stays off:
+        # it is ~4.2 MB, four times heavier, and rarely wanted.
         self._rough_surface_check = QCheckBox("3-D surface + photo (real heights)")
+        self._rough_surface_check.setChecked(True)
         self._rough_surface_check.setToolTip(
-            "Request the real-height micro-DEM grid + orthophoto so the "
-            "Micro-DEM 3D tab shows a photo-textured surface — slower.")
+            "Fetch the real-height micro-DEM grid + orthophoto so the Micro-DEM 3D "
+            "tab shows a photo-textured surface.\n"
+            "Costs no extra compute (the service builds them anyway) — only about "
+            "1 MB of payload. Leave it on unless you are on a slow link.")
+        self._rough_surface_check.toggled.connect(
+            lambda on: self._on_output_request_toggled(on))
         vbox.addWidget(self._rough_surface_check)
 
         self._rough_overlay_check = QCheckBox("2-D height overlay on image")
         self._rough_overlay_check.setToolTip(
-            "Request the per-left-pixel height raster + rectified-left preview "
-            "and drape it on the displayed image — slower.")
+            "Fetch the per-left-pixel height raster + rectified-left preview and "
+            "drape it on the displayed image.\n"
+            "Adds roughly 4 MB to the response — off by default.")
+        self._rough_overlay_check.toggled.connect(
+            lambda on: self._on_output_request_toggled(on))
         vbox.addWidget(self._rough_overlay_check)
 
         btn_row = QHBoxLayout()
@@ -338,7 +359,6 @@ class RoughnessMixin:
         # without another server round-trip.
         self._micro_dem_last_result = result if (
             result.get("micro_dem") or result.get("micro_dem_png_b64")) else None
-        from groundtruther.gt import roughness_dem
 
         md = result.get("micro_dem")
         if isinstance(md, dict) and md.get("data_b64"):
@@ -1223,8 +1243,7 @@ class RoughnessMixin:
         cache = self._roughness_cache
         cache[frame_key] = result
         cache.move_to_end(frame_key)
-        while len(cache) > _CACHE_MAX:
-            cache.popitem(last=False)
+        roughness_dem.evict_to_budget(cache, _CACHE_MAX, _CACHE_MAX_BYTES)
 
     # ------------------------------------------------------------------ #
     # Compute                                                              #
@@ -1302,6 +1321,32 @@ class RoughnessMixin:
             on_success=self._on_roughness_success,
             on_error=self._on_roughness_error,
             description=f"Roughness {frame_key}", **client_cfg, **outputs)
+
+    def _on_output_request_toggled(self, checked: bool) -> None:
+        """Re-fetch when a newly-ticked output is missing from the cached result.
+
+        Rendering is data-driven — :meth:`_show_roughness_result` draws whatever the
+        payload carries — so the only reason ticking a box needs a round trip is
+        that the data was never fetched. The service does not cache, so say plainly
+        that this costs a full recompute rather than looking like a hang.
+        """
+        if not checked or getattr(self, "_roughness_task", None) is not None:
+            return
+        frame_key = self._current_frame_key()
+        if not frame_key:
+            return
+        cached = self._roughness_cache_get(frame_key)
+        if cached is None:
+            return          # nothing computed yet; the Compute button is the path
+        want_surface = self._rough_surface_check.isChecked()
+        want_overlay = self._rough_overlay_check.isChecked()
+        if self._cache_satisfies(cached, want_surface, want_overlay):
+            self._show_roughness_result(frame_key, cached)   # already have it
+            return
+        self._rough_status.setText(
+            "fetching the extra outputs — the service does not cache, so this "
+            "is a full recompute (~14 s)")
+        self.compute_roughness_for_current_frame()
 
     @staticmethod
     def _cache_satisfies(cached, want_surface, want_overlay) -> bool:
