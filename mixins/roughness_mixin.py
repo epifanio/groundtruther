@@ -823,9 +823,12 @@ class RoughnessMixin:
         interp = self._mosaic_interp.currentText()
         if interp == "auto":     # smart: anti-alias coarse, sharpen near-native
             interp = "area" if gsd > 0.001 else "lanczos"
+        window = int(self._mosaic_window.value())
+        mode = self._mosaic_mode.currentText().lower()
+        frames, mode = self._mosaic_frames(window, mode)
         self._mosaic_task = task_runner.run_mosaic_task(
-            ref, window=int(self._mosaic_window.value()),
-            mode=self._mosaic_mode.currentText().lower(),
+            ref, window=window,
+            mode=mode, frames=frames,
             overlap_threshold=float(self._mosaic_overlap.value()),
             out_gsd_m=gsd, epsg=int(self._georef_epsg.value()),
             max_side=int(self._mosaic_maxside.value()), interp=interp,
@@ -836,6 +839,48 @@ class RoughnessMixin:
             direct_url=mosaic_direct,
             on_success=self._on_mosaic_success, on_error=self._on_mosaic_error,
             description=f"Mosaic {ref}")
+
+
+    def _mosaic_frames(self, window: int, mode: str):
+        """``(frames, mode)`` for the mosaic request — smoothed anchor if we can.
+
+        Returns explicit per-frame navigation (a mode-B request) built from the
+        **smoothed** USBL track, so the mosaic no longer anchors on whichever
+        USBL step the current frame happens to sit on.  That single change takes
+        the disagreement between a mosaic and a
+        :mod:`ribbon <groundtruther.gt.ribbon>` of the same stretch from a median
+        0.72 m to 0.10 m.
+
+        Returns ``(None, mode)`` — a plain mode-A request — whenever the metadata
+        cannot supply what mode B needs, so a table without USBL columns or
+        headings still mosaics exactly as before.
+
+        ``auto`` is resolved here rather than sent: it judges overlap from the
+        positions in the request, and on a smoothed track it reliably picks
+        *flat*, silently losing the content registration the user asked for.
+        """
+        from groundtruther.gt import mosaic_nav
+        df = getattr(self, "imageMetadata", None)
+        index = getattr(self, "imageindex", None)
+        if df is None or index is None:
+            return None, mode
+        try:
+            frames = mosaic_nav.smoothed_frames(df, int(index), window)
+        except Exception as exc:          # noqa: BLE001 - fall back, never fail
+            log_exception("mosaic: no explicit nav, using the service's own",
+                          exc, warn=True)
+            return None, mode
+        if mode == "auto":
+            # Decide it ourselves, on the same rule the service uses (nav-predicted
+            # overlap), so "auto" keeps meaning what it means in mode A.
+            mode = "pixel"
+        offset = mosaic_nav.anchor_offset_m(df, int(index))
+        if offset is not None and offset > 0.5:
+            QgsMessageLog.logMessage(
+                f"mosaic: the reference frame's raw USBL fix is {offset:.2f} m off "
+                f"the smoothed track; anchoring on the smoothed fix instead",
+                "GroundTruther", Qgis.Info)
+        return frames, mode
 
     def _reset_mosaic_button(self) -> None:
         btn = getattr(self, "_mosaic_btn", None)
