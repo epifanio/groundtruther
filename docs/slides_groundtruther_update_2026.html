@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GroundTruther — 2026 Update</title>
+  <meta name="description" content="From plugin to measurement instrument — QGIS 4/Qt6, FastGIS, stereo photogrammetry, roughness, mosaics, the seabed ribbon, and the HRS1508 analysis">
 
   <!-- reveal.js core + theme (CDN) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/reveal.js@5/dist/reveal.css">
@@ -69,18 +70,33 @@
       border-radius:8px; padding:3px 10px; margin:3px; font-size:.55em; color:var(--gt-accent); }
     .reveal code { color: var(--gt-sea); }
     .reveal .footnote { position:absolute; bottom:10px; left:40px; right:40px; }
+
+    /* data tables — the refreshed deck leans on them heavily */
+    .reveal table.tbl { width: 100%; border-collapse: collapse; font-size: .62em; margin: .35em 0 .55em; }
+    .reveal table.tbl th { text-align: left; color: var(--gt-accent); font-weight: 700;
+      border-bottom: 2px solid var(--gt-accent2); padding: 4px 8px; }
+    .reveal table.tbl td { padding: 4px 8px; border-bottom: 1px solid #e4eef5; vertical-align: top; }
+    .reveal table.tbl tr.hi td { background: #eaf6ff; }
+    .reveal table.tbl.compact { font-size: .9em; width: auto; margin: .25em 0 .25em 1em; }
+    .reveal table.tbl.compact td, .reveal table.tbl.compact th { padding: 2px 14px 2px 0; border: 0; }
+
+    /* act dividers */
+    .reveal section.act h1 { font-size: 2.6em; margin-bottom: 0; }
+    .reveal section.act h3 { margin-top: .1em; }
+
+    /* two text columns (no screenshot) share the .cols grid evenly */
+    .reveal .cols > .col-text + .col-text { border-left: 1px solid #e4eef5; padding-left: 24px; }
   </style>
 </head>
 <body>
 <div class="reveal"><div class="slides">
-
   <!-- 1 · Title -->
   <section class="center">
     <h1>GroundTruther</h1>
-    <h3 style="color:var(--gt-sea)">What changed since the paper</h3>
+    <h3 style="color:var(--gt-sea)">From plugin to measurement instrument</h3>
     <p class="muted">A QGIS plugin for <b>seafloor characterization</b> — multibeam acoustics,
-       seafloor imagery & survey video, together on one map.</p>
-    <p class="muted">Development update · 2026 · <b>v0.4</b> · QGIS 4 / Qt 6</p>
+       seafloor imagery, survey video <b>and now stereo geometry</b>, together on one map.</p>
+    <p class="muted">Development update · September 2026 · <b>v0.4</b> · QGIS 4 / Qt 6</p>
   </section>
 
   <!-- 2 · Recap -->
@@ -90,36 +106,49 @@
       <div class="col-text">
         <ul>
           <li>Runs <b>inside QGIS</b> as a dock-based toolset</li>
-          <li>Joins three data worlds on one map:
+          <li>Joins <b>four</b> data worlds on one map:
             <ul>
               <li><b>MBES</b> bathymetry + backscatter (ARA)</li>
-              <li><b>Seafloor imagery</b> (HabCam-style stills)</li>
+              <li><b>Seafloor imagery</b> (HabCam-style stereo stills)</li>
               <li><b>Survey video</b> with per-frame GPS</li>
+              <li><b>Stereo geometry</b> — micro-DEMs, roughness, mosaics <i>(new)</i></li>
             </ul>
           </li>
           <li>Ground-truth annotation → statistics → <b>KMZ / HTML</b> reports</li>
-          <li>Remote <b>GRASS GIS</b> service for geoprocessing</li>
+          <li>Heavy work stays server-side: <b>GRASS</b> backend + a <b>GPU stereo</b> service</li>
         </ul>
       </div>
       <div class="col-shot"><div class="shot tall">📷 screenshot — GroundTruther docked in QGIS (overview)</div></div>
     </div>
   </section>
 
-  <!-- 3 · Timeline -->
+  <!-- 3 · Where it stands today -->
   <section>
-    <h2>Timeline</h2>
-    <ul>
-      <li><b>Paper release</b> → first public, working tool</li>
-      <li><b>This winter (≈ March 2026)</b> → major modernization cycle begins</li>
-      <li>Goals: <span class="lead-sub">QGIS 4 / Qt 6</span>, a maintainable codebase,
-          <span class="lead-sub">video support</span>, and a modern
-          <span class="lead-sub">authenticated GRASS API</span></li>
-    </ul>
-    <p class="muted">This deck = the highlights: new platform · new UI/UX · streamlined install ·
-       refactor · new API · new science features · bug fixes.</p>
+    <h2>Where it stands today</h2>
+    <table class="tbl">
+      <tr><th>when</th><th>what landed</th></tr>
+      <tr><td><b>Apr 2026</b></td><td>Port to <b>QGIS 4 / Qt 6</b>, Python 3.14, dock UI, video player</td></tr>
+      <tr><td><b>Jun 2026</b></td><td><b>FastGIS</b> authenticated GRASS API · session persistence ·
+          <b>stereo roughness, micro-DEM 3-D and georeferenced mosaics</b></td></tr>
+      <tr><td><b>Sep 2026</b></td><td>Config hardening · full docs site · the <b>180° georeference fix</b> ·
+          the <b>photogrammetric seabed ribbon</b></td></tr>
+      <tr><td><b>in parallel</b></td><td><b>HRS1508</b> — a frozen-manifest analysis asking whether stereo
+          roughness actually adds to acoustics</td></tr>
+    </table>
+    <p class="muted"><b>Act I</b> — the engineering that made the tool trustworthy ·
+       <b>Act II</b> — the new optical-geometry tools ·
+       <b>Act III</b> — the first science they made possible.</p>
   </section>
 
-  <!-- 4 · QGIS 4 / Qt 6 (GUI + shot) -->
+  <!-- 4 · ACT I divider -->
+  <section class="center act">
+    <h1>Act I</h1>
+    <h3 style="color:var(--gt-sea)">The platform</h3>
+    <p class="muted">QGIS 4 / Qt 6 · docks &amp; sessions · configuration · internals ·
+       FastGIS · query builder · video · reports · docs</p>
+  </section>
+
+  <!-- 5 · QGIS 4 / Qt 6 -->
   <section>
     <h2>QGIS 4 / Qt 6 support <span class="tag">platform</span></h2>
     <div class="cols">
@@ -127,8 +156,11 @@
         <ul>
           <li>Full port to <b>QGIS 4.0+ / Qt 6</b> (system Python 3.14)</li>
           <li>Qt 6 API rework: scoped enums, <code>exec_</code> → <code>exec</code></li>
-          <li>Fixed Qt 6 <b>dock-walk crashes</b> (register docks with main window)</li>
+          <li>Fixed Qt 6 <b>dock-walk crashes</b> — register docks with the QGIS main
+              window, never the plugin's inner <code>QMainWindow</code></li>
           <li>OpenGL 3-D viewer made Qt 6-safe (PyOpenGL context)</li>
+          <li><code>QWebEngineView</code> → <code>QTextBrowser</code> (WebEngine absent
+              from QGIS 4 OSGeo4W)</li>
           <li>Wayland: launch <code>QT_QPA_PLATFORM=xcb</code> for floating docks</li>
         </ul>
         <p class="muted"><code>qgisMinimumVersion = 4.0</code></p>
@@ -137,15 +169,19 @@
     </div>
   </section>
 
-  <!-- 5 · New UI layout & project management (GUI + shot) -->
+  <!-- 6 · Docks & sessions -->
   <section>
-    <h2>New UI layout &amp; project management <span class="tag">GUI</span></h2>
+    <h2>Dock workspace &amp; session persistence <span class="tag">GUI</span></h2>
     <div class="cols wide-shot">
       <div class="col-text">
         <ul>
-          <li>Each tool an independent <b>dockable / floatable</b> panel</li>
+          <li>Each tool an independent <b>dockable / floatable</b> panel:
+            <div class="badges"><span>image browser</span><span>video player</span>
+              <span>query builder</span><span>report builder</span>
+              <span>GRASS tools</span><span>seafloor roughness</span></div>
+          </li>
           <li>"Restore default layout" + reliable <b>save/restore of docked layout</b></li>
-          <li><b>Session persistence (new):</b> a <code>groundtruther_project</code> file</li>
+          <li><b>Session persistence:</b> a <code>groundtruther_project</code> file</li>
           <li>Restores <b>image index, zoom, query selection, dock layout, map-sync</b></li>
           <li>Written on QGIS project save · loaded at start → <i>resume where you left off</i></li>
         </ul>
@@ -154,220 +190,473 @@
     </div>
   </section>
 
-  <!-- 6 · UI settings & configuration (GUI + shot) -->
+  <!-- 7 · Configuration -->
   <section>
-    <h2>UI settings &amp; configuration <span class="tag">GUI</span></h2>
+    <h2>Configuration that degrades instead of failing <span class="tag">robustness</span></h2>
+    <p class="muted">The old model was all-or-nothing: one stale path and the plugin would not start.</p>
     <div class="cols">
       <div class="col-text">
         <ul>
-          <li>Single <b>YAML config</b>, validated by a <b>pydantic v2</b> model</li>
-          <li>Clear errors instead of obscure runtime failures</li>
-          <li>Dialog for image / MBES / video / export / GRASS paths &amp; keys</li>
-          <li>CRS-aware: zoom-to uses <b>map scale (1:N)</b> — same in metric
-              <i>and</i> geographic CRSs</li>
+          <li><b>27 keys</b>, validated <b>per key</b> and <b>severity-aware</b>;
+              pydantic v2 is the schema of record</li>
+          <li>Only the two image paths are <b>errors</b> — everything else is a
+              <b>warning</b> when set-but-invalid, silent when unset</li>
+          <li><code>degrade()</code> blanks <b>only</b> the failed keys → a bad value
+              disables <b>its own feature</b>, nothing else</li>
+          <li>Config values treated as <b>untrusted</b> throughout</li>
+          <li>Settings dialog covers <b>every</b> key and saves by <b>merging</b> into the
+              file on disk (the old template silently deleted whole sections)</li>
+          <li>Cloud panels <b>hide themselves</b> when no service is configured</li>
         </ul>
       </div>
-      <div class="col-shot"><div class="shot tall">📷 screenshot — Settings dialog</div></div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — Settings dialog + a validation report in the message log</div></div>
     </div>
   </section>
 
-  <!-- 7 · Streamlined installation -->
+  <!-- 8 · Internals -->
   <section>
-    <h2>Streamlined installation <span class="tag">setup</span></h2>
-    <ul>
-      <li>QGIS 4 runs on <b>system Python</b> (PEP-668, no pip) — handled cleanly:
-        <ul>
-          <li>Plugin deps live in a <b><code>.venv</code></b> beside the source</li>
-          <li><code>_bootstrap_venv()</code> appends it to <code>sys.path</code> at load</li>
-        </ul>
-      </li>
-      <li>Install = <b>symlink the repo</b> into the QGIS profile + enable</li>
-      <li>Fixed missing runtime deps &amp; venv bootstrap → one-step setup</li>
-      <li>Video decode via <b>PyAV</b> (bundled FFmpeg) — no system-codec hunt</li>
-    </ul>
-  </section>
-
-  <!-- 8 · Code refactoring -->
-  <section>
-    <h2>Code refactoring — modular &amp; maintainable <span class="tag">internals</span></h2>
+    <h2>Internals — modular, tested, documented <span class="tag">internals</span></h2>
     <ul>
       <li><b>Thin orchestrator + focused mixins</b> — dockwidget ≈ 240 lines:
         <div class="badges"><span>image browser</span><span>video browser</span>
-          <span>video annotation</span><span>GRASS</span><span>report</span>
-          <span>settings</span><span>layout</span><span>session</span></div>
+          <span>video annotation</span><span>GRASS</span><span>roughness</span>
+          <span>report</span><span>settings</span><span>layout</span><span>session</span></div>
       </li>
       <li><b>Stateless, testable core (<code>gt/</code>)</b> — no Qt, unit-tested:
         <div class="badges"><span>grass_api</span><span>image_manager</span>
-          <span>video_manager</span><span>task_runner</span>
-          <span>mbes_fields ✨</span><span>video_reader ✨</span><span>session_state ✨</span></div>
+          <span>video_manager</span><span>task_runner</span><span>mbes_fields</span>
+          <span>session_state</span><span>roughness_client</span><span>roughness_geo</span>
+          <span>roughness_dem</span><span>roughness_spectrum</span><span>ribbon</span></div>
       </li>
-      <li>A growing <b>pytest</b> suite (unit / GUI-offscreen / integration)</li>
+      <li><b>415 tests</b> collected (unit / GUI-offscreen / integration) — including tests
+          that guard the <i>conventions</i>: import hygiene, settings-docs drift, UI-built-once</li>
+      <li>Non-trivial work is <b>planned first</b> in <code>PLANNING/</code>, executed in a
+          dedicated git worktree, closed out with a progress log</li>
     </ul>
   </section>
 
-  <!-- 9 · New FastGIS API (GUI + shot) -->
+  <!-- 9 · FastGIS -->
   <section>
-    <h2>New FastGIS API (GRASS backend) <span class="tag">backend</span></h2>
+    <h2>FastGIS — the GRASS backend <span class="tag">API</span></h2>
     <div class="cols">
       <div class="col-text">
         <ul>
           <li>Legacy flat, <b>unauthenticated</b> endpoint → <b><code>api.fastgis.eu</code></b></li>
-          <li><b>Authenticated</b> (<code>X-API-Key</code>), built on an <b>environment</b> model (<code>env_id</code>)</li>
-          <li><b>Schema-driven module dialogs</b> — any GRASS module from its interface; async via <code>QgsTask</code></li>
-          <li>GRASS Tools is now an <b>undockable QGIS panel</b>: module picker, push rasters back to QGIS, show/hide computational region</li>
+          <li><b>Authenticated</b> (<code>X-API-Key</code>), built around an
+              <b>environment</b> model (<code>env_id</code>)</li>
+          <li><b>Schema-driven module dialogs</b> — any GRASS module rendered from its
+              interface description; async runs polled via a <code>QgsTask</code></li>
+          <li>Detachable QGIS panel: module picker, push output rasters <b>back into
+              QGIS</b>, show/hide the computational region</li>
+          <li>Same credentials carry the <b>stereo roughness</b> service</li>
         </ul>
       </div>
-      <div class="col-shot"><div class="shot tall">📷 screenshot — GRASS Tools panel + a schema-driven module dialog</div></div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — GRASS Tools panel + a generated module form</div></div>
     </div>
   </section>
 
-  <!-- 10 · Feature: MBES query builder (GUI + shot) -->
+  <!-- 10 · Query builder -->
   <section>
-    <h2>Feature — MBES query builder <span class="tag">new</span></h2>
-    <div class="cols wide-shot">
+    <h2>MBES query builder &amp; ARA <span class="tag">feature</span></h2>
+    <div class="cols">
       <div class="col-text">
         <ul>
           <li>Draw a <b>sampling unit</b> (ellipse / rectangle) on the soundings</li>
-          <li>ARA scatterplot · 3-D surface · histograms · stats · in-shape images</li>
-          <li><b>Multi-level backscatter (new):</b> auto-detects every BSWG-2015 level
-              (<code>raw→RL→TL→area→AVG</code>), <b>back-compatible</b> with the legacy format</li>
-          <li>Beam-side filtering (Raw / Port / Starboard / Fold) fixed</li>
+          <li>ARA scatterplot, 3-D surface, histograms, summary statistics, in-shape image selection</li>
+          <li><b>Multi-level backscatter</b>: auto-detects every BSWG-2015 level present
+              (<code>BS_raw → BS_RL → BS_TL → BS_area → BS_AVG</code>), back-compatible</li>
+          <li>Beam-side filtering (Raw / Port / Starboard / Fold) works correctly</li>
+          <li>Sampling centre uses the <b>calibrated USBL fix</b>, so marker, sample and
+              georeferenced rasters all coincide</li>
         </ul>
       </div>
-      <div class="col-shot"><div class="shot tall">📷 screenshot — query builder: sampling ellipse + ARA scatterplot / 3-D</div></div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — query builder: sampling unit + ARA scatterplot</div></div>
     </div>
   </section>
 
-  <!-- 11 · Feature: Video player (GUI + shot) -->
+  <!-- 11 · Video player -->
   <section>
-    <h2>Feature — video player <span class="tag">new</span></h2>
-    <div class="cols wide-shot">
+    <h2>Video player <span class="tag">feature</span></h2>
+    <div class="cols">
       <div class="col-text">
         <ul>
           <li>Frame-accurate player docked in QGIS, driven from the metadata track</li>
-          <li><b>Interlaced support (new):</b> PyAV + <code>yadif</code> — fixes the FFmpeg-8
-              black-frame failure</li>
-          <li><b>Geo-link to map:</b> canvas follows the frame at a fixed, CRS-independent <b>scale</b></li>
-          <li><b>GPS track</b> as a persistent GeoJSON layer — no scratch warning, auto-regenerated</li>
+          <li><b>Interlaced-source support:</b> PyAV + <code>yadif</code> — fixes the
+              FFmpeg-8 black-frame failure</li>
+          <li><b>Geo-link:</b> the canvas follows the frame at a fixed, CRS-independent
+              <b>map scale</b>; marker and map stay in sync during play</li>
+          <li><b>GPS track</b> persisted as a real GeoJSON layer — restored with the
+              project, auto-regenerated on load</li>
+          <li>Per-frame <b>bounding-box annotation</b>; loads the MAREANO
+              <code>.log</code> format directly</li>
         </ul>
       </div>
-      <div class="col-shot"><div class="shot tall">📷 screenshot — video player docked + geo-linked map (track + marker)</div></div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — video dock + GPS track on the map</div></div>
     </div>
   </section>
 
-  <!-- 12 · NEW: Video & Image annotation (GUI + shot) -->
+  <!-- 12 · Reporting -->
   <section>
-    <h2>Video &amp; image annotation <span class="tag">new</span></h2>
-    <div class="cols wide-shot">
+    <h2>Reporting <span class="tag">feature</span></h2>
+    <div class="cols">
       <div class="col-text">
         <ul>
-          <li><b>Image annotation:</b> bounding boxes + species labels on stills;
-              confidence-threshold filter; detector output overlay</li>
-          <li><b>Video annotation:</b> per-frame boxes with single-click draw → label →
-              save; "Add new box" pauses on draw and <b>releases on resume</b></li>
-          <li>Shared label pool; edits persisted to <b>CSV</b> (frame_index ↔ bboxes / species / confidences)</li>
-          <li>Annotations stay <b>geolinked</b> — every box ties back to a position on the map</li>
+          <li>One click sends query-builder products to the <b>report builder</b>:
+              ARA scatterplot · 3-D surface · histogram · statistics · sampling-unit
+              description · image gallery</li>
+          <li>Output to <b>KMZ</b> (geo-referenced balloon) <i>and</i> a templated
+              <b>HTML report</b> (Jinja2): card layout, uniform thumbnails,
+              <b>click-to-zoom lightbox</b>, browsable gallery</li>
+          <li>PDF export of the composed report</li>
         </ul>
       </div>
-      <div class="col-shot"><div class="shot tall">📷 screenshot — annotation editor: a frame/image with labelled boxes</div></div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — HTML report with gallery + statistics table</div></div>
     </div>
   </section>
 
-  <!-- 13 · Feature: Reporting (GUI + shot) -->
+  <!-- 13 · Documentation -->
   <section>
-    <h2>Feature — reporting <span class="tag">new</span></h2>
-    <div class="cols wide-shot">
-      <div class="col-text">
-        <ul>
-          <li>One click sends query products to the <b>report builder</b>:
-              ARA · 3-D · histogram · stats · sampling unit · image gallery</li>
-          <li>Output to <b>KMZ</b> (geo-balloon) <i>and</i> a modern <b>templated HTML</b> report (Jinja2):
-            <ul>
-              <li>Card layout, uniform thumbnails, <b>click-to-zoom lightbox</b></li>
-              <li><b>Browsable gallery</b> of the in-sample seafloor images</li>
-            </ul>
-          </li>
-          <li>Stats as a real HTML table · title + location summary · <b>PDF export</b></li>
-        </ul>
-      </div>
-      <div class="col-shot"><div class="shot tall">📷 screenshot — generated HTML report (gallery + lightbox + stats table)</div></div>
-    </div>
-  </section>
-
-  <!-- 14 · Bug-fix roundup -->
-  <section>
-    <h2>Bug-fix roundup <span class="muted">(selected)</span></h2>
-    <ul style="font-size:.84em">
-      <li>3-D WGL viewer blank on Qt 6 → fixed (PyOpenGL context)</li>
-      <li>ARA beam radios (L / R / Fold) had no effect → fixed</li>
-      <li>KMZ save crashed on un-generated products → guarded + de-duplicated</li>
-      <li>Docks / video player came back <b>undocked</b> → <code>restoreState</code></li>
-      <li>Geo-link marker moved but <b>map didn't follow</b> → throttle fix</li>
-      <li>Zoom was projection-dependent → <b>map scale (1:N)</b>, CRS-independent</li>
-      <li>Interlaced video → black frames → <b>PyAV / yadif</b></li>
-      <li>Stale / broken track reference on reload → <b>auto-regenerate</b></li>
+    <h2>Documentation <span class="tag">docs</span></h2>
+    <ul>
+      <li>User-facing docs are a <b>MkDocs Material site</b>, published to
+          <b>epifanio.github.io/groundtruther</b> on merge</li>
+      <li>Installation (Linux / macOS / Windows) · <b>Tools</b> (one page per feature) ·
+          <b>Configuration</b> (all 27 keys + the validation model) ·
+          <b>Data model</b> · Architecture</li>
+      <li>A <b>data-model reference</b> documents every column the plugin reads —
+          including which position column is the USBL fix and which is a model.
+          <i>This is what surfaced the 180° bug in Act II.</i></li>
+      <li><code>mkdocs build --strict</code> in CI catches broken links and orphan pages;
+          a unit test fails if a config key is added without its documentation row</li>
     </ul>
   </section>
 
-  <!-- 15 · Use case: HabCam (GUI + shot) -->
+  <!-- 14 · ACT II divider -->
+  <section class="center act">
+    <h1>Act II</h1>
+    <h3 style="color:var(--gt-sea)">Optical geometry</h3>
+    <p class="muted">Stereo reconstruction · roughness · georeferencing · mosaics ·
+       the seabed ribbon</p>
+  </section>
+
+  <!-- 15 · The gap -->
   <section>
-    <h2>Use case — HabCam <span class="tag">imagery</span></h2>
+    <h2>The gap this act is about</h2>
+    <p class="muted">Roughness is measured <b>inside one camera frame</b>. Backscatter is
+       measured over a footprint <b>metres across</b>. Between them sat a scale range
+       nothing was measuring.</p>
+    <table class="tbl">
+      <tr><th>product</th><th>wavelengths it supports</th></tr>
+      <tr><td>per-frame stereo micro-DEM</td><td>~3 mm … <b>1.2 m</b> (one frame's footprint)</td></tr>
+      <tr><td>MBES bathymetry (1 m grid)</td><td><b>≥ 2–3 m</b></td></tr>
+      <tr><td><b>the photogrammetric ribbon</b></td><td><b>3 mm … 170 m</b> — it spans the whole range</td></tr>
+    </table>
+    <p class="lead-sub">γ₂ is fitted at frame scale, then used to interpret acoustics at
+       metre scale. Nobody had checked the power law holds across the gap.</p>
+  </section>
+
+  <!-- 16 · Stereo reconstruction -->
+  <section>
+    <h2>Stereo photogrammetric reconstruction <span class="tag">new tool</span></h2>
     <div class="cols">
       <div class="col-text">
         <ul>
-          <li>Optical + acoustic ground-truthing of benthic habitat</li>
-          <li>Browse tens of thousands of stills with metadata, linked to the MBES surface</li>
-          <li>Sampling unit → backscatter angular response <b>and</b> the images inside it → annotate → report</li>
-          <li>Reference dataset: <b>HabCam test data on Zenodo</b> (CC-BY-4.0)</li>
+          <li>A <b>real-height micro-DEM</b> of the patch under the camera, from the
+              HabCam stereo pair itself</li>
+          <li>Computed <b>server-side on a GPU</b> (<b>RAFT-Stereo</b>, SGBM fallback).
+              Only the frame's <code>Imagename</code> is sent — <b>no image bytes leave
+              the machine</b></li>
+          <li>Float32 heights in <b>millimetres</b>, ~2–5 mm cells, NaN no-data, plus a
+              <b>cell-for-cell co-registered orthophoto</b></li>
+          <li><b>Micro-DEM 3-D tab</b> — the mesh draped with the orthophoto 1:1
+              (one texel per vertex)</li>
+          <li>Edge spikes masked, not hidden: <b>trim border · clip σ · erode</b></li>
+          <li>Background <code>QgsTask</code>, cached per frame: ~14 s first, ~0.5 s after</li>
         </ul>
       </div>
-      <div class="col-shot"><div class="shot tall">📷 screenshot — HabCam still + metadata panel + map context</div></div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — Micro-DEM 3D tab, photo-textured mesh</div></div>
     </div>
   </section>
 
-  <!-- 16 · Use case: MAREANO (GUI + shot) -->
+  <!-- 17 · Roughness -->
   <section>
-    <h2>Use case — MAREANO <span class="tag">video</span></h2>
+    <h2>Seafloor roughness — γ₂, and what to trust <span class="tag">new tool</span></h2>
     <div class="cols">
       <div class="col-text">
         <ul>
-          <li>Norwegian seabed-mapping programme — towed-camera <b>video</b> transects</li>
-          <li>Loads the MAREANO survey <b><code>.log</code></b> format directly (DDM → decimal degrees)</li>
-          <li>Video geo-linked to the map; GPS track drawn as a persistent layer</li>
-          <li>Per-frame species / substrate annotation alongside the acoustics</li>
+          <li><b>Metrics tab:</b> γ₂ · substrate &amp; texture hints · w₂ · rms height ·
+              rugosity · anisotropy · altitude · quality · matcher</li>
+          <li><b>Spectrum tab:</b> radial relief power spectrum log-log, fitted power law,
+              fit band shaded, γ₂ / w₂ / R² annotated</li>
+          <li><b>γ₂ — the spectral exponent — is the load-bearing output.</b> Robust
+              across stereo matchers</li>
+          <li><b>w₂ and rms are not trustworthy in absolute terms:</b> no consistent
+              RAFT-vs-SGBM bias, and the median rms (50 mm) sits far above the
+              3–23 mm literature range. Colour-coded per frame — rarely green</li>
+          <li>When <code>quality != ok</code>, <b>every</b> field is null — shown, not faked</li>
+          <li>Where the curve peels off the fit at high K, that's the <b>stereo noise
+              floor</b>, not the seabed</li>
         </ul>
       </div>
-      <div class="col-shot"><div class="shot tall">📷 screenshot — MAREANO video transect + track on the canvas</div></div>
+      <div class="col-shot"><div class="shot tall">📷 screenshot — Metrics + Spectrum tabs side by side</div></div>
     </div>
   </section>
 
-  <!-- 17 · Unique? -->
+  <!-- 18 · Georeferencing / the 180 bug -->
+  <section>
+    <h2>Georeferencing — and a 180° bug worth telling <span class="tag">fix</span></h2>
+    <ul>
+      <li>Micro-DEM, orthophoto and mosaic written as <b>GeoTIFFs in the survey CRS</b>;
+          the affine is <b>rotated</b> — aligned to heading, not north</li>
+      <li><b>The bug (#31):</b> the plugin sent the nav's <code>bearing</code> column as
+          heading. <code>bearing</code> points <b>astern</b> — so every georeferenced
+          product was rotated <b>180°</b>, and a saved ±180 heading offset was the
+          natural way to paper over it</li>
+      <li><b>Proved on the imagery, not by argument</b> — imagery-derived course minus nav
+          course over 250 registered pairs:
+        <table class="tbl compact">
+          <tr><th>hypothesis</th><th>median residual</th><th>within 30°</th></tr>
+          <tr><td><code>heading = bearing</code> (old)</td><td><b>−175.3°</b></td><td><b>0 %</b></td></tr>
+          <tr><td><code>heading = bearing + 180</code></td><td><b>+3.9°</b></td><td><b>100 %</b></td></tr>
+        </table>
+      </li>
+      <li>Side benefit: <b>a single frame's heading is good to ~4°</b> — now a measured number</li>
+      <li><b>Rotation ≠ reflection.</b> Heading offset fixes a rotation; <b>Mirror</b> fixes
+          a handedness flip. No rotation can undo a reflection</li>
+    </ul>
+  </section>
+
+  <!-- 19 · Mosaics -->
+  <section>
+    <h2>Georeferenced mosaics <span class="tag">new tool</span></h2>
+    <table class="tbl">
+      <tr><th>mode</th><th>how frames are placed</th></tr>
+      <tr><td><b>Auto</b> <i>(default)</i></td><td>Per window, from nav-predicted overlap: piled-up → <i>pixel</i>, well-spread → <i>flat</i></td></tr>
+      <tr><td><b>Flat</b></td><td>Navigation alone (position, heading, flat-seabed scale). Fast</td></tr>
+      <tr><td><b>Ortho</b></td><td>Relief-corrected per-frame orthophoto, then nav placement. Slowest</td></tr>
+      <tr><td><b>Pixel</b></td><td>Registered by <b>image content</b>, georeferenced through the reference frame's nav</td></tr>
+    </table>
+    <ul>
+      <li><b>Illumination correction</b> (flat-fields the strobe vignette) and <b>gain
+          compensation</b> on by default — this is what makes a mosaic look continuous.
+          Off for absolute-radiometry work</li>
+      <li>Presets: <b>Browse</b> (3 mm, fast) · <b>Publication</b> (ortho, 0.8 mm, lanczos, 8192 px, RGBA)</li>
+      <li><b>Honest failure mode:</b> featureless mud cannot be content-registered by any
+          method — the panel warns <i>"only 0/10 pairs registered — low texture, mosaic is
+          nav-placed"</i></li>
+    </ul>
+  </section>
+
+  <!-- 20 · The ribbon -->
+  <section>
+    <h2>The photogrammetric seabed ribbon <span class="tag">new</span></h2>
+    <p class="muted">Composite a few hundred per-frame micro-DEMs along <b>one HabCam
+       line</b> into ~170 m of millimetre-resolution georeferenced seabed. A
+       <b>script</b> (<code>scripts/build_ribbon.py</code>), not yet a dock —
+       look at a ribbon first.</p>
+    <ul>
+      <li><b>Choose the strip by texture, never by relief.</b> On this survey they are
+          uncorrelated: two runs with <b>~4 m of relief</b> (3.75 m and 4.04 m) linked on
+          <b>0 %</b> of sampled pairs — featureless mud — while the strip with the most
+          relief in the survey (5.80 m) managed only 22 median inliers. Picking by relief
+          would have chosen one of them</li>
+      <li><b>ORB + RANSAC needs help here:</b> no preprocessing (CLAHE and flat-fielding
+          both <i>lowered</i> inliers), a <b>loose Lowe ratio 0.95</b>, detection masked to
+          the overlapping band, and a <b>displacement prefilter + physical gate</b> —
+          without the gate RANSAC confidently returns 15–25-inlier consensuses on
+          completely wrong transforms</li>
+      <li><b>Pixels where they work, navigation everywhere else:</b> the USBL is
+          piecewise-constant (median step <b>92 mm</b> against a true <b>491 mm</b>), so
+          nav-placed frames stack in clumps of ~6 and jump. The chain integrates the
+          links, bridges gaps with nav, then rubber-sheets back onto it — <i>absolute</i>
+          placement from the USBL, <i>relative</i> geometry from the pixels</li>
+    </ul>
+  </section>
+
+  <!-- 21 · Ribbon measured -->
+  <section>
+    <h2>The ribbon — measured <span class="tag">results</span></h2>
+    <p class="muted">Strip 6663–6958: 296 frames, 172 m, EPSG:32619, track-aligned at
+       273.1°, 1256 × 48 339 cells at 3 mm.</p>
+    <table class="tbl">
+      <tr><td>link rate</td><td><b>89.8 %</b> (265 / 295 pairs), median 309 inliers</td></tr>
+      <tr><td>longest unbroken registered run</td><td><b>119 pairs</b> (mean 48)</td></tr>
+      <tr><td><code>quality != ok</code></td><td><b>2.0 %</b> (6 frames, all <code>insufficient_coverage</code>)</td></tr>
+      <tr><td>service altitude vs <code>Altimeter</code></td><td>median <b>37 mm</b></td></tr>
+      <tr><td>seam error, <b>pixel-linked</b></td><td>62.0 mm → <b>13.7 mm</b> after levelling</td></tr>
+      <tr><td>seam error, <b>nav-bridged</b></td><td>235.5 mm → 119.3 mm — <b>8.7× worse</b></td></tr>
+    </table>
+    <ul>
+      <li><b>The vertical error was the depth sensor, not the stereo.</b>
+          <code>V_Depth</code> is quantized to 10 mm and steps with σ = 82 mm —
+          essentially the whole per-frame scatter. Levelling solves per-frame offsets from
+          overlap medians (robust IRLS, lag-1 <b>and</b> lag-2 for loop closure)</li>
+      <li><b>The trade, stated:</b> seams 4.5× better, but the 1 m profile agrees
+          <i>less</i> with the MBES (0.147 → 0.185 m). Some large corrections over-fit bad overlaps</li>
+      <li>Independent checks: chain azimuth <b>273.1°</b> vs nav <b>273.2°</b>; focal length
+          calibrated against nav displacement <b>2507 px vs nominal 2480.28 — ratio 1.011</b></li>
+    </ul>
+  </section>
+
+  <!-- 22 · The spectrum question -->
+  <section>
+    <h2>Does the power law cross the gap? <span class="tag">suggestive, not settled</span></h2>
+    <p class="muted">The per-frame fit is 2-D and isotropic; a ribbon profile measures the
+       1-D spectrum. Integrating out the cross-track wavenumber gives a closed form with
+       <b>no free parameter</b> — so γ₁ = γ₂ − 1 <i>and</i> the amplitude are both predicted.</p>
+    <p class="lead-sub">Measured in the 1.2–3 m band: <b>9.45× (+9.8 dB)</b> more power than
+       the per-frame law predicts, fitted <b>γ₁ = 2.29 ± 1.56</b> against a predicted 1.97.</p>
+    <ul>
+      <li><b>The slope is unconstrained.</b> ±1.56 spans every plausible exponent — the band
+          is a third of a decade, all a 145 m ribbon can offer</li>
+      <li><b>The amplitude excess is only 1.7× above the ribbon's own noise floor.</b> A
+          per-frame vertical error held across each frame and changing every 0.49 m puts a
+          nearly <i>flat</i> spectrum across exactly this band. At σ = 60 mm the floor sits
+          1.7× under the measurement (14× at the robust σ = 21 mm)</li>
+      <li><b>What would settle it is now a number:</b> per-frame vertical placement must reach
+          <b>≈ 6 mm</b>, from 60 mm — a vertical bundle adjustment</li>
+      <li>Supporting: MBES along-track <b>γ₁ = 3.60 ± 0.16</b> (γ₂ ≈ 4.60) over 2–40 m, far
+          steeper than the per-frame 2.97, with the ribbon's 3.29 <b>between</b> them — the
+          shape of a gradual break, at an error bar that makes it a remark</li>
+      <li><b>And the ribbon does not beat the altimeter</b> on vertical accuracy
+          (0.185 m vs 0.115 m median |dz| against the MBES). <b>It adds texture, not depth.</b></li>
+    </ul>
+  </section>
+
+  <!-- 23 · ACT III divider -->
+  <section class="center act">
+    <h1>Act III</h1>
+    <h3 style="color:var(--gt-sea)">The science it made possible</h3>
+    <p class="muted">HRS1508 — does stereo roughness add anything to acoustics?</p>
+  </section>
+
+  <!-- 24 · HRS1508 setup -->
+  <section>
+    <h2>HRS1508 — the question and the setup</h2>
+    <p class="muted"><b>Does optical roughness carry substrate information that backscatter
+       does not?</b> A binary problem — Substrate A vs Substrate E — on the HRS1508 survey.</p>
+    <table class="tbl">
+      <tr><th>stream</th><th>what went in</th></tr>
+      <tr><td>MBES beams</td><td><b>29 027 174</b> beams, all 512 formed beams/ping, full angular range</td></tr>
+      <tr><td>cells</td><td>25 m grid → <b>2318</b> ARA cells (median 9846 beams/cell, 6 angle bins)</td></tr>
+      <tr><td>optical nav</td><td>123 394 HabCam frames, positioned by <b>calibrated USBL</b></td></tr>
+      <tr><td>stereo roughness</td><td>12 563 per-frame records → γ₂, rugosity, anisotropy</td></tr>
+      <tr><td>analysis set</td><td><b>217 cells</b> with a majority single-substrate label and ≥ 3 roughness frames</td></tr>
+    </table>
+    <ul>
+      <li>7 ARA descriptors (6 × 10° angle bins + slope), <b>per-line normalised</b> so the
+          unknown source level cancels, plus 3 roughness features</li>
+      <li>Random forest, <b>5-fold spatially blocked CV on 200 m blocks</b> (33 blocks);
+          folds <b>frozen once</b> and reused, so every comparison is paired</li>
+    </ul>
+  </section>
+
+  <!-- 25 · The result -->
+  <section>
+    <h2>The result <span class="tag">headline</span></h2>
+    <table class="tbl">
+      <tr><th>model</th><th>accuracy</th><th>gain vs ARA</th><th>95 % CI</th></tr>
+      <tr><td>ARA only <i>(baseline)</i></td><td>0.659</td><td>—</td><td>—</td></tr>
+      <tr><td>ARA + γ₂</td><td>0.691</td><td>+0.032</td><td>−0.005 … 0.072</td></tr>
+      <tr><td>ARA + γ₂ + rugosity</td><td>0.714</td><td>+0.055</td><td>0.005 … 0.108</td></tr>
+      <tr class="hi"><td><b>ARA + all roughness</b></td><td><b>0.756</b></td><td><b>+0.097</b></td><td><b>0.039 … 0.155</b></td></tr>
+      <tr><td>roughness only</td><td>0.756</td><td>+0.097</td><td>0.014 … 0.183</td></tr>
+    </table>
+    <ul>
+      <li>Block-permutation <b>p &lt; 0.001</b>; macro-F₁ 0.597 → <b>0.715</b>; minority-class
+          (Substrate E) recall <b>0.43 → 0.60</b> — the gain is where it matters</li>
+      <li><b>γ₂ ranks first of all ten features</b> (importance 0.215, above every backscatter
+          bin — the best of those is 0.175)</li>
+      <li><b>Modality ladder:</b> backscatter alone 0.70 · + bathymetric slope correction 0.66 ·
+          + γ₂ 0.69 · + all roughness <b>0.76</b></li>
+      <li>Holds across scale: at a <b>15 m</b> cell the same ladder runs 0.74 → <b>0.83</b></li>
+      <li><b>Two-tier map:</b> 881 of 2318 cells (38 %) have both modalities; adding roughness
+          <b>flips 14.5 %</b> of the classified swath</li>
+    </ul>
+  </section>
+
+  <!-- 26 · Why you can believe it -->
+  <section>
+    <h2>Why you can believe it — and what it does not say</h2>
+    <p class="muted"><b>One run, one manifest.</b> Two earlier fusion results
+       (0.769→0.864 on 221 cells, 0.761→0.820 on 987 cells) differed in <i>both</i> the beam
+       table and the cell subset — invisible to the author, obvious to a referee. The fix was
+       not to pick a number, it was to make two impossible: <b>one frozen
+       <code>manifest.yml</code>, one library, one beam table, one fold assignment</b>, every
+       input hashed into a lock file.</p>
+    <ul>
+      <li><b>Calibration stress test.</b> Inject per-line source-level error up to 5 dB
+          (against a <i>measured</i> per-line spread of 4.59 dB over 17 lines): the normalised
+          pipeline moves <b>0.000</b>; without per-line normalisation it drifts 0.018; strip the
+          <i>shape</i> too and the level-only classifier falls to 0.58 and drifts 0.028.
+          <b>The result does not depend on absolute calibration.</b></li>
+      <li><b>The image classifier survives honest CV:</b> 0.942 stratified → <b>0.939</b> on
+          200 m spatial blocks. Optimism 0.002 — it was not leaking geography</li>
+    </ul>
+    <p class="lead-sub">Stated limits, not buried:</p>
+    <ul>
+      <li><b>The stereo coverage gate is not label-neutral</b> — 2.7 % of Substrate A cells
+          rejected against <b>12.9 %</b> of Substrate E (Fisher OR <b>5.3</b>, p ≈ 2×10⁻²⁵).
+          That is a <i>result</i> about turbidity over fine sediment, not an inconvenience</li>
+      <li><b>w₂ and rms height are never model inputs</b> — amplitude is not recoverable from
+          this stereo</li>
+      <li><code>fit_r2</code>, <code>valid_fraction</code>, <code>altitude_mm</code>,
+          <code>matcher</code> are <b>absent</b> from the committed roughness CSVs although the
+          service returns them: until they are persisted, spectrum quality cannot be filtered on</li>
+    </ul>
+  </section>
+
+  <!-- 27 · Unique? -->
   <section>
     <h2>Is this a unique tool?</h2>
-    <p><b>Yes — the <span class="lead-sub">integration</span> is the differentiator.</b></p>
+    <p class="lead-sub">Yes — and the differentiator has shifted.</p>
     <ul>
-      <li>Most workflows are <b>siloed</b>: acoustics, image annotation, video review, GIS — all separate</li>
-      <li>GroundTruther puts <b>MBES + imagery + video + annotation + GRASS + reporting</b> on <b>one QGIS map</b>, free &amp; open source</li>
-      <li>Cloud GRASS backend keeps heavy geoprocessing <b>server-side</b></li>
-      <li>Open formats throughout (Parquet · GeoJSON · KMZ · CSV / <code>.log</code>)</li>
+      <li>It started as an <b>integration</b> argument: most workflows are siloed — acoustics
+          in one suite, image annotation in another, video review in a third, GIS somewhere
+          else. GroundTruther puts them on <b>one QGIS map</b>, free and open source</li>
+      <li>It is now also a <b>measurement</b> argument: no other GIS-native tool turns the
+          survey's own stereo imagery into <b>metric seabed geometry</b> — micro-DEMs, spectral
+          roughness, georeferenced mosaics, a millimetre ribbon — and puts it beside the
+          acoustics in the same project</li>
+      <li>Heavy work stays <b>server-side</b> (FastGIS for GRASS, a GPU service for stereo);
+          the plugin stays a thin, scriptable client</li>
+      <li>Open formats throughout (Parquet, GeoJSON, GeoTIFF, KMZ, CSV/<code>.log</code>)</li>
     </ul>
-    <p class="muted">Not a replacement for specialist acoustic suites — a connective, ground-truthing layer that ties them together.</p>
+    <p class="muted"><i>Not a replacement for specialist acoustic suites — a connective,
+       ground-truthing layer, which now measures something of its own.</i></p>
   </section>
 
-  <!-- 18 · What's next -->
+  <!-- 28 · What's next -->
   <section>
     <h2>What's next?</h2>
-    <ul>
-      <li><b>ML-assisted annotation</b> — pre-populate boxes; review instead of draw</li>
-      <li>More backscatter analytics &amp; calibration; multi-file mosaics</li>
-      <li>Scale to very large soundings (10⁷+ rows) — Arrow-native, optional GPU</li>
-      <li>Richer GRASS recipe presets; "analysis as a saved session"</li>
-      <li>Multi-user / shared cloud sessions; signed report bundles</li>
-      <li>More survey-log adapters out of the box; turnkey installer + CI</li>
-    </ul>
+    <div class="cols">
+      <div class="col-text">
+        <p class="lead-sub">Committed, with a number attached</p>
+        <ul>
+          <li><b>Vertical bundle adjustment</b> for the ribbon: per-frame placement
+              60 mm → <b>≈ 6 mm</b>. That factor of ten converts the scale-gap result from
+              suggestive to publishable</li>
+          <li><b>Persist the roughness QC fields</b> so spectrum quality can be reported and
+              filtered on</li>
+          <li><b>Resolve mount handedness</b> against a target of known handedness — the one
+              link in the geometry chain still untested</li>
+        </ul>
+      </div>
+      <div class="col-text">
+        <p class="lead-sub">Open</p>
+        <ul>
+          <li>ML-assisted annotation (review instead of draw)</li>
+          <li>A <b>ribbon dock</b> in QGIS, once people have used a ribbon in anger</li>
+          <li>Multi-line ribbons and cross-line closure</li>
+          <li>Reproducible "analysis as a saved session"</li>
+          <li>Multi-user / shared cloud sessions; signed report bundles</li>
+          <li>More survey-log adapters; CI toward a turnkey installer</li>
+        </ul>
+      </div>
+    </div>
   </section>
 
-  <!-- 19 · Would you use it -->
+  <!-- 29 · Would you use it -->
   <section>
     <h2>Would you use it?</h2>
     <div class="cols">
@@ -375,38 +664,49 @@
         <p class="lead-sub">Who it's for</p>
         <ul>
           <li>Benthic ecologists &amp; seabed-mapping teams doing <b>ground-truthing</b></li>
-          <li>Anyone who wants acoustics, imagery &amp; video <b>on the same map</b></li>
+          <li>Anyone who wants acoustics, imagery and video <b>on the same map</b> without
+              stitching five tools together</li>
+          <li><b>New:</b> anyone who needs <b>quantitative seabed geometry</b> from imagery
+              they already have — without building a photogrammetry pipeline</li>
         </ul>
       </div>
       <div class="col-text">
         <p class="lead-sub">Honest take</p>
         <ul>
-          <li><i>Purely</i> acoustic processing → keep your specialist suite</li>
-          <li><b>Interpretation + ground-truth + reporting</b> across data types, in GIS, open &amp; scriptable → <b>strong fit</b></li>
+          <li>Purely acoustic processing → keep your specialist suite</li>
+          <li>Sub-metre optical geometry at survey scale with full bundle adjustment →
+              this is not a photogrammetry suite (yet)</li>
+          <li><b>Interpretation + ground-truth + reporting</b> across data types, inside GIS,
+              open and scriptable → <b>yes</b>, and the optical side now measures as well
+              as displays</li>
         </ul>
       </div>
     </div>
   </section>
 
-  <!-- 20 · Need help -->
+  <!-- 30 · Help -->
   <section>
     <h2>Need help setting it up?</h2>
     <ul>
-      <li><b>Requirements:</b> QGIS 4.0+ (Qt 6), the bundled <code>.venv</code>, a FastGIS API key for GRASS</li>
-      <li><b>Install:</b> symlink the repo into your QGIS profile, enable, point Settings at your data</li>
-      <li><b>Try it:</b> the Zenodo HabCam dataset (and a MAREANO <code>.log</code> + video)</li>
+      <li><b>Requirements:</b> QGIS 4.0+ (Qt 6), the bundled <code>.venv</code>, a FastGIS API
+          key for GRASS and roughness (or a direct URL if you run the GPU service yourself)</li>
+      <li><b>Install:</b> symlink the repo into your QGIS profile, enable, point Settings at
+          your data — invalid keys now disable only their own feature</li>
+      <li><b>Try it:</b> the Zenodo <i>groundtruther test dataset</i> (CC-BY-4.0)</li>
       <li>Repo &amp; issues: <b>github.com/epifanio/groundtruther</b></li>
-      <li>Docs: GRASS / FastGIS integration guide in <code>docs/</code></li>
+      <li>Docs: <b>epifanio.github.io/groundtruther</b> · dev notes in
+          <code>docs/grass_fastgis.md</code> and <code>docs/photogrammetric_ribbon.md</code></li>
+      <li>Analysis workflow: <code>PDAL_MBIO/paper</code> — frozen manifest, notebooks 00→09</li>
     </ul>
     <p class="lead-sub">Happy to walk you through install, config, or your own dataset.</p>
   </section>
 
-  <!-- 21 · Thanks -->
+  <!-- 31 · Thanks -->
   <section class="center">
     <h1>Thank you</h1>
     <p><b>GroundTruther</b> · v0.4 · QGIS 4 / Qt 6</p>
-    <p class="muted">MBES · imagery · video · GRASS · ground-truth · report</p>
-    <p class="muted">github.com/epifanio/groundtruther</p>
+    <p class="muted">MBES · imagery · video · stereo geometry · roughness · mosaics · ribbon · report</p>
+    <p class="muted">github.com/epifanio/groundtruther · epifanio.github.io/groundtruther</p>
   </section>
 
 </div></div>

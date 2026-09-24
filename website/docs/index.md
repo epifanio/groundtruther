@@ -27,9 +27,17 @@ look like here?"* — and build defensible, reproducible interpretations that li
   confidence scores.
 - **Query MBES products acoustically** — pull backscatter / bathymetric-derivative
   values under points or sampling shapes via a remote GRASS GIS service.
+- **Reconstruct the seabed in 3-D from stereo imagery** — a real-height
+  micro-DEM of the patch under the camera, viewable as a photo-textured mesh and
+  exportable as a georeferenced GeoTIFF.
 - **Measure seafloor roughness from the imagery itself** — per-frame spectral
-  roughness, a real-height micro-DEM and georeferenced photo mosaics, computed
-  from the HabCam stereo pairs.
+  roughness (γ₂) and its relief power spectrum, validated against independent
+  substrate labels, computed from the HabCam stereo pairs.
+- **Composite frames into georeferenced photo mosaics**, and — via a companion
+  script — into an along-track
+  **[seabed ribbon](tools/seabed-ribbon.md)** spanning millimetres to ~170 m.
+- **View the acoustic surface in 3-D** with pick-and-measure read-out over either
+  the selected soundings or a reference bathymetry raster.
 - **Run any GRASS module on demand** — the toolbox builds a dialog from the
   module's own interface description and returns results straight to QGIS.
 - **Generate quantitative reports** that tie the acoustic and optical evidence
@@ -70,6 +78,7 @@ GroundTruther is described in a peer-reviewed article in *Environmental Modellin
 | **Host** | QGIS 4 / Qt6 (Linux, macOS, Windows) |
 | **Inputs** | MBES soundings (Parquet), bathymetry rasters, HabCam imagery + metadata, survey video + GPS log, detector annotations |
 | **Acoustic/GRASS backend** | [FastGIS GRASS API](tools/grass-fastgis.md) (`api.fastgis.eu`) |
+| **Stereo backend** | GPU stereo-roughness service, reached through FastGIS or directly |
 | **Configuration** | One YAML file per install — [27 settings](configuration/settings-reference.md) |
 | **Sample data** | [Zenodo 7995674](https://zenodo.org/records/7995674) (CC-BY-4.0) |
 | **License** | GPL-2.0-or-later |
