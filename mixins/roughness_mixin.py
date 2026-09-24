@@ -666,7 +666,10 @@ class RoughnessMixin:
         self._mosaic_window.setValue(5)
         self._mosaic_window.setToolTip(
             "Contiguous frames on EACH side of the current frame; the service "
-            "pulls the nav and skips gaps.")
+            "pulls the nav and skips gaps.\n"
+            "In Pixel mode the registration chain is not constrained to the nav, so "
+            "its scale error accumulates with distance: measured ~0.9 m at ±8 and "
+            "~2.2 m at ±20. For long stretches prefer Flat, or build a ribbon.")
         mform.addRow("Window ±", self._mosaic_window)
         self._mosaic_gsd = QDoubleSpinBox()
         self._mosaic_gsd.setRange(0.0005, 0.05)
