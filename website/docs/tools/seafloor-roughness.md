@@ -146,11 +146,12 @@ representation of the patch under the camera, not a high-passed roughness field.
 
 !!! note "The cell size is the service's choice, not yours"
     `Roughness.res_mm` is a **request**. The service picks the grid spacing per
-    frame and reports what it used as `dx_mm`; on the reference dataset that comes
-    back as **2, 3, 4 or 5 mm** on different frames of the same line, not the
-    nominal 1 mm default. So a micro-DEM's resolution is a property of that frame,
-    and two frames' grids are not directly comparable cell-for-cell. Anything that
-    combines frames has to resample each through its own geotransform.
+    frame and reports what it used as `dx_mm`. The nominal default is 1 mm and some
+    frames do return it, but across one line of the reference dataset **2, 3, 4 and
+    5 mm all appear**. So a micro-DEM's resolution is a property of that frame, not
+    of your settings: two frames' grids are not necessarily comparable cell-for-cell,
+    and anything that combines frames has to resample each through its own
+    geotransform. Read `dx_mm` rather than assuming.
 
 The stereo DEM is unreliable at the grid border and around no-data holes, which
 otherwise shows up as spikes draped in stretched texture. Three live controls
