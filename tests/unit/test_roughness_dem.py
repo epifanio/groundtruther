@@ -236,3 +236,95 @@ def test_valid_faces_degenerate():
     assert rd.valid_faces(np.ones((1, 5), bool)).shape == (0, 3)
     with pytest.raises(ValueError):
         rd.valid_faces(np.ones(5, bool))
+
+
+# --------------------------------------------------------------------------- #
+# Texture contrast stretch (the Micro-DEM 3D tab's "Stretch" checkbox)         #
+# --------------------------------------------------------------------------- #
+
+class TestStretchRgb:
+    """``stretch_rgb`` is a display-only percentile rescale of the orthophoto."""
+
+    def test_a_low_contrast_band_is_expanded_to_the_full_range(self):
+        # A photo using only 100..140 of the 0..255 range — the muddy-grey case.
+        rgb = np.linspace(100, 140, 40 * 3, dtype=float).reshape(4, 10, 3)
+        out = rd.stretch_rgb(rgb)
+        assert out.min() == pytest.approx(0.0, abs=1e-6)
+        assert out.max() == pytest.approx(255.0, abs=1e-6)
+        # Monotonic: stretching must not reorder brightness.
+        assert np.all(np.diff(out.reshape(-1)) >= -1e-9)
+
+    def test_it_clips_rather_than_wrapping_at_the_percentile_edges(self):
+        rgb = np.full((6, 6, 3), 120.0)
+        rgb[0, 0, :] = 0.0        # outliers beyond the 2/98 % levels
+        rgb[-1, -1, :] = 255.0
+        out = rd.stretch_rgb(rgb)
+        assert out.min() >= 0.0 and out.max() <= 255.0
+
+    def test_a_flat_frame_is_returned_unchanged_not_nan(self):
+        # hi == lo would be a divide-by-zero; the guard must return the input.
+        rgb = np.full((5, 5, 3), 77.0)
+        out = rd.stretch_rgb(rgb)
+        assert np.isfinite(out).all()
+        assert out == pytest.approx(rgb)
+
+    def test_an_empty_frame_yields_no_levels(self):
+        lo, hi = rd.percentile_levels(np.zeros((0, 0, 3)))
+        assert (lo, hi) == (None, None)
+
+    def test_the_valid_mask_keeps_a_black_border_out_of_the_levels(self):
+        # Real case: no-data cells are black and would drag the low percentile
+        # to 0, leaving the actual seabed range barely stretched.
+        rgb = np.full((10, 10, 3), 0.0)
+        rgb[3:7, 3:7, :] = np.linspace(100, 140, 4 * 4 * 3).reshape(4, 4, 3)
+        valid = np.zeros((10, 10), dtype=bool)
+        valid[3:7, 3:7] = True
+        lo_all, hi_all = rd.percentile_levels(rgb)
+        lo_ok, hi_ok = rd.percentile_levels(rgb, valid=valid)
+        assert lo_all == pytest.approx(0.0)          # swamped by the border
+        assert lo_ok > 95.0                          # measured on real data only
+        assert hi_ok <= 140.0
+
+
+class TestColorsFromRgbStretch:
+    """The ``stretch`` kwarg must not disturb geometry, alpha, or orientation."""
+
+    def test_stretch_changes_colour_but_not_shape_or_alpha(self):
+        rows, cols = 6, 9
+        rgb = np.linspace(100, 140, rows * cols * 3).reshape(rows, cols, 3)
+        valid = np.ones((cols, rows), dtype=bool)     # (cols, rows) as the mesh uses
+        plain = rd.colors_from_rgb(rgb, valid)
+        pulled = rd.colors_from_rgb(rgb, valid, stretch=True)
+        assert plain.shape == pulled.shape == (cols, rows, 4)
+        assert not np.allclose(plain[..., :3], pulled[..., :3])
+        assert pulled[..., :3].min() == pytest.approx(0.0, abs=1e-6)
+        assert pulled[..., :3].max() == pytest.approx(1.0, abs=1e-6)
+        assert pulled[..., 3] == pytest.approx(plain[..., 3])   # alpha untouched
+
+    def test_stretch_preserves_the_transpose_to_mesh_ordering(self):
+        # A corner marker proves rows/cols were not swapped by the stretch path.
+        rows, cols = 4, 7
+        rgb = np.full((rows, cols, 3), 100.0)
+        rgb[0, cols - 1, :] = 200.0                  # top-right of the photo
+        valid = np.ones((cols, rows), dtype=bool)
+        out = rd.colors_from_rgb(rgb, valid, stretch=True)
+        # photo (row=0, col=cols-1) -> mesh (cols-1, 0)
+        assert out[cols - 1, 0, 0] == pytest.approx(out[..., 0].max())
+
+    def test_masked_cells_stay_transparent_under_stretch(self):
+        rows, cols = 5, 5
+        rgb = np.full((rows, cols, 3), 110.0)
+        valid = np.ones((cols, rows), dtype=bool)
+        valid[0, 0] = False
+        out = rd.colors_from_rgb(rgb, valid, stretch=True)
+        assert out[0, 0, 3] == pytest.approx(0.0)
+
+    def test_stretch_composes_with_trim_border(self):
+        rows, cols = 8, 8
+        rgb = np.full((rows, cols, 3), 0.0)          # black border
+        rgb[1:-1, 1:-1, :] = 120.0
+        trim = 1
+        valid = np.ones((cols - 2 * trim, rows - 2 * trim), dtype=bool)
+        out = rd.colors_from_rgb(rgb, valid, trim_border=trim, stretch=True)
+        assert out.shape == (cols - 2 * trim, rows - 2 * trim, 4)
+        assert np.isfinite(out).all()

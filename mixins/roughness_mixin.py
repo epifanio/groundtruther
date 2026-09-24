@@ -307,6 +307,19 @@ class RoughnessMixin:
                 "(higher = fewer edge spikes, less coverage).")
             self._micro_dem_erode.valueChanged.connect(self._rerender_micro_dem)
             mit.addWidget(self._micro_dem_erode)
+            # Texture contrast — the seabed under a strobe is dark and
+            # low-contrast, so the raw orthophoto drapes as muddy grey. Same
+            # 2-98 % percentile stretch as the image browser's auto-stretch, and
+            # like it, purely cosmetic: heights are never touched.
+            self._micro_dem_stretch = QCheckBox("Stretch")
+            self._micro_dem_stretch.setChecked(False)
+            self._micro_dem_stretch.setToolTip(
+                "Auto-stretch the photo texture's contrast (2-98 % percentile, "
+                "measured over valid cells only).\n"
+                "Display only - the micro-DEM heights and every metric are "
+                "unaffected.")
+            self._micro_dem_stretch.toggled.connect(self._rerender_micro_dem)
+            mit.addWidget(self._micro_dem_stretch)
             mit.addStretch()
             v.addLayout(mit)
 
@@ -414,7 +427,10 @@ class RoughnessMixin:
             rows, cols = int(md["shape"][0]), int(md["shape"][1])
             # Only texture when the photo is on the same grid as the DEM.
             if rgb is not None and rgb.shape[0] == rows and rgb.shape[1] == cols:
-                colors = roughness_dem.colors_from_rgb(rgb, valid, trim_border=trim)
+                box = getattr(self, "_micro_dem_stretch", None)
+                colors = roughness_dem.colors_from_rgb(
+                    rgb, valid, trim_border=trim,
+                    stretch=bool(box is not None and box.isChecked()))
         # Pass the validity mask so masked / no-data quads are culled (opaque
         # holes) — no transparent faces, hence no camera ghosting or flicker.
         view.set_surface(x, y, Z, x_label="E (mm)", y_label="N (mm)",

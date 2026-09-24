@@ -164,6 +164,22 @@ mask them; their starting values come from
 
 Masked cells are flattened to the median and made transparent in the texture.
 
+**Stretch** auto-stretches the *photo texture's* contrast — the same 2–98 %
+percentile stretch as the Image Browser's auto-stretch button. Seabed lit by a
+strobe is dark and low-contrast, so the raw orthophoto drapes as a muddy grey and
+real relief is hard to read; on a typical frame the photo occupies only about the
+bottom half of the 0–255 range, and the stretch roughly doubles its contrast.
+
+!!! note "Stretch is cosmetic — it changes nothing you measure"
+    It rescales the draped photo for display only. Heights, γ₂, the spectrum, the
+    exported GeoTIFFs and every metric on the other tabs are untouched. The levels
+    are measured over the **valid cells alone**: a micro-DEM can easily be half
+    no-data, and those cells are black in the orthophoto, so including them would
+    drag the low percentile to zero and leave the seabed barely stretched.
+
+    It is off by default, so what you see out of the box is the radiometry the
+    service returned.
+
 ## Georeferencing (Georef tab)
 
 Tick **Georeference** and GroundTruther attaches the frame's navigation to the
