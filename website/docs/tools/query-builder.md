@@ -23,6 +23,27 @@ acoustic side of the "ground-truthing" happens.
   response / density) with `plotnine`/`matplotlib`, ready to compare against the
   optical evidence.
 
+## The angular response (ARA)
+
+The **ARA** tab is the acoustic read-out of a sampling unit: every selected
+sounding plotted as **backscatter against incidence angle**, with a polynomial fit
+(the **Deg** spinner sets the degree) through the cloud. The angular response curve
+— high near nadir, falling and flattening toward grazing — is the shape that
+carries substrate information, and it is what the
+[roughness metrics](seafloor-roughness.md) are set beside.
+
+The **Data Model** radios pick which beams contribute:
+
+| | |
+|---|---|
+| **Raw** | every selected beam, port and starboard together |
+| **L** / **R** | one side only — use these when the two sides disagree, which is itself diagnostic |
+| **Fold** | the two sides folded onto a common \|angle\| axis, so port and starboard stack |
+
+Sibling tabs cover the rest of the selection: **Stat** (summary statistics),
+**Histogram** (value distribution), **Image Selection** (the seafloor frames that
+fall inside the shape), and the two 3-D views below.
+
 ## The 3-D surface
 
 Two tabs show the selected area in 3-D, and **they are not the same product** —
@@ -32,6 +53,26 @@ read this before putting either in a report.
 |---|---|
 | **WGL** | The **selected soundings**, gridded on the fly. Always available. |
 | **Reference 3D** | The `reference_surface` GeoTIFF, clipped to the sampling shape. Only when that setting points at a readable, north-up raster. |
+
+!!! warning "WGL needs a large selection to mean anything"
+    The soundings grid is built at a fixed **1.5 nodes per metre across the
+    selection's bounding box**, so its resolution is set by how big your selection
+    is, not by how dense the pings are:
+
+    | selection extent | grid |
+    |---|---|
+    | 250 m | 375 × 375 — a real surface |
+    | 25 m | 37 × 37 |
+    | 5 m | 7 × 7 — barely a surface |
+    | 2 m | 3 × 3 — meaningless |
+    | under ~0.7 m | **empty** |
+
+    A sampling unit sized for ground-truthing — metres across — therefore produces
+    a handful of nodes, and reading relief off it is not justified. **Use WGL for a
+    broad survey-scale selection; for a sampling unit, read the acoustics from the
+    [ARA tab](#the-angular-response-ara) and the relief from Reference 3D**, which
+    is clipped from the bathymetry raster and keeps its own resolution regardless
+    of how small the shape is.
 
 !!! warning "Both surfaces fill space that has no data"
     Neither tab distinguishes *measured* seabed from *inferred* seabed. The

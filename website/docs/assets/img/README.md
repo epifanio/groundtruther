@@ -32,17 +32,22 @@ position marker should be on the canvas near the displayed frame so the
 image↔map link is self-evident. Aim for "four kinds of data, one map" at a glance
 — resist opening every dock at once; three is legible, six is soup.
 
-### `query-builder-3d-wgl.png` — The soundings surface (WGL tab)
-**Page:** `tools/query-builder.md`, *The 3-D surface* → *Both surfaces fill space
-that has no data* · **Currently: no figure — this section is entirely unillustrated.**
+### `query-builder-ara.png` — The angular response (ARA tab)
+**Page:** `tools/query-builder.md`, *The angular response (ARA)* · **supplied
+2026-09-24.**
 
-The **WGL** tab showing a gridded soundings surface for a sampling shape. Choose a
-selection where the nearest-neighbour artefacts are **visible**: blocky one-sounding
-tiles in a sparse area, and ideally a bounding-box corner that sits outside the
-sampling shape where the surface is pure extrapolation. This screenshot exists to
-make the warning above it concrete, so an honest, slightly ugly capture is worth far
-more than a flattering one. If you can frame it with the sampling shape's outline
-overlaid, even better.
+The **ARA** tab: backscatter against incidence angle for the selected soundings,
+with the polynomial fit through the cloud and the **Data Model** radios
+(Raw / L / R / Fold) in frame. This is the acoustic read-out of a sampling unit and
+the natural lead figure for the page.
+
+> **Superseded:** an earlier brief here asked for a **WGL** soundings-surface
+> capture to illustrate the nearest-neighbour warning. Dropped on the tool author's
+> advice, and the code agrees: WGL grids at a fixed 1.5 nodes/m across the
+> selection's bounding box, so a ground-truthing sampling unit yields a 3×3-node
+> "surface" and anything under ~0.7 m yields an empty one. Photographing it would
+> have documented a use the tool is not for. The warning stays in prose; the
+> relief figure is `query-builder-3d-ref.png` below.
 
 ### `query-builder-3d-ref.png` — The reference surface (Reference 3D tab)
 **Page:** `tools/query-builder.md`, *Reading it quantitatively* · **Currently: none.**
@@ -138,7 +143,7 @@ degrade-don't-veto model, which is currently prose only: `settings-validation.pn
 | `video-player-1.png` | `tools/video-player.md` | The dock mid-playback with the **GPS track** drawn as a layer and the position marker on it. Timeline and frame counter legible. |
 | `annotation-image-1.png` | `tools/annotation.md` | The image annotation editor with a box selected and its **label + confidence** fields populated. |
 | `annotation-video-1.png` | `tools/annotation.md` | Per-frame annotation in the Video Player — show that the box belongs to *this* frame (frame number visible). |
-| `query-builder-1.png` | `tools/query-builder.md` | Hero: a **sampling shape** drawn on the soundings with the resulting **ARA scatterplot** (backscatter vs incidence angle) beside it. |
+| `query-builder-1.png` | `tools/query-builder.md` | Hero. Ideally a **sampling shape** on the soundings *and* the ARA plot together; if the docks cannot be shown side by side, `query-builder-ara.png` already covers the plot, so this one should favour the **map + sampling shape**. |
 | `report-builder-1.png` | `tools/report-builder.md` | The composed report — card layout, thumbnail gallery, statistics table. The **rendered HTML output** is more useful here than the builder UI; consider both. |
 | `grass-settings-1.png` | `tools/grass-fastgis.md` | Connecting and selecting a GRASS **environment**. **Blank the API key.** |
 | `grass-region-1.png` | `tools/grass-fastgis.md` | The **computational region** rectangle rendered on the canvas over the bathymetry. |
