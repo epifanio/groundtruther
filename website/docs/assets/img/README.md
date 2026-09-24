@@ -4,31 +4,31 @@ The brief for each figure: what it must show, and why.
 
 ## Status (2026-09-24)
 
-**Installed — 13**
+**Installed — 14**
 
 `index-hero.jpg` · `query-builder-1.jpg` · `query-builder-ara.png` ·
 `query-builder-histogram.png` · `image-browser-1.jpg` · `roughness-metrics-1.png` ·
 `roughness-spectrum-1.png` · `roughness-spectrum-6900.png` ·
 `roughness-microdem-3d.jpg` · `roughness-mosaic-navplaced.png` ·
-`mosaic-scale-check.png` · `settings-dialog-1.png` · `grass-settings-1.png`
+`mosaic-scale-check.png` · `roughness-mosaic-1.jpg` ·
+`settings-dialog-1.png` · `grass-settings-1.png`
 
 Photo-dominated captures are **JPEG** (q90), plot/line-art **PNG**.
 
-**Still needed — 8 placeholders + 3 optional**
+**Still needed — 7 placeholders + 3 optional**
 
 | # | file | page | notes |
 |---|---|---|---|
 | 1 | `ribbon-1.png` | Seabed Ribbon (hero) | rasters already on disk, see below |
 | 2 | `ribbon-count.png` | Seabed Ribbon | the honesty layer |
-| 3 | `roughness-mosaic-1.png` | Seafloor Roughness → Mosaic | index **6900**, window ±15–20 |
-| 4 | `video-player-1.png` | Video Player | |
-| 5 | `annotation-image-1.png` | Annotation | |
-| 6 | `annotation-video-1.png` | Annotation | |
-| 7 | `image-browser-2.png` | Image Browser | annotations + confidence threshold |
-| 8 | `report-builder-1.png` | Report Builder | rendered HTML beats the builder UI |
-| 9 | `grass-region-1.png` | GRASS toolbox | *optional* |
-| 10 | `grass-module-1.png` | GRASS toolbox | *optional* |
-| 11 | `query-builder-3d-ref.png` | Query Builder → Reference 3D | *optional* |
+| 3 | `video-player-1.png` | Video Player | |
+| 4 | `annotation-image-1.png` | Annotation | |
+| 5 | `annotation-video-1.png` | Annotation | |
+| 6 | `image-browser-2.png` | Image Browser | annotations + confidence threshold |
+| 7 | `report-builder-1.png` | Report Builder | rendered HTML beats the builder UI |
+| 8 | `grass-region-1.png` | GRASS toolbox | *optional* |
+| 9 | `grass-module-1.png` | GRASS toolbox | *optional* |
+| 10 | `query-builder-3d-ref.png` | Query Builder → Reference 3D | *optional* |
 
 **Re-shoot when PR #41 lands:** `settings-dialog-1.png` — it shows the dialog
 before the sections became collapsible.

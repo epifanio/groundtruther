@@ -315,6 +315,28 @@ skips frames whose image is missing from its archive.
 Two presets set the rest for you: **Browse** (3 mm, anti-aliased, fast overview)
 and **Publication** (ortho, 0.8 mm, lanczos, 8192 px, RGBA).
 
+<figure markdown>
+  ![A registered mosaic over a ribbon](../assets/img/roughness-mosaic-1.jpg){ width="1100" }
+  <figcaption>A fully content-registered mosaic at image index 6900 (window ±8,
+  pixel mode) laid over the photogrammetric ribbon of the same line. The status
+  line reports what was actually done — <code>17 frames, 0 skipped, 3-band
+  (EPSG:32619) · pixel · 16/16 by content · smoothed anchor (raw fix 1.38 m off
+  track)</code>.</figcaption>
+</figure>
+
+### The anchor
+
+**Smoothed anchor**, on by default, is what makes that overlay line up. The USBL is
+piecewise-constant, so the current frame's raw fix can sit metres off the real track
+and a mosaic anchored on it inherits that error whole. With the box ticked
+GroundTruther places the frames on a smoothed USBL track instead, and the status line
+tells you how large the correction was.
+
+Untick it to get the old behaviour and compare the two on the map — at index 6900 they
+land about **1.4 m** apart. The setting falls back silently when the metadata carries
+no USBL columns or no heading, and the status line says so (`service anchor (no usable
+nav)`) rather than pretending.
+
 The **window** is capped at **±20**: the service refuses more than 41 frames in one
 mosaic and returns a bare `too many frames (51 > 41)` above that.
 
