@@ -318,6 +318,29 @@ mosaic and returns a bare `too many frames (51 > 41)` above that.
     mosaic as nav-accurate rather than pixel-accurate there, and if you need a
     registered example, **start at image index 6900** (good from about 6880 to 6958).
 
+<figure markdown>
+  ![A nav-placed mosaic warning](../assets/img/roughness-mosaic-navplaced.png){ width="860" }
+  <figcaption>The Georef tab after building a mosaic at image index 34941: the
+  mosaic was added (17 frames, 3-band, EPSG:32619) but <code>0/16 by content</code>,
+  so the banner warns it is nav-placed.</figcaption>
+</figure>
+
+!!! danger ""Featureless seabed" is not a safe reading of that banner"
+    Index 34941 is where the service reports a featureless seabed. It is also the
+    frame on the [Metrics tab above](#metrics-tab) — cobbles and shell hash, a
+    micro-DEM full of structure. Running the **ribbon's tuned ORB** over the same
+    sixteen frames:
+
+    | | service | ribbon matcher |
+    |---|---|---|
+    | index 34941 | **0 / 16** | **10 / 15 linked**, median 37 inliers |
+    | index 6900 | 16 / 16 | 15 / 15 linked, median 516 inliers |
+
+    Two-thirds of those pairs *are* registrable. 34941 is genuinely harder ground
+    than 6900 — 37 inliers against 516 — but harder is not featureless. **Treat a
+    `none` banner as "this matcher did not register it", not as a verdict on the
+    seabed**, and judge the texture by looking at single frames.
+
 **Illumination correct** (flat-fields the strobe vignette and equalises
 brightness) and **Gain compensate** are on by default and are what make a mosaic
 look continuous. Turn illumination correction **off** for absolute-radiometry
