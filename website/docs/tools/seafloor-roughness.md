@@ -36,11 +36,15 @@ Configure both in
 If neither the FastGIS credentials nor a direct URL are set, the panel says
 *"roughness service not configured"* and does nothing else.
 
-!!! tip "First call is slow"
-    The GPU model loads lazily — expect ~14 s for the first frame of a session
-    and ~0.5 s afterwards. Requests run as background QGIS tasks, so the UI stays
-    responsive, and results are cached per frame so revisiting a frame is
-    instant.
+!!! tip "Every frame costs about the same, and only the plugin caches"
+    Expect **~14 s per frame**, dominated by the stereo match on the GPU — not just
+    the first one. The service holds no per-frame cache, so asking for the same frame
+    twice costs the same again.
+
+    What makes revisiting a frame instant is the **plugin's** own cache: the last 64
+    frames of this session (trimmed sooner if the payloads are large), so browsing
+    back and forth is free. Requests run as background QGIS tasks, so the UI stays
+    responsive while one is in flight.
 
 ## Metrics tab
 
@@ -70,14 +74,29 @@ to a new frame.
     Use γ₂, rugosity, anisotropy and *relative* rms height as your physical
     features; do not feed w₂'s absolute value into a physical inversion.
 
-Two checkboxes control how much work the service does — request only what you
-will actually look at:
+Two checkboxes control which optional outputs come back. They change the size of
+the response, **not** how long the service takes — the stereo match dominates
+every request and the service builds the DEM and orthophoto on its way there
+regardless.
 
-- **3-D surface + photo (real heights)** — fetches the real-height micro-DEM grid
-  and the co-registered orthophoto, so the Micro-DEM 3D tab can show a
-  photo-textured surface. Slower.
-- **2-D height overlay on image** — fetches the per-pixel height raster and the
-  rectified-left preview and drapes them on the displayed image. Slower.
+| output | default | cost |
+|---|---|---|
+| **3-D surface + photo (real heights)** — the real-height micro-DEM grid + co-registered orthophoto, for the Micro-DEM 3D tab | **on** | ~1 MB of payload, **no extra compute** |
+| **2-D height overlay on image** — the per-pixel height raster + rectified-left preview, draped on the displayed image | off | ~4 MB of payload, no extra compute |
+
+Measured on a reference frame: 32 KiB metrics-only, 1.1 MiB with the surface,
+5.4 MiB with both — all in the same ~14 s.
+
+!!! tip "Why the surface is on by default"
+    Because forgetting it is expensive and having it is nearly free. **The service
+    does not cache**: re-requesting a frame you already computed costs another full
+    ~14 s, so a frame fetched without the surface cannot be upgraded cheaply. Paying
+    ~1 MB up front means the Micro-DEM 3D tab is simply already populated.
+
+    Ticking either box *after* computing a frame now re-fetches on its own — you do
+    not have to press **Compute roughness** again — and the status line says the
+    refetch is a full recompute so it does not look like a hang. Turn the surface
+    off only if you are on a slow link and never open the 3-D tab.
 
 ## Spectrum tab
 

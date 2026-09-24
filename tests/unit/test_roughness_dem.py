@@ -236,3 +236,60 @@ def test_valid_faces_degenerate():
     assert rd.valid_faces(np.ones((1, 5), bool)).shape == (0, 3)
     with pytest.raises(ValueError):
         rd.valid_faces(np.ones(5, bool))
+
+
+# --------------------------------------------------------------------------- #
+# Frame-cache accounting (the panel's LRU is bounded by bytes, not just count)  #
+# --------------------------------------------------------------------------- #
+
+class TestPayloadBytes:
+    def test_it_counts_nested_base64_blobs(self):
+        result = {
+            "gamma2": 2.3,                                  # numbers don't count
+            "micro_dem": {"data_b64": "x" * 1000, "dx_mm": 3.0},
+            "orthophoto": {"png_b64": "y" * 500},
+            "left_preview_png_b64": "z" * 250,
+        }
+        assert rd.payload_bytes(result) == 1750
+
+    def test_a_metrics_only_payload_is_small(self):
+        assert rd.payload_bytes({"gamma2": 2.3, "quality": "ok"}) < 100
+
+    def test_non_dict_input_is_zero_not_an_error(self):
+        assert rd.payload_bytes(None) == 0
+        assert rd.payload_bytes("nope") == 0
+
+
+class TestEvictToBudget:
+    @staticmethod
+    def _cache(n, blob):
+        from collections import OrderedDict
+        return OrderedDict(
+            (f"f{i}", {"micro_dem": {"data_b64": "x" * blob}}) for i in range(n))
+
+    def test_the_count_cap_evicts_oldest_first(self):
+        c = self._cache(10, 10)
+        rd.evict_to_budget(c, max_items=4, max_bytes=0)
+        assert list(c) == ["f6", "f7", "f8", "f9"]
+
+    def test_the_byte_cap_evicts_until_it_fits(self):
+        c = self._cache(10, 1000)                 # 10 KB total
+        rd.evict_to_budget(c, max_items=100, max_bytes=3500)
+        assert sum(rd.payload_bytes(v) for v in c.values()) <= 3500
+        assert list(c)[-1] == "f9"                # newest survives
+
+    def test_the_newest_entry_is_never_evicted_even_if_oversized(self):
+        # A single huge frame must still render; evicting it would blank the panel.
+        from collections import OrderedDict
+        c = OrderedDict(big={"micro_dem": {"data_b64": "x" * 10_000}})
+        rd.evict_to_budget(c, max_items=64, max_bytes=100)
+        assert list(c) == ["big"]
+
+    def test_it_reports_how_many_it_dropped(self):
+        c = self._cache(6, 10)
+        assert rd.evict_to_budget(c, max_items=2, max_bytes=0) == 4
+
+    def test_a_cache_within_both_caps_is_untouched(self):
+        c = self._cache(3, 10)
+        assert rd.evict_to_budget(c, max_items=64, max_bytes=10_000) == 0
+        assert list(c) == ["f0", "f1", "f2"]
