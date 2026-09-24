@@ -60,9 +60,10 @@ current file, shows every key, and writes it back when you press **Save
 settings**.
 
 <figure markdown>
-  <!-- TODO: replace src with assets/img/settings-dialog-1.png -->
-  ![The Settings dialog](../assets/img/placeholder.svg){ width="700" }
-  <figcaption>The Settings dialog — one group box per config section.</figcaption>
+  ![The Settings dialog](../assets/img/settings-dialog-1.png){ width="560" }
+  <figcaption>The Settings dialog — one group box per config section, covering all
+  27 keys. The GRASS API key is masked; the path fields elide from the left, so a
+  long path shows its tail.</figcaption>
 </figure>
 
 The dialog is grouped the same way the YAML is: **Filesystem**, **HabCam**,
