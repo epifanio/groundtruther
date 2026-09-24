@@ -287,13 +287,36 @@ skips frames whose image is missing from its archive.
 Two presets set the rest for you: **Browse** (3 mm, anti-aliased, fast overview)
 and **Publication** (ortho, 0.8 mm, lanczos, 8192 px, RGBA).
 
-!!! note "When the mosaic is nav-placed anyway"
-    Featureless seabed — smooth mud with no clasts — cannot be content-registered
-    by any method. In *pixel* and *auto* modes the service reports how many frame
-    pairs it actually registered by content, and GroundTruther shows a banner
-    when that fraction is low ("only 0/10 pairs registered — low texture, mosaic
-    is nav-placed"). That is a limit of the data, not a fault: read the mosaic as
-    nav-accurate, not pixel-accurate, in those stretches.
+The **window** is capped at **±20**: the service refuses more than 41 frames in one
+mosaic and returns a bare `too many frames (51 > 41)` above that.
+
+!!! warning "Content registration is patchy on this imagery — and it is not your frames"
+    In *pixel* and *auto* modes the service reports how many frame pairs it actually
+    registered by content, and GroundTruther shows a banner when that fraction is low
+    (*"only 0/10 pairs registered — low texture, mosaic is nav-placed"*). On the
+    reference dataset that banner is common, and **where you are matters far more than
+    you would expect**. Measured with `mode=pixel`, `window=±8`:
+
+    | image index | pairs registered | quality |
+    |---|---|---|
+    | 6700 | 0 / 16 | `none` |
+    | 6800 | 3 / 16 | `low` |
+    | **6900** | **16 / 16** | **`ok`** |
+    | 6920 | 16 / 16 | `ok` |
+    | 34941 | 0 / 16 | `none` |
+
+    Those first three rows are **the same survey line, 200 frames apart**. Part of this
+    is real — featureless mud cannot be content-registered by any method. But part is
+    the matcher: the service registers on **CLAHE-enhanced greys**, and the
+    [ribbon work](seabed-ribbon.md#choose-the-strip-by-texture-never-by-relief)
+    measured that CLAHE and flat-fielding both *lower* the inlier count on these dark
+    frames, and that a loose Lowe ratio plus an overlap mask are needed. With that
+    tuning, the strip containing rows 6663–6958 registers at **89.8 %** end to end —
+    far better than the service manages on the same frames.
+
+    So: a `low` or `none` banner is not necessarily a bad patch of seabed. Read the
+    mosaic as nav-accurate rather than pixel-accurate there, and if you need a
+    registered example, **start at image index 6900** (good from about 6880 to 6958).
 
 **Illumination correct** (flat-fields the strobe vignette and equalises
 brightness) and **Gain compensate** are on by default and are what make a mosaic
