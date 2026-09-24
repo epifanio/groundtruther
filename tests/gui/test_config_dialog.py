@@ -243,3 +243,104 @@ def test_save_is_refused_when_a_required_path_is_broken(dialog, monkeypatch, tmp
 
     assert shown and "HabCam.imagepath" in shown[0]
     assert open(dialog.config, encoding="utf8").read() == before, "file was written"
+
+
+# --------------------------------------------------------------------------- #
+# Collapsible sections                                                          #
+# --------------------------------------------------------------------------- #
+
+#: Every section the dialog shows, in the order they appear.
+_SECTION_TITLES = ["Habcam", "MBES", "Export", "Processing",
+                   "File System", "Video", "Seafloor roughness"]
+
+
+def _sections(dialog):
+    from qgis.gui import QgsCollapsibleGroupBox
+    return dialog.findChildren(QgsCollapsibleGroupBox)
+
+
+def test_every_section_is_collapsible(dialog):
+    """All seven sections are wrapped, and none lost its title in the wrapping."""
+    titles = [w.title() for w in _sections(dialog)]
+    assert titles == _SECTION_TITLES
+
+
+def test_wrapping_did_not_orphan_the_original_group_boxes(dialog):
+    """The wrapped box must still be in the shown tree, not left behind.
+
+    Wrapping moves a widget between layouts; getting that wrong silently drops
+    the section's contents while the header still renders.
+    """
+    for widget in (dialog.reference_surface_path, dialog.video_annotation_path,
+                   dialog.roughness_config_box, dialog.vrt_path, dialog.image_path):
+        assert widget.isVisibleTo(dialog), widget.objectName()
+
+
+def test_each_section_has_a_unique_state_key(dialog):
+    """QgsCollapsibleGroupBox keys its saved state on objectName.
+
+    Duplicate or empty names would make sections share (or lose) their
+    expanded/collapsed state.
+    """
+    names = [w.objectName() for w in _sections(dialog)]
+    assert all(names), "a section has no objectName, so its state cannot persist"
+    assert len(set(names)) == len(names), f"duplicate section keys: {names}"
+
+
+def test_collapsing_actually_reclaims_height(dialog, qapp):
+    """The point of the feature: a collapsed section must take up less room."""
+    dialog.show()                      # sizeHint only tracks collapse once shown
+    qapp.processEvents()
+    content = dialog.scrollAreaWidgetContents
+    was = [(w, w.isCollapsed()) for w in _sections(dialog)]
+    try:
+        for w, _ in was:
+            w.setCollapsed(False)
+        qapp.processEvents()
+        expanded = content.sizeHint().height()
+
+        for w, _ in was:
+            w.setCollapsed(True)
+        qapp.processEvents()
+        collapsed = content.sizeHint().height()
+
+        assert collapsed < expanded / 2, (
+            f"collapsing freed too little: {expanded} -> {collapsed} px")
+    finally:
+        # Leave the saved state as we found it — these write to QgsSettings.
+        for w, state in was:
+            w.setCollapsed(state)
+        qapp.processEvents()
+
+
+def test_the_roughness_section_is_the_reason_this_exists(dialog, qapp):
+    """Seafloor roughness is by far the tallest section (13 keys, 4 sub-boxes).
+
+    If it ever stops dominating, the default-collapsed choice should be revisited.
+    """
+    dialog.show()                      # as above
+    qapp.processEvents()
+    content = dialog.scrollAreaWidgetContents
+    was = [(w, w.isCollapsed()) for w in _sections(dialog)]
+    try:
+        for w, _ in was:
+            w.setCollapsed(True)
+        qapp.processEvents()
+        floor = content.sizeHint().height()
+
+        heights = {}
+        for w, _ in was:
+            w.setCollapsed(False)
+            qapp.processEvents()
+            heights[w.title()] = content.sizeHint().height() - floor
+            w.setCollapsed(True)
+            qapp.processEvents()
+
+        tallest = max(heights, key=heights.get)
+        assert tallest == "Seafloor roughness", heights
+        assert heights["Seafloor roughness"] > sum(
+            h for t, h in heights.items() if t != "Seafloor roughness") / 2
+    finally:
+        for w, state in was:
+            w.setCollapsed(state)
+        qapp.processEvents()
