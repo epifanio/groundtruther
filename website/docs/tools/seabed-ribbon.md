@@ -162,12 +162,20 @@ ratio of 1.011**.
     6900 — the index that mosaics best — the two differ by **1.39 m**.
 
     Where the ribbon fell back to navigation (31 of 296 frames here) the two agree
-    exactly, because there is no correction to differ by. So expect sub-metre to
-    ~1.5 m disagreement over textured ground and none over featureless ground, which
-    is the opposite of the intuition.
+    exactly, because there is no correction to differ by. So the disagreement is
+    largest over *textured* ground, which is the opposite of the intuition.
 
-    For overlay work, trust the **ribbon** locally: its relative geometry comes from
-    the pixels (median step 491 mm against the nav's clumped 92 mm).
+    **This is largely fixed.** GroundTruther now sends the mosaic an explicitly
+    smoothed USBL track rather than letting it anchor on one raw fix, which brings
+    the same comparison to a **median 0.11 m (p90 0.51 m)** — 84 % closer. The
+    residual ~0.1 m is the pixel chain itself, which a mosaic has no way to
+    reproduce and does not need to. The figures above are what you see if that
+    smoothing is unavailable, which happens when the metadata carries no USBL
+    columns or no heading and the mosaic falls back to anchoring on the reference
+    frame.
+
+    Either way, for overlay work trust the **ribbon** locally: its relative geometry
+    comes from the pixels (median step 491 mm against the nav's clumped 92 mm).
 
 !!! warning "The first and last ~25 frames keep a staircase"
     Within half a smoothing window of either end there is not enough data to average
