@@ -95,12 +95,62 @@ Metrics tab:
 
 The spectrum is always requested; it is a small payload.
 
+## How well does this actually work?
+
+Roughness from this stereo has been tested against an independent label set on the
+HRS1508 survey — 217 cells of a 25 m grid with single-substrate ground truth,
+random forest, five-fold cross-validation on **200 m spatial blocks** (not random
+folds, which would leak geography between train and test).
+
+| model | accuracy |
+|---|---|
+| backscatter angular response alone | 0.659 |
+| + γ₂ | 0.691 |
+| + γ₂ and rugosity | 0.714 |
+| **+ all roughness features** | **0.756** |
+
+The gain of **+0.097** has a 95 % confidence interval of 0.039–0.155 and a
+block-permutation *p* < 0.001, and **γ₂ ranked first of all ten features** — above
+every backscatter descriptor. Minority-class recall went from 0.43 to 0.60. So the
+headline claim on this page — that γ₂ carries real substrate information that
+backscatter does not — is measured, not asserted.
+
+Three limits came out of the same work, and they matter when you use this tool:
+
+!!! warning "`insufficient_coverage` is not a random failure"
+    Frames rejected by the coverage gate are **biased by substrate**. On HRS1508,
+    2.7 % of cells over one substrate were rejected against **12.9 %** over
+    another — a Fisher odds ratio of **5.3** (*p* ≈ 2×10⁻²⁵). Turbidity over fine
+    sediment is what drives it. Consequently the frames you *successfully* measure
+    are not a representative sample of the seabed you flew over, and coverage maps
+    built from roughness will under-represent exactly the softest ground. Report
+    the rejection rate per class, don't just drop the failures.
+
+- **w₂ and rms height were excluded from that analysis entirely** — not
+  de-weighted, excluded. Amplitude is not recoverable from this stereo, which is
+  the same conclusion the per-frame trust flag reaches one frame at a time.
+- **Rugosity is amplitude-derived like w₂, yet it ranks third.** It is a
+  useful discriminator here; treat it as an empirical feature rather than a
+  calibrated physical quantity.
+
+Per-frame health on a 296-frame line, for comparison with your own data: 2.0 %
+rejected (all `insufficient_coverage`), service altitude agreeing with the
+metadata `Altimeter` to a **median 37 mm**, and γ₂ median 2.97 (IQR 2.66–3.15).
+
 ## Micro-DEM 3D tab
 
 The real-height micro-DEM as an interactive 3-D mesh, draped with the orthophoto
 as a 1:1 texture (one texel per vertex) when the surface outputs were requested.
 Heights are in millimetres and sit near −altitude, so the mesh is a true
 representation of the patch under the camera, not a high-passed roughness field.
+
+!!! note "The cell size is the service's choice, not yours"
+    `Roughness.res_mm` is a **request**. The service picks the grid spacing per
+    frame and reports what it used as `dx_mm`; on the reference dataset that comes
+    back as **2, 3, 4 or 5 mm** on different frames of the same line, not the
+    nominal 1 mm default. So a micro-DEM's resolution is a property of that frame,
+    and two frames' grids are not directly comparable cell-for-cell. Anything that
+    combines frames has to resample each through its own geotransform.
 
 The stereo DEM is unreliable at the grid border and around no-data holes, which
 otherwise shows up as spikes draped in stretched texture. Three live controls

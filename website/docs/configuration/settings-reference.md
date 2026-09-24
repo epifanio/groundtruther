@@ -107,7 +107,7 @@ service. All optional; all have working defaults.
 
 | Key | Type | Default | Required | What it does | When unset or wrong |
 |---|---|---|---|---|---|
-| `Roughness.res_mm` | float ≥ 0 | *(unset)* | no | Requested micro-DEM cell size in millimetres, forwarded to the service. | Unset — the dialog shows *"service default"* — means the server chooses (1.0 mm). This is the recommended setting. |
+| `Roughness.res_mm` | float ≥ 0 | *(unset)* | no | **Requested** micro-DEM cell size in millimetres, forwarded to the service. | Unset — the dialog shows *"service default"* — is the recommended setting. The service's nominal default is 1.0 mm, but it chooses the cell size **per frame** and the value it actually used comes back as `dx_mm`; 2–5 mm is what the reference dataset returns in practice. Treat this key as a request, not a guarantee. |
 | `Roughness.n_water` | float ≥ 0 | *(unset)* | no | Refractive index of water. | **Leave unset.** The 2015 HabCam calibration was performed in water, so the refraction is already absorbed; sending `1.33` would double-count it and corrupt every height and roughness value. The server default is `1.0`. It exists only for a future air-calibrated dataset. |
 | `Roughness.dem_max_side` | int ≥ 1 | `512` | no | Cap on the longest side of the returned micro-DEM grid. | Larger grids mean more detail in the 3-D tab and a bigger payload; the dialog allows 64–4096. |
 
