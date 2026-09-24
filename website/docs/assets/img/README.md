@@ -4,7 +4,7 @@ The brief for each figure: what it must show, and why.
 
 ## Status (2026-09-24)
 
-**Installed — 17**
+**Installed — 18**
 
 `index-hero.jpg` · `query-builder-1.jpg` · `query-builder-ara.png` ·
 `query-builder-histogram.png` · `image-browser-1.jpg` · `roughness-metrics-1.png` ·
@@ -12,11 +12,12 @@ The brief for each figure: what it must show, and why.
 `roughness-microdem-3d.jpg` · `roughness-mosaic-navplaced.png` ·
 `mosaic-scale-check.png` · `roughness-mosaic-1.jpg` ·
 `ribbon-1.jpg` · `ribbon-count.jpg` · `annotation-image-1.jpg` ·
+`video-player-1.jpg` ·
 `settings-dialog-1.png` · `grass-settings-1.png`
 
 Photo-dominated captures are **JPEG** (q90), plot/line-art **PNG**.
 
-**Still needed — 4 placeholders + 3 optional**
+**Still needed — 3 placeholders + 3 optional**
 
 | # | file | page | notes |
 |---|---|---|---|
