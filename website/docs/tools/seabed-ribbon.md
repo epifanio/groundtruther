@@ -14,10 +14,21 @@ CRS, delivered as GeoTIFFs you can drop straight into QGIS.
     unit-tested against synthetic inputs with no network.
 
 <figure markdown>
-  <!-- TODO: replace src with assets/img/ribbon-1.png -->
-  ![A seabed ribbon in QGIS](../assets/img/placeholder.svg){ width="900" }
-  <figcaption>A ribbon loaded over the MBES bathymetry.</figcaption>
+  ![A seabed ribbon in QGIS](../assets/img/ribbon-1.jpg){ width="1100" }
+  <figcaption>Part of a ribbon, hillshaded, over the MBES bathymetry. Each
+  rectangle is one frame's micro-DEM; the burrows, ripples and clast fields
+  crossing between them are real relief at millimetre scale, on a surface whose
+  neighbouring cells the acoustics resolve at 1 m.</figcaption>
 </figure>
+
+!!! note "The tiling you can see *is* the seam error"
+    Hillshading works on gradients, so it exaggerates exactly the thing a
+    composite is judged on: the step where one frame meets the next. Those frame
+    outlines are the **13.7 mm** median seam
+    [measured below](#vertical-levelling-and-what-it-costs) being made visible, not
+    a compositing failure — 13.7 mm of step across a 3 mm cell is a steep local
+    gradient and hillshade renders it as an edge. Judge the relief *within* a
+    frame, and use the seam numbers rather than your eye for the joins.
 
 ## Why it exists
 
