@@ -12,9 +12,10 @@ look like here?"* — and build defensible, reproducible interpretations that li
 **morphology, backscatter, and observed biota**.
 
 <figure markdown>
-  <!-- TODO: replace with a hero screenshot of the full plugin in QGIS -->
-  ![GroundTruther in QGIS](assets/img/placeholder.svg){ width="900" }
-  <figcaption>GroundTruther running inside QGIS 4.</figcaption>
+  ![GroundTruther in QGIS](assets/img/index-hero.jpg){ width="1100" }
+  <figcaption>GroundTruther in QGIS 4: backscatter and bathymetry on the map, a
+  depth profile across the sampling unit, and a photo-textured stereo micro-DEM
+  being measured in 3-D — acoustics and optical geometry in one project.</figcaption>
 </figure>
 
 ## What you can do

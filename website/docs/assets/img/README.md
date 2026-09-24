@@ -1,7 +1,36 @@
 # Screenshots — the shot list
 
-Every figure on the site currently points at `placeholder.svg`. This file is the
-brief for replacing them: what each image must show, and why.
+The brief for each figure: what it must show, and why.
+
+## Status (2026-09-24)
+
+**Done — 7 images installed**
+
+| file | page |
+|---|---|
+| `index-hero.jpg` | Home |
+| `query-builder-1.jpg` | Query Builder (hero) |
+| `query-builder-ara.png` | Query Builder → ARA |
+| `query-builder-histogram.png` | Query Builder → Histogram |
+| `image-browser-1.jpg` | Image Browser (hero) |
+| `roughness-spectrum-1.png` | Seafloor Roughness → Spectrum |
+| `roughness-microdem-3d.jpg` | Seafloor Roughness → Micro-DEM 3D |
+
+Photo-dominated captures are **JPEG** (q90) and plot/line-art captures **PNG** —
+the same crops as PNG throughout came to 4.5 MB against 1.5 MB this way.
+
+**Still needed, in priority order**
+
+1. `roughness-metrics-1.png` — the Metrics tab. The Seafloor Roughness page still
+   leads with a placeholder, and γ₂ is its headline output.
+2. `ribbon-1.png` + `ribbon-count.png` — nothing illustrates the ribbon at all.
+3. `settings-dialog-1.png` (+ `settings-validation.png`)
+4. `roughness-mosaic-1.png` (+ `roughness-mosaic-navplaced.png`)
+5. `query-builder-3d-ref.png` — the Reference 3D tab.
+6. `video-player-1.png`, `annotation-image-1.png`, `annotation-video-1.png`,
+   `image-browser-2.png`, `report-builder-1.png`, `grass-settings-1.png`,
+   `grass-region-1.png`, `grass-module-1.png`
+
 
 **How to add one**
 

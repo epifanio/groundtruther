@@ -5,9 +5,10 @@ points and sampling shapes, and summarise their distributions. This is where the
 acoustic side of the "ground-truthing" happens.
 
 <figure markdown>
-  <!-- TODO: replace src with assets/img/query-builder-1.png -->
-  ![Acoustic Query Builder](../assets/img/placeholder.svg){ width="900" }
-  <figcaption>Querying backscatter / derivatives under a sampling shape.</figcaption>
+  ![Acoustic Query Builder](../assets/img/query-builder-1.jpg){ width="1100" }
+  <figcaption>The sampling unit defined (ellipse, 10 × 5 m, oriented 105°) over the
+  backscatter and bathymetry, with the angular response of the soundings inside
+  it.</figcaption>
 </figure>
 
 ## What it does
@@ -43,6 +44,25 @@ The **Data Model** radios pick which beams contribute:
 Sibling tabs cover the rest of the selection: **Stat** (summary statistics),
 **Histogram** (value distribution), **Image Selection** (the seafloor frames that
 fall inside the shape), and the two 3-D views below.
+
+<figure markdown>
+  ![ARA angular response](../assets/img/query-builder-ara.png){ width="760" }
+  <figcaption>The ARA tab: backscatter against incidence angle for the selected
+  soundings, folded across nadir, with a degree-3 fit. The axes are unlabelled in
+  the widget — x is incidence angle in degrees, y is the backscatter field named in
+  the <b>BS</b> selector above (here <code>BS_area_dB</code>).</figcaption>
+</figure>
+
+The **Histogram** tab is worth singling out: it splits the selection **by survey
+line**, so systematic differences between lines are visible directly.
+
+<figure markdown>
+  ![Per-line backscatter histograms](../assets/img/query-builder-histogram.png){ width="800" }
+  <figcaption>Density of <code>BS_area_dB</code> per line inside one sampling unit.
+  Lines offset from one another by several dB over the same seabed is exactly the
+  per-line variation that has to be normalised away before backscatter can be
+  compared across a survey.</figcaption>
+</figure>
 
 ## The 3-D surface
 

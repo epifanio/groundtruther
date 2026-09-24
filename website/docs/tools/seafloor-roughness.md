@@ -6,7 +6,7 @@ quantitative texture descriptor to set beside the backscatter, plus a real-heigh
 micro-DEM of the patch the camera is looking at.
 
 <figure markdown>
-  <!-- TODO: replace src with assets/img/roughness-metrics-1.png -->
+  <!-- TODO: replace src with assets/img/roughness-metrics-1.png (Metrics tab) -->
   ![The Seafloor Roughness dock](../assets/img/placeholder.svg){ width="900" }
   <figcaption>The Seafloor Roughness dock — Metrics tab.</figcaption>
 </figure>
@@ -95,6 +95,14 @@ Metrics tab:
 
 The spectrum is always requested; it is a small payload.
 
+<figure markdown>
+  ![The relief power spectrum](../assets/img/roughness-spectrum-1.png){ width="800" }
+  <figcaption>W(K) on log-log axes with the fitted power law and the shaded fit
+  band. Note the read-out: <code>γ₂=3.72 · w₂=0.175 cm⁴ · R²=0.950 · fit band
+  125–1257 rad/m</code> — and the measured curve peeling away from the fit at
+  high K, which is the stereo noise floor rather than the seabed.</figcaption>
+</figure>
+
 ## How well does this actually work?
 
 Roughness from this stereo has been tested against an independent label set on the
@@ -143,6 +151,14 @@ The real-height micro-DEM as an interactive 3-D mesh, draped with the orthophoto
 as a 1:1 texture (one texel per vertex) when the surface outputs were requested.
 Heights are in millimetres and sit near −altitude, so the mesh is a true
 representation of the patch under the camera, not a high-passed roughness field.
+
+<figure markdown>
+  ![Photo-textured micro-DEM](../assets/img/roughness-microdem-3d.jpg){ width="800" }
+  <figcaption>The micro-DEM draped with its orthophoto, with a two-point
+  measurement across the patch: <code>Profile (3-D) 803.7 mm · Plan (2-D) 773.5 mm
+  · ΔZ A→B −26.6 mm · Z-range 50.1 mm</code>. The black patches are no-data cells
+  culled by the mitigation controls, not flat seabed.</figcaption>
+</figure>
 
 !!! note "The cell size is the service's choice, not yours"
     `Roughness.res_mm` is a **request**. The service picks the grid spacing per
