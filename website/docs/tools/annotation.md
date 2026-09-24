@@ -6,9 +6,13 @@ the optical "ground truth" that anchors the acoustic interpretation.
 ## Image annotation
 
 <figure markdown>
-  <!-- TODO: replace src with assets/img/annotation-image-1.png -->
-  ![Image annotation editor](../assets/img/placeholder.svg){ width="900" }
-  <figcaption>Editing a bounding-box annotation on a seafloor image.</figcaption>
+  ![Image annotation editor](../assets/img/annotation-image-1.jpg){ width="1100" }
+  <figcaption>Three detector boxes on one frame, with the editor alongside. The
+  <b>Annotated Images</b> list jumps straight to any annotated frame; the panel
+  below it lists this frame's labels and scores — <code>fish (0.86)</code>,
+  <code>fish (0.75)</code>, <code>fish (0.61)</code>. Note the last one against
+  the <b>Detection Confidence</b> of 0.60: raise the threshold by a hundredth and
+  that box disappears.</figcaption>
 </figure>
 
 - Draw a **bounding box** over a feature in the current image, assign a **label**

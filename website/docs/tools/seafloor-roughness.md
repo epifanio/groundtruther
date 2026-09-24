@@ -103,19 +103,13 @@ responding to. Both of these frames pass the trust gate, and both fit cleanly:
 <figure markdown>
   ![A steeper spectrum](../assets/img/roughness-spectrum-1.png){ width="470" }
   ![A shallower spectrum](../assets/img/roughness-spectrum-6900.png){ width="470" }
-  <figcaption>Left: image index 34941 — <code>γ₂=3.72 · w₂=0.175 cm⁴ · R²=0.950</code>.
-  Right: image index 6900 — <code>γ₂=3.00 · w₂=0.0159 cm⁴ · R²=0.975</code>. A shallower
-  slope and <b>eleven times less spectral strength</b>: the second is a smoother,
-  finer-grained seabed. Both curves flatten above ~1 krad/m into the same stereo
-  noise floor.</figcaption>
-</figure>
-
-<figure markdown>
-  ![The relief power spectrum](../assets/img/roughness-spectrum-1.png){ width="800" }
-  <figcaption>The same frame's spectrum: W (µm⁴) against K (krad/m) on log-log
-  axes, the fitted power law in red and the fit band shaded. The read-out is
-  <code>γ₂=3.72 · w₂=0.175 cm⁴ ✓ · R²=0.950 · fit band 125–1257 rad/m</code>, and
-  above ~1 krad/m the measured curve flattens away from the fit — that tail is the
+  <figcaption><b>Left — image index 34941:</b> <code>γ₂=3.72 · w₂=0.175 cm⁴ ✓ ·
+  R²=0.950 · fit band 125–1257 rad/m</code>.
+  <b>Right — image index 6900:</b> <code>γ₂=3.00 · w₂=0.0159 cm⁴ ✓ · R²=0.975</code>.
+  A shallower slope and <b>eleven times less spectral strength</b>: the second is a
+  smoother, finer-grained seabed. In both, W (µm⁴) is plotted against K (krad/m) on
+  log-log axes with the fitted power law in red and the fit band shaded — and in both
+  the measured curve flattens away from the fit above ~1 krad/m. That tail is the
   stereo noise floor, not the seabed.</figcaption>
 </figure>
 

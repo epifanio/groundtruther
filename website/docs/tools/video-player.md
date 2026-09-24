@@ -4,9 +4,13 @@ Play survey video alongside the map, geo-linked to the vessel/ROV track so the
 canvas follows the footage.
 
 <figure markdown>
-  <!-- TODO: replace src with assets/img/video-player-1.png -->
-  ![Video Player dock](../assets/img/placeholder.svg){ width="900" }
-  <figcaption>The Video Player dock with geo-linked playback.</figcaption>
+  ![Video Player dock](../assets/img/video-player-1.jpg){ width="1100" }
+  <figcaption>A MAREANO towed-camera transect — frame 100 of 67 409, 732.91 m
+  down at 62.69° N. The <b>Frame Metadata</b> panel below the player reads
+  straight out of the survey <code>.log</code>: position, depth, cruise and
+  station, plus the observation fields a reviewer fills in. <b>Geo-link</b> and
+  <b>Show on map</b> are the two controls that tie playback to the canvas; both
+  are off here.</figcaption>
 </figure>
 
 ## What it does
