@@ -4,9 +4,9 @@ Browse large collections of georeferenced seafloor images spatially and by index
 with the map and the imagery kept in sync.
 
 <figure markdown>
-  <!-- TODO: replace src with assets/img/image-browser-1.png -->
-  ![Image Browser dock](../assets/img/placeholder.svg){ width="900" }
-  <figcaption>The Image Browser dock: viewer, navigation, and metadata panel.</figcaption>
+  ![Image Browser dock](../assets/img/image-browser-1.jpg){ width="900" }
+  <figcaption>A HabCam frame in the Image Browser — coarse shell hash grading into
+  sand — with the display histogram alongside.</figcaption>
 </figure>
 
 ## What it does

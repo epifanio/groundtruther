@@ -7,9 +7,10 @@ The acoustic and terrain analysis in GroundTruther is powered by a remote
 GRASS module — without installing GRASS locally.
 
 <figure markdown>
-  <!-- TODO: replace src with assets/img/grass-settings-1.png -->
-  ![GRASS environment dialog](../assets/img/placeholder.svg){ width="900" }
-  <figcaption>Connecting and selecting a GRASS environment.</figcaption>
+  ![GRASS environment dialog](../assets/img/grass-settings-1.png){ width="540" }
+  <figcaption>The GRASS API dialog: the endpoint, the environment picker, and the
+  active environment with its <code>env_id</code> — the handle every subsequent
+  call is scoped to.</figcaption>
 </figure>
 
 ## Connect

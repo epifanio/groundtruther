@@ -662,11 +662,15 @@ class RoughnessMixin:
         mbox = QGroupBox("Mosaic (±window contiguous frames)")
         mform = QFormLayout(mbox)
         self._mosaic_window = QSpinBox()
-        self._mosaic_window.setRange(1, 50)
+        # The service caps a mosaic at 41 frames and returns a bare
+        # HTTP 400 "too many frames (51 > 41)" above it, so stop at +/-20
+        # rather than letting the dialog offer a request that cannot succeed.
+        self._mosaic_window.setRange(1, 20)
         self._mosaic_window.setValue(5)
         self._mosaic_window.setToolTip(
             "Contiguous frames on EACH side of the current frame; the service "
-            "pulls the nav and skips gaps.")
+            "pulls the nav and skips gaps.\n"
+            "Capped at 20 — the service refuses more than 41 frames in one mosaic.")
         mform.addRow("Window ±", self._mosaic_window)
         self._mosaic_gsd = QDoubleSpinBox()
         self._mosaic_gsd.setRange(0.0005, 0.05)

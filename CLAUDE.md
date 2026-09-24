@@ -128,9 +128,12 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
   keys + the validation model) · **Data model** (every column the plugin reads) ·
   Architecture. Adding a *feature* means adding its tool page **and** its config keys
   to the settings reference.
-- `docs/grass_fastgis.md` and `docs/photogrammetric_ribbon.md` are agent-facing and
-  stay separate from the site (the ribbon is a script under `scripts/`, not a plugin
-  tool, so it has no page in `website/`).
+- `docs/grass_fastgis.md` and `docs/photogrammetric_ribbon.md` are agent-facing deep
+  dives and stay separate from the site. The ribbon **does** have a user page now
+  (`website/docs/tools/seabed-ribbon.md`, added 2026-09-24) even though it is a
+  script under `scripts/` and not a dock — it produces a map product users need to
+  interpret. That page leads with a "this is a script, not a panel" warning; keep
+  that framing if you edit it.
   `help/` is a retired Plugin Builder Sphinx stub, reduced to a pointer at the site
   and kept only because `Makefile` / `pb_tool.cfg` expect `help/build/html` to exist —
   **do not add docs there.**

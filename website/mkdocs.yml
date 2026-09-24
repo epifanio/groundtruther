@@ -74,6 +74,7 @@ nav:
       - Image & Video Annotation: tools/annotation.md
       - Acoustic Query Builder: tools/query-builder.md
       - Seafloor Roughness: tools/seafloor-roughness.md
+      - Photogrammetric Seabed Ribbon: tools/seabed-ribbon.md
       - Report Builder: tools/report-builder.md
       - GRASS / FastGIS toolbox: tools/grass-fastgis.md
   - Configuration:
