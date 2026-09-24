@@ -150,8 +150,15 @@ def mosaic_register_warning(result: dict | None) -> tuple[str, str | None]:
     """``(warning_text, quality)`` for a mosaic ``register`` block, else ``("", None)``.
 
     *quality* is ``"ok"`` | ``"low"`` | ``"none"`` | ``None``.  Surfaces the
-    server's ``register.warning``; for ``"none"`` (a featureless region that
-    can't be content-mosaicked) appends a single-frame inspection hint.
+    server's ``register.warning`` and, for ``"none"``, appends our own hint.
+
+    That hint used to say "featureless region", echoing the server's wording.
+    **It is not safe to say that.**  Measured on row 34941 of the reference
+    dataset, where the service registers 0/16 pairs and calls the seabed
+    featureless, the ribbon's tuned matcher links **10/15 pairs (median 37
+    inliers)** on the same frames — the seabed is textured, the mosaic matcher
+    just did not find it.  So the hint now reports what is actually known (the
+    mosaic is nav-placed) and leaves the cause open.
     """
     reg = (result or {}).get("register")
     if not isinstance(reg, dict):
@@ -159,7 +166,8 @@ def mosaic_register_warning(result: dict | None) -> tuple[str, str | None]:
     quality = reg.get("quality")
     warning = (reg.get("warning") or "").strip()
     if quality == "none" and "single frame" not in warning.lower():
-        hint = "featureless region — inspect single frames here instead"
+        hint = ("nav-placed — this can be the matcher rather than the seabed; "
+                "inspect single frames to judge the texture")
         warning = f"{warning} · {hint}" if warning else hint
     return (warning, quality)
 
