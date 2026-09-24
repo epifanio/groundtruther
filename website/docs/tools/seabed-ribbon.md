@@ -140,6 +140,35 @@ against a corrected navigation heading of **273.2°**, and a focal length calibr
 against navigation displacement returns **2507 px against the nominal 2480.28 — a
 ratio of 1.011**.
 
+!!! note "A ribbon and a mosaic of the same stretch will not sit exactly on top of each other"
+    They anchor differently, and both are behaving as designed.
+
+    A [mosaic](seafloor-roughness.md#mosaic) takes its absolute position from **one
+    frame's raw USBL fix** — the reference frame. The ribbon places every frame at its
+    **chain-corrected** position, which is the same USBL rubber-sheeted over a 51-frame
+    window so the piecewise-constant staircase is averaged out. Measured across the 296
+    frames of this strip, chain minus raw nav is:
+
+    | | |
+    |---|---|
+    | median | **0.72 m** |
+    | 90th percentile | 1.52 m |
+    | maximum | 2.75 m |
+    | **mean vector** | **0.02 m** — no systematic shift |
+
+    The mean being ~2 cm is the point: the two agree on where the line *is*. What
+    differs is **local** placement, because the mosaic inherits whatever error sits in
+    its one anchor fix while the ribbon has had that removed by the imagery. At row
+    6900 — the index that mosaics best — the two differ by **1.39 m**.
+
+    Where the ribbon fell back to navigation (31 of 296 frames here) the two agree
+    exactly, because there is no correction to differ by. So expect sub-metre to
+    ~1.5 m disagreement over textured ground and none over featureless ground, which
+    is the opposite of the intuition.
+
+    For overlay work, trust the **ribbon** locally: its relative geometry comes from
+    the pixels (median step 491 mm against the nav's clumped 92 mm).
+
 !!! warning "The first and last ~25 frames keep a staircase"
     Within half a smoothing window of either end there is not enough data to average
     the navigation's six-frame sawtooth away. Trim the ends before measuring

@@ -329,6 +329,10 @@ mosaic and returns a bare `too many frames (51 > 41)` above that.
     than a dock — partly because doing it properly needs frame-to-frame registration
     and vertical levelling that a per-window mosaic call has no way to solve.
 
+    If you overlay both, they will not land exactly on each other — a mosaic anchors on
+    one frame's raw fix, a ribbon on a smoothed track. The disagreement is
+    [measured and explained here](seabed-ribbon.md#pixels-where-they-work-navigation-everywhere-else).
+
 !!! warning "A mosaic is many frames; the roughness beside it is one"
     Every number on the Metrics and Spectrum tabs — γ₂, w₂, rms, the fit — comes from
     the **single frame** you are on, measured over a patch about 1.2 m across. A ±20
