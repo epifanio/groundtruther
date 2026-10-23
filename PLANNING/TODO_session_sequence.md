@@ -109,8 +109,12 @@ tree), then strip website/, tests/, PLANNING/, docs/, .claude/, .github/; delete
 or delete the Makefile's `deploy` and `zip` targets (QGISDIR is a hardcoded QGIS3 path that $HOME
 is prepended to and /python/plugins/ appended to twice; PY_FILES lists 3 files of ~150; EXTRAS
 names icon.png and groundtruther_dockwidget_base.ui, neither of which exists). Deleting them is
-acceptable and preferred over documenting them as dangerous — say which you chose and why.
-Verify on the real thing: build the zip from a throwaway tag, then `unzip -l` it and assert
+acceptable and preferred over documenting them as dangerous — say which you chose and why. Also
+add the release artifact to .gitignore: `make package` with no VERSION exits 129 and leaves a
+0-byte groundtruther.zip at the repo root, which nothing ignores, so `git add -A` would commit it
+(6 MB on a successful build). Make a failed build leave nothing stageable.
+Verify on the real thing: `git status --short` is clean after both a successful and a failed
+build; then build the zip from a throwaway tag, `unzip -l` it and assert
 config/config.yaml, .venv, PLANNING/, website/, tests/ are ABSENT and qtui/icons/ is PRESENT;
 unpack it and grep the tree for the API key pattern — it must find nothing. That assertion is the
 point of this package: two of the three current paths put the key in the artifact. Put the

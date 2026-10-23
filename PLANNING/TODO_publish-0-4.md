@@ -42,6 +42,14 @@ says `icon=qtui/icons/qgis/epi.gif` and the file is at `qtui/icons/epi.gif`.
 `make compile` builds only `resources_rc.py`. **There is no `pyuic` rule in the Makefile**, so no
 release path trips D-005.
 
+**`make package` with no `VERSION` fails into a usable mess.** The target does `rm -f
+groundtruther.zip` and then `git archive … -o groundtruther.zip` with an empty tree-ish, which
+exits 129 on a usage error and leaves a **0-byte `groundtruther.zip` at the repo root** — and
+`.gitignore` does not cover it. So a release artifact is stageable, and a `git add -A` would commit
+it (6 MB when the build succeeds). Observed on 2026-10-23 during this planning session: a stray
+`make doc && make package` ran against this worktree from outside the session, left the empty zip,
+and it was removed by hand. Whatever invoked it, the trap is real and is WP-1's to close.
+
 ### The dependency blocker
 
 `__init__.py`'s `_bootstrap_venv()` appends `<plugin>/.venv/lib/pythonX.Y/site-packages` to
@@ -116,7 +124,7 @@ None of these bind work outside this plan, so none was promoted to a decision re
 
 | Package | Scope | Depends on | Lane | Size | State |
 |---|---|---|---|---|---|
-| `publish-0-4 WP-1` | `scripts/make-release-zip.sh`; delete `make_zip.sh`; fix or delete the Makefile release targets | — | P | M | queued `seq-P2-release-zip` |
+| `publish-0-4 WP-1` | `scripts/make-release-zip.sh`; delete `make_zip.sh`; fix or delete the Makefile release targets; gitignore the release artifact | — | P | M | queued `seq-P2-release-zip` |
 | `publish-0-4 WP-2` | `metadata.txt` and the `__init__.py` docstring typo | — | P | S | queued `seq-P1-release-metadata` |
 | `publish-0-4 WP-3` | `gt/deps_check.py` + unit tests: which required modules are importable | — | C | M | queued `seq-C1-deps-check` |
 | `publish-0-4 WP-4` | `__init__.py` + one dialog and a log line when deps are missing; disable what cannot work | WP-3 | U | M | queued `seq-U1-deps-message` |
@@ -143,6 +151,8 @@ not.
 The real case, end to end, is **an install from a zip into a clean QGIS 4 profile** — not a test
 suite. Specifically:
 
+- WP-1: `git status --short` is clean after a build **and after a failed build** — the artifact is
+  gitignored and cannot be committed by accident.
 - WP-1: build the zip from a tag, then `unzip -l` it and assert `config/config.yaml`, `.venv`,
   `PLANNING/`, `website/`, `tests/` are **absent** and `qtui/icons/` is **present**. A grep of the
   unpacked tree for the API key must find nothing. This check is the point of the package.
