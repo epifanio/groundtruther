@@ -82,12 +82,14 @@ for p in "${REQUIRED[@]}"; do
   if ! printf '%s\n' "$listing" | grep -qE "^${p}(/|$)"; then die "the artifact is missing $p"; fi
 done
 
-# A set-but-nonempty secret field anywhere in the tree. `grass_api_key: ""` in
-# config/config.example.yaml is the template and is expected; a filled-in one is the bug this
-# package exists to prevent.
-if leak="$(grep -rIlE '(grass_)?api_?key[[:space:]]*[:=][[:space:]]*["'"'"']?[A-Za-z0-9_.-]{8,}' "$tmp/$PLUGINNAME" 2>/dev/null)"; then
-  [[ -z "$leak" ]] || die "a non-empty API key appears in the artifact: $(printf '%s' "$leak" | tr '\n' ' ')"
-fi
+# An api_key field with a real VALUE anywhere in the tree — the bug this package exists to prevent.
+# Both forms a key is actually written in: quoted (yaml, json, python) and bare (yaml). It has to be
+# a literal of 12+ characters, because the tree is full of `api_key=self.api_key` and
+# `grass_api_key: ""`, which are identifiers and an empty template, not secrets.
+SECRET_QUOTED='(grass_)?api_?key["'"'"']?[[:space:]]*[:=][[:space:]]*["'"'"'][A-Za-z0-9_.-]{12,}["'"'"']'
+SECRET_BARE='(grass_)?api_?key[[:space:]]*:[[:space:]]*[A-Za-z0-9_.-]{12,}[[:space:]]*$'
+leak="$(grep -rIlE "$SECRET_QUOTED|$SECRET_BARE" "$tmp/$PLUGINNAME" 2>/dev/null || true)"
+[[ -z "$leak" ]] || die "an API key value appears in the artifact: $(printf '%s' "$leak" | sed "s#^$tmp/##" | tr '\n' ' ')"
 
 mkdir -p "$outdir"
 mv "$zip_tmp" "$outdir/$PLUGINNAME-$tag.zip"
