@@ -38,8 +38,8 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 
 | Unit | Now | Since (UTC) | Recorded by | Rollback · notes |
 |---|---|---|---|---|
-| Plugin on plugins.qgis.org | 0.4 (`metadata.txt`) | 2026-10-23 | `setup-session-system` | read at setup, not deployed by a session. A new upload is a production rollout: a production approver's go each time (`WORKFLOW.md` §8). Rollback = re-upload the previous zip from <https://plugins.qgis.org/plugins/groundtruther/>. |
-| Docs site (`gh-pages` → <https://epifanio.github.io/groundtruther/>) | built from `master` 650a164 | 2026-10-23 | `setup-session-system` | **publishes itself**: `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every push to `master` touching `website/**`. No go, no staging — merging a `website/` change *is* the deploy. Rollback = merge a fix; the workflow redeploys. |
+| Plugin on plugins.qgis.org | **0.3**, experimental, QGIS 3.0–3.99 · uploaded **2023-06-01** · plugin_id 2982 | 2023-06-01 | `plan-adopt-groundtruther` | **Read from the live feed** (`plugins.xml?qgis=3.99`), 2026-10-23 — *not* from `metadata.txt`, which says `version=0.4`, `qgisMinimumVersion=4.0`. **The QGIS 4 / Qt6 work has never been published:** `master` is 0.4, users get the 2023 QGIS-3 build. Publishing 0.4 is a production rollout — a production approver's go, each time (`WORKFLOW.md` §8). Rollback = re-upload the previous zip. |
+| Docs site (`gh-pages` → <https://epifanio.github.io/groundtruther/>) | built from `master` **650a164** (`gh-pages` abe7632, MkDocs 1.6.1) | 2026-09-24 | `plan-adopt-groundtruther` | **publishes itself**: `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every push to `master` touching `website/**`. No go, no staging — merging a `website/` change *is* the deploy. Read live 2026-10-23: HTTP 200, and `gh-pages` says "Deployed 650a164". `master` has since moved to d7affe8 (PR #45) and the site is **correctly** still at 650a164, because #45 touched no `website/**` path — which is the rule working, not drift. Rollback = merge a fix; the workflow redeploys. |
 
 ### Slot 1 — U (UI & plugin shell)
 
@@ -64,7 +64,12 @@ Sessions that run without a queued row (urgent fixes, follow-ups) register here 
 
 ### The owner's list (not sessions)
 
-- none yet
+- **Where the roughness / mosaic work lives.** The owner, 2026-10-23: *"those are all unrelated the
+  fastgis at the moment keep them alone, we probably need to move them out of fastgis and transfer
+  them to my seafloor roughness repository"*. Open PRs **#37, #39, #40, #41, #42, #43** and their
+  branches are **left untouched** until they decide — neither queued nor dropped. When they decide,
+  it becomes a decision record (it binds more than one plan). #43 and #37 have gone conflicting with
+  `master` in the month since they were touched; that is `master` moving, not a verdict.
 
 ### Deferred plans (💤, the owner's word)
 
@@ -86,7 +91,20 @@ as `WORKFLOW.md` §4.1. When a session closes, it removes its block and leaves t
 Things only the owner can do (try it on a device, look at it in a browser, decide), each with the
 session it came from and the date.
 
-- none yet
+- **Link the Linux machine to the memory repo and import its auto memory.** From
+  `/home/epinux/dev/groundtruther`, once:
+  `scripts/memory-repo.sh init https://github.com/epifanio/groundtruther-memory --import ~/.claude/projects/-home-epinux-dev-groundtruther/memory`
+  (nothing is overwritten; a clash is kept as `<name>.local-<date>.md`). Until this runs, the
+  memory repo holds only what setup and the harvest wrote: every `Related memory` slug the five
+  closed plans cite (`config-validation`, `roughness-integration`, `fastgis-grass-api`,
+  `data-model-facts`, `documentation`, `project-overview`, `april-2026-refactor`, `install-and-run`)
+  exists **only** on that machine. From `plan-adopt-groundtruther`, 2026-10-23. Also worth running
+  `scripts/adopt-inventory.sh --repo /home/epinux/dev/groundtruther` there and pasting the output.
+- **Is `sip` reachable through the QGIS shim in QGIS 4?** `mixins/video_browser_mixin.py:693` does
+  `from PyQt6 import sip`, the only violation of D-004. If `from qgis.PyQt import sip` works, that
+  line is a one-word fix and D-004 gains an `enforce: PyQt6 in mixins/` line in a follow-up record;
+  if it does not, D-004 should say so as a named exception. Needs a running QGIS 4 to answer, which
+  only the owner has. From `plan-adopt-groundtruther`, 2026-10-23.
 
 ## 4. Where two sessions can still collide
 

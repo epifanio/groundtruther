@@ -51,9 +51,18 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
 - The three `run_*_mdi.py` are thin presets of the generic module runner.
 
 ## Conventions (match these)
+
+Each of these is now a **decision record** — the record is the authority and carries the reasoning,
+the scope and what it rules out; this list is the short form a session reads every turn. Cited by
+number, never re-decided ([PLANNING/DECISIONS.md](PLANNING/DECISIONS.md)). Two of them are enforced
+in CI by `check_planning.py` rule D4 over the directories named in the record, so a violation there
+fails the build.
+
 - Logging: **`QgsMessageLog.logMessage(msg, 'GroundTruther', Qgis.<level>)`** — never
-  `print()`. Use `configure.log_exception(context, exc, warn=?)` for tracebacks.
-- Imports: **`from qgis.PyQt import ...`** (the QGIS Qt shim), not `PyQt6` directly.
+  `print()`. Use `configure.log_exception(context, exc, warn=?)` for tracebacks. **D-003** —
+  enforced in `mixins/` and `gt/`; older top-level files and `pygui/` still have a `print()` backlog.
+- Imports: **`from qgis.PyQt import ...`** (the QGIS Qt shim), not `PyQt6` directly. **D-004** —
+  one known violation, `mixins/video_browser_mixin.py:693`; see the queue's §3.
 - **Intra-plugin imports are always `from groundtruther… import …`** — never a bare
   `from gt.… import` / `import ioutils`, and **never append the plugin directory to
   `sys.path`** (only `__init__.py`'s `_bootstrap_venv` may touch `sys.path`, and it
@@ -61,17 +70,19 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
   bare name only resolves if something has polluted the path — and then the module is
   loaded **twice**, under two names, with its module-level state duplicated, in a
   `sys.modules` shared with every other plugin. `tests/gui/test_import_hygiene.py`
-  fails if this comes back.
+  fails if this comes back. **D-001**.
 - In **generated** `Ui_*.py`, Qt6 enums use the **integer-constructor form**
   (`Qt.WindowType(1)`, `QtWidgets.QSizePolicy.Policy(7)`) — `compile_ui.sh` auto-patches
   this because the qgis.PyQt shim doesn't expose scoped enum inner-classes reliably.
   Hand-written code may use scoped enums, but matching the int form is safest in UI files.
+  See also **D-005**: the generated `.py` is the truth, and `compile_ui.sh` is never run wholesale.
 - All GRASS HTTP goes through `gt/grass_api.py` (raises `GrassApiError`); **no inline
-  `requests`** in mixins/dialogs.
+  `requests`** in mixins/dialogs. **D-002** — enforced in `mixins/` and `pygui/`.
 - **Config values are untrusted.** Never do `int(settings[...])`, `Path(settings[...])`,
   `read_parquet(settings[...])` or f-string a settings value into a path directly — a
   key can be absent, `None`, or junk. Use `gt/config_check.py`'s `as_int` / `as_float` /
-  `as_bool` / `as_path_str`, and check `os.path.isfile/isdir` before reading.
+  `as_bool` / `as_path_str`, and check `os.path.isfile/isdir` before reading. This is also rule 3
+  of the session conventions (`PLANNING/WORKFLOW.md` §5.2), which every plan cites.
 
 ## CRITICAL gotchas (these will bite)
 - **`config/config.yaml` holds machine-specific paths AND the GRASS API key (a
@@ -118,7 +129,7 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
   output). Verify with the headless patterns below; the live GUI is the user's job.
 
 ## Documentation
-- **User-facing docs are the MkDocs Material site in [website/](website/)**, published to
+- **User-facing docs are the MkDocs Material site in [website/](website/)** (**D-006**), published to
   <https://epifanio.github.io/groundtruther/> by `.github/workflows/docs.yml` on every
   push to `master` touching `website/**` — **merging a `website/` change publishes it**.
   Check with `mkdocs build --strict -f website/mkdocs.yml` (strict catches broken
@@ -145,7 +156,8 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
 - **Test suite: `tests/`** (`unit/` = no QGIS/network, `gui/` = offscreen Qt,
   `integration/` = live API, opt-in). Run `.venv/bin/pytest` (unit runs; gui +
   integration auto-skip). See [tests/README.md](tests/README.md). Prefer adding
-  logic to the stateless `gt/` package so it can be unit-tested. `conftest.py`
+  logic to the stateless `gt/` package so it can be unit-tested (**D-008**: `gt/` stays
+  importable without QGIS; `task_runner.py` is the named exception). `conftest.py`
   stubs `groundtruther.configure` so `gt/` imports stay QGIS-free.
 - Ad-hoc syntax check: `.venv/bin/python -m py_compile <files>`.
 - Import/construct under QGIS offscreen — make `groundtruther` resolve to the repo:
@@ -168,9 +180,13 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
   in Qt/UI.
 
 ## Git
-- Work on a branch off `master`; open a PR (`gh`, account `epifanio`). The user merges.
-- **Never stage `config/config.yaml`.** End commit messages with
-  `Co-Authored-By: Claude <noreply@anthropic.com>`.
+How branches, PRs, merging and worktrees work is the rulebook: `PLANNING/WORKFLOW.md` §6 (and §12
+Q3 — a session merges its own docs-only PR; **a PR that changes code is left for the owner**, who
+reviews it and checks the plugin in QGIS first). What still belongs here:
+- **Never stage `config/config.yaml`** — gitignored, machine-specific, and it holds the GRASS
+  API key. The committed template is `config/config.example.yaml`.
+- End commit messages with `Co-Authored-By: Claude <noreply@anthropic.com>` (**D-007**; this is why
+  the kit's commit-identity module is off and `.githooks/commit-msg` is deliberately inert).
 
 ## Planning workflow
 Non-trivial work (features, multi-file fixes, refactors, migrations) is **planned first** in
@@ -180,17 +196,17 @@ short version. The previous rules are kept as a record in
 [PLANNING/legacy/](PLANNING/legacy/) and no longer govern: where they disagree with `WORKFLOW.md`,
 `WORKFLOW.md` wins.
 
-Project-specific, and still true under the new rules:
-- **Every session works in its own worktree** (`scripts/session.sh start <session>` →
-  `../groundtruther-<session>` on `claude/<session>`), so parallel sessions and the live QGIS
-  profile symlink (which points at the main checkout) never collide.
-- **Lane U owns the live QGIS install.** Agents verify headless and name the GUI check the owner
-  must do; only one session at a time may ask for it (`WORKFLOW.md` §3.1).
-- **A PR that changes code is opened and left for the owner to review and merge** after they have
-  looked at it in QGIS; a session merges only its own docs-only PRs (`WORKFLOW.md` §6.3).
-- The older plans in `PLANNING/` (`TODO_*.md`, the finished `*.md`) stay as records;
-  `PLANNING/TEMPLATE_planning.md` is still a usable skeleton for a plan's body, but a plan's
-  required shape is now `WORKFLOW.md` §5.1.
+Project-specific, and not derivable from the rulebook:
+- **Lane U owns the live QGIS install.** The QGIS profile symlink points at the one main checkout,
+  so a GUI check is a serialised resource: agents verify headless and *name* the check the owner
+  must do (`WORKFLOW.md` §3.1). There is no staging anywhere.
+- **Merging a `website/` change publishes it** to <https://epifanio.github.io/groundtruther/> —
+  the one thing here that deploys on a merge (`WORKFLOW.md` §8).
+- The older plans in `PLANNING/` stay as closed records; `PLANNING/legacy/` holds the pre-2026-10-23
+  rules. `PLANNING/TEMPLATE_planning.md` is a usable skeleton for a plan's body, but a plan's
+  required shape is `WORKFLOW.md` §5.1.
+- What the harvest of 2026-10-23 found, and what is still owed:
+  [PLANNING/adopt-groundtruther.md](PLANNING/adopt-groundtruther.md).
 
 
 <!-- agent-session-kit:begin -->
