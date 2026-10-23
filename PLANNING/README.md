@@ -1,130 +1,94 @@
-# `PLANNING/` — how we plan work on GroundTruther
+# Working on GroundTruther with agent sessions
 
-Substantial changes are **planned before they are executed**. A planning file is a
-durable artifact that a *fresh, independent* agent session can pick up and run to
-completion with minimal hand-holding — which buys us parallelism (several sessions,
-each in its own git worktree), continuity across sessions, review of scope *before*
-work starts, and a traceable record afterwards.
+This project is built by many agent sessions at once, from several machines and by several people,
+under the rules in [`WORKFLOW.md`](WORKFLOW.md). This page is the short version for a person who
+joins. The agent reads `CLAUDE.md`; you read this.
 
-Use a planning file for anything non-trivial: a feature, a multi-file bug fix, a
-refactor, a docs overhaul, an API migration. Skip it for one-line fixes and
-conversational Q&A.
-
-**The canonical rules live in [planning_rules.md](planning_rules.md).** This README is
-the one-screen orientation.
-
-## Files here
-
-| File | What it is |
-|---|---|
-| [planning_rules.md](planning_rules.md) | The rules: two-flow model, folder conventions, anatomy of a plan, worktrees, kickoff prompts, Definition of Done. |
-| [TEMPLATE_planning.md](TEMPLATE_planning.md) | Fill-in-the-blanks template. Copy it to `TODO_<topic>.md` to start a plan. |
-| `TODO_<topic>.md` | An open plan (`PLANNED` or `IN PROGRESS`). |
-| `<topic>.md` | A completed plan (`DONE`) — kept as a record. |
-
-## Two flows, two branches
-
-Authoring a plan and executing it are **separate steps** with separate branches and PRs:
-
-| Flow | Where | Branch | PR |
-|---|---|---|---|
-| **A. Author** the plan | main working copy | `docs/plan-<topic>` | "the plan" PR |
-| **B. Execute** the plan | a dedicated **worktree** | `<type>/<topic>` | "the work" PR |
-
-The worktree is created at the **start of execution**, not while writing the plan.
-
-## Lifecycle
-
-`PLANNED` → `IN PROGRESS` → `DONE`, mirrored by the filename: `TODO_` prefix while
-open, prefix **removed** on completion. One topic per file; link related files with
-`See also:`.
-
-## Starting a plan (Flow A)
-
-The intended path is to **hand your raw thoughts to a fresh agent session and let it write
-the plan**. Paste the authoring prompt below with your notes appended — unordered and
-half-formed is fine; the agent does the structuring, grounds the plan in the actual source
-and memory, and states an assumption wherever your notes are silent rather than stalling.
-
-### Authoring prompt
-
-```
-You are working on the GroundTruther QGIS plugin (QGIS 4 / Qt6). Author a planning file
-from my notes below. Do NOT implement any of the work.
-
-First: read CLAUDE.md, PLANNING/README.md and PLANNING/planning_rules.md, and review the
-project memory (your recalled memories + the MEMORY.md index). Then read enough of the
-actual source to make the plan concrete — a plan that contradicts the code is worse than
-no plan.
-
-Then, on a new branch `docs/plan-<kebab-topic>` in the main working copy (no worktree —
-that comes at execution time), copy PLANNING/TEMPLATE_planning.md →
-PLANNING/TODO_<kebab-topic>.md and fill in every section:
-- Header table (Status: PLANNED; Worktree branch = the EXECUTION branch <type>/<topic>).
-- Objective, in outcome terms.
-- Context & background — cite real files as path:line and link the relevant memory slugs.
-- Scope — explicit in/out bullets; this is where creep gets contained.
-- Prerequisites, Worktree setup, Task breakdown (sub-tasks small enough to verify each).
-- Acceptance criteria — including the manual QGIS GUI check *I* must do, since agents
-  cannot drive the GUI.
-- Risks & rollback.
-- A self-contained Kickoff prompt (§6) that assumes zero prior conversation.
-Leave the Progress log empty.
-
-Where my notes are silent or ambiguous, pick a sensible default and state it — do not
-stall. Then open the plan PR against master (gh, account epifanio) and report back: the
-assumptions you made, and any question whose answer would actually change the plan. Do
-NOT merge, and do NOT start the work.
-
-My notes:
-<paste your thoughts here — rough, unordered, whatever form they are in>
-```
-
-Useful to include in the notes (all optional — gaps become flagged assumptions): the topic
-and its type (`feat`/`fix`/`docs`/`refactor`/`chore`); what "done" lets you *do*; what is
-explicitly out; opinions on approach or ordering; what you will check by hand in QGIS.
-
-### Doing it yourself
-
-1. Copy [TEMPLATE_planning.md](TEMPLATE_planning.md) → `PLANNING/TODO_<kebab-topic>.md`.
-2. Skim `CLAUDE.md` and the project memory first, so the plan doesn't contradict reality.
-3. Fill every section — especially **Scope** (in/out), **Task breakdown**, and
-   **Acceptance criteria**.
-4. Write the **kickoff prompt**: self-contained, assumes no prior conversation.
-5. Open the plan PR on `docs/plan-<topic>`; review and merge it before work starts.
-
-Either way the **topic slug is kebab-case and identical across all three places**: the file
-`TODO_<topic>.md`, the execution branch `<type>/<topic>`, and the worktree
-`../groundtruther-<topic>`.
-
-## Executing a plan (Flow B)
-
-Paste the plan's kickoff prompt into a **fresh** agent session. The agent:
-
-1. Reads `CLAUDE.md` and the project memory (`MEMORY.md` index + recalled entries) **first**.
-2. Creates the worktree:
-   ```bash
-   cd /home/epinux/dev/groundtruther
-   git fetch origin
-   git worktree add ../groundtruther-<topic> -b <type>/<topic> origin/master
-   cd ../groundtruther-<topic>
-   ```
-   This leaves the QGIS profile symlink (which points at the main working copy)
-   untouched, so a WIP branch never breaks the running QGIS.
-3. Works the Task Breakdown, verifying headlessly (`.venv/bin/pytest`, offscreen
-   import/load per `CLAUDE.md`). Agents do **not** launch the QGIS GUI — that's the
-   user's job, in the main copy.
-4. Finishes per the **Definition of Done** (see
-   [planning_rules.md §7](planning_rules.md)): tests green, **project memory updated**,
-   Progress Log filled, `TODO_` prefix dropped and `Status: DONE`, work PR opened
-   (`gh`, account `epifanio`) — **not merged**; the user reviews and merges.
-
-Never stage `config/config.yaml` (machine-specific, holds a secret).
-
-## Cleanup (after the work PR merges)
+## 1. Your machine, once
 
 ```bash
-cd /home/epinux/dev/groundtruther
-git worktree remove ../groundtruther-<topic>
-git branch -d <type>/<topic>
+git clone https://github.com/epifanio/groundtruther.git ~/dev/groundtruther
+cd ~/dev/groundtruther
+scripts/memory-repo.sh init https://github.com/epifanio/groundtruther-memory   # the private memory repo, cloned at ~/dev/groundtruther-memory
+git config core.hooksPath .githooks                                 # the kit's hooks
+git config user.name "<you>" && git config user.email "<yours>"    # identity module: one of the allowed addresses
 ```
+
+You need `git`, `python3` (3.10 or newer), the GitHub CLI `gh` logged in (`gh auth status`), and
+Claude Code. Then write a short note about yourself in the memory repo, `user_<your GitHub login>.md`
+(who you are, how you like to work): every session you run reads it after `MEMORY.md`. Cloud
+sessions need no setup: attach `epifanio/groundtruther-memory` alongside the project when the session starts.
+
+## 2. How work happens
+
+- **You have an idea, feedback or a bug**, or a GitHub issue. Open a session in this checkout and
+  talk about it (an issue: give its number; the session that finishes the work closes it). That
+  is a *planning session*: it reads the facts, asks you numbered questions with a recommendation
+  each (a tick means *keep the recommendation*), writes or extends `PLANNING/TODO_<topic>.md`, gives
+  each piece of work a row and a pastable prompt in the queue, lands one docs-only PR, and stops. It
+  builds nothing.
+- **You want work done.** `scripts/session.sh next`, or §1 of
+  [`TODO_session_sequence.md`](TODO_session_sequence.md), shows the ⏭ row of each free slot and its
+  prompt. Paste the prompt into a fresh session. That *build session* claims its row, builds one piece
+  in its own worktree, closes its row with receipts and tells you the next prompt.
+- **A machine that has been idle for days.** Paste the catch-up prompt (`WORKFLOW.md` §2.1) first.
+  It is read-only and tells you what is deployed, running, next and owed.
+- **Something urgent with no row.** Open a session and say so. It registers under *Beside the
+  queue* in its first PR and follows the build rules.
+
+## 3. The queue's marks
+
+| Mark | Means |
+|---|---|
+| ⏭ | the next prompt to paste in that slot; one per slot |
+| ▶ | running; *Who* says who pasted it |
+| ⬜ | queued, later |
+| ⏸ | waiting on something the row names |
+| ✅ | done, with receipts: date, PRs, how it was verified, the memory note |
+| ◐ | done with open ends, listed under *Open ends* |
+| 💤 | deferred by a maintainer, with their words and the date |
+| 🚫 | dropped, with why |
+
+A ▶ row with nothing running stopped early: paste the same prompt again, it carries on from its
+branch. Two people who paste the same prompt meet at the claim: the second sees ▶ and stops.
+
+## 4. Decisions that bind more than one plan
+
+A plan freezes the answers given for its own work. An answer that binds other plans too (a store, a
+library ban, a public contract, a vocabulary, a deploy rule) becomes a record in
+[`decisions/`](decisions/README.md) with a row in [`DECISIONS.md`](DECISIONS.md), written by the
+planning session that heard it, in the plan's own PR. Later plans cite it instead of asking again,
+and a build session that would have to break it stops and says so. To change one, talk to a planning
+session: it writes a new record that supersedes the old one; nobody edits an accepted record. With
+several maintainers a new record is `proposed` until the approval chosen at setup (`WORKFLOW.md` §12
+Q10), and the rows that depend on it wait.
+
+## 5. Who decides what
+
+| Decision | Who |
+|---|---|
+| a plan's questions (then frozen) | any maintainer: epifanio; the plan records their name and the date |
+| accepting a decision record | `WORKFLOW.md` §12 Q10 |
+| moving a row up, deferring, dropping | any maintainer, with their name, their words and the date |
+| the production go | one of epifanio, each time, never reused |
+| "this session is done" (its worktree and branches may go) | the person who started it |
+
+## 6. What runs by itself
+
+Hooks (`.claude/settings.json`) sync memory at session start and end, print the queue at start, and
+block four git mistakes before a command runs: a branch switch in the main checkout, a branch
+deletion fed by `git branch` output, a force push onto an open PR, and a worktree removal before you
+declared the session done (then the session runs it with `SESSION_DONE=<session>` in front).
+`.githooks/pre-push` runs the planning check before every push; CI runs it on every PR.
+
+## 7. Where things are
+
+| What | Where |
+|---|---|
+| the rules | [`WORKFLOW.md`](WORKFLOW.md) |
+| where `PLANNING/` lives | in this repo |
+| what runs next, what is deployed, what is owed | [`TODO_session_sequence.md`](TODO_session_sequence.md) |
+| the plans | [`TODO_INDEX.md`](TODO_INDEX.md) |
+| decisions | [`DECISIONS.md`](DECISIONS.md) |
+| memory (private) | `epifanio/groundtruther-memory`, cloned at `~/dev/groundtruther-memory` |
+| the scripts | `scripts/session.sh` (start, claim, close, next), `scripts/ci-wait.sh`, `scripts/memory-repo.sh` |

@@ -1,5 +1,7 @@
 <!-- Template for a GroundTruther planning file. Copy to PLANNING/TODO_<kebab-topic>.md
-     and fill in every <placeholder>. Rules: PLANNING/planning_rules.md -->
+     and fill in every <placeholder>. Rules: PLANNING/WORKFLOW.md (the plan's required shape is its §5.1;
+     this template is a usable skeleton for the body). The pre-2026-10-23 rules are in
+     PLANNING/legacy/planning_rules.md and no longer govern. -->
 
 # TODO — <Title>
 

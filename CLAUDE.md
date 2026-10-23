@@ -173,19 +173,51 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
   `Co-Authored-By: Claude <noreply@anthropic.com>`.
 
 ## Planning workflow
-Non-trivial work (features, multi-file fixes, refactors, migrations) is **planned first**
-in `PLANNING/` — see [PLANNING/README.md](PLANNING/README.md) and the rules in
-[PLANNING/planning_rules.md](PLANNING/planning_rules.md).
-- **Two flows, two branches:** *authoring* a plan is a doc change on `docs/plan-<topic>`;
-  *executing* it happens later on `<type>/<topic>` with its own PR.
-- **Execution runs in a dedicated worktree** (`git worktree add ../groundtruther-<topic>
-  -b <type>/<topic> origin/master`) so parallel sessions and the live QGIS symlink (which
-  points at this main copy) never collide.
-- A plan is started by copying [PLANNING/TEMPLATE_planning.md](PLANNING/TEMPLATE_planning.md)
-  → `PLANNING/TODO_<topic>.md`; its **kickoff prompt** is pasted into a fresh agent session,
-  which reads `CLAUDE.md` + the project memory *first*.
-- **Two prompts:** the *authoring* prompt (in `PLANNING/README.md`) turns the user's raw notes
-  into a filled plan; the *kickoff* prompt at the end of each plan executes it. If you are
-  handed notes for substantial work, offer to author a plan rather than start coding.
-- **Done** = tests green, project memory updated, Progress Log filled, `TODO_` prefix
-  dropped (`Status: DONE`), work PR opened and left for the user to merge.
+Non-trivial work (features, multi-file fixes, refactors, migrations) is **planned first** in
+`PLANNING/`. **Since 2026-10-23 the process is the rulebook
+[PLANNING/WORKFLOW.md](PLANNING/WORKFLOW.md)** (agent-session-kit) — see the section below for the
+short version. The previous rules are kept as a record in
+[PLANNING/legacy/](PLANNING/legacy/) and no longer govern: where they disagree with `WORKFLOW.md`,
+`WORKFLOW.md` wins.
+
+Project-specific, and still true under the new rules:
+- **Every session works in its own worktree** (`scripts/session.sh start <session>` →
+  `../groundtruther-<session>` on `claude/<session>`), so parallel sessions and the live QGIS
+  profile symlink (which points at the main checkout) never collide.
+- **Lane U owns the live QGIS install.** Agents verify headless and name the GUI check the owner
+  must do; only one session at a time may ask for it (`WORKFLOW.md` §3.1).
+- **A PR that changes code is opened and left for the owner to review and merge** after they have
+  looked at it in QGIS; a session merges only its own docs-only PRs (`WORKFLOW.md` §6.3).
+- The older plans in `PLANNING/` (`TODO_*.md`, the finished `*.md`) stay as records;
+  `PLANNING/TEMPLATE_planning.md` is still a usable skeleton for a plan's body, but a plan's
+  required shape is now `WORKFLOW.md` §5.1.
+
+
+<!-- agent-session-kit:begin -->
+## How sessions work here (agent-session-kit)
+
+The rulebook is `PLANNING/WORKFLOW.md`; the skills carry its sections. The owner's first message
+says which kind of session this is:
+
+- **talks about a topic** (an idea, feedback, a bug): a planning session, `/plan-session`. It plans
+  and stops; it builds nothing.
+- **pastes a prompt from the queue**, or writes `/build-session <session>`: a build session. Claim
+  first, one lane, close by the queue's §6.1 (`/close-session`).
+- **pastes the catch-up prompt** on a machine idle for days: read-only, `/catch-up`. If this
+  checkout's `git log -1` is days old and nobody pasted it, say so first.
+
+Something urgent with no row is a side session: the build rules, registered under *Beside the queue*.
+
+Always: one worktree per session (`scripts/session.sh start <session>`); never switch branches in a
+checkout you did not create; commit and push after every finished step; the checker
+(`python3 PLANNING/check_planning.py`) before any PR that touches `PLANNING/`; a production deploy is
+a go from one of epifanio, each time. Hooks sync memory and block the four git mistakes; a
+clean-up the owner approved runs with `SESSION_DONE=<session>` in front.
+
+Memory is the private repo `epifanio/groundtruther-memory` (`scripts/memory-repo.sh init|sync|status`): read
+`MEMORY.md`, then `user_<login>.md`; a dated note at the end; no secrets; `PLANNING/memory_inbox/`
+when the repo is out of reach.
+
+When compacting, keep: this session's name, its worktree path, its claimed row, its PR numbers, the
+owner's answers, and the files changed.
+<!-- agent-session-kit:end -->
