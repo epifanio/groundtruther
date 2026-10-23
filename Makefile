@@ -42,38 +42,13 @@ SOURCES = \
 
 PLUGINNAME = groundtruther
 
-PY_FILES = \
-	__init__.py \
-	groundtruther.py groundtruther_dockwidget.py
-
-UI_FILES = groundtruther_dockwidget_base.ui
-
-EXTRAS = metadata.txt icon.png
-
-EXTRA_DIRS =
-
 COMPILED_RESOURCE_FILES = resources_rc.py
 
 PEP8EXCLUDE=pydev,resources_rc.py,conf.py,third_party,ui
 
-# QGISDIR points to the location where your plugin should be installed.
-# This varies by platform, relative to your HOME directory:
-#	* Linux:
-#	  .local/share/QGIS/QGIS3/profiles/default/python/plugins/
-#	* Mac OS X:
-#	  Library/Application Support/QGIS/QGIS3/profiles/default/python/plugins
-#	* Windows:
-#	  AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins'
-
-QGISDIR=/home/epinux/.local/share/QGIS/QGIS3/profiles/default/python/plugins/
-
 #################################################
 # Normally you would not need to edit below here
 #################################################
-
-HELP = help/build/html
-
-PLUGIN_UPLOAD = $(c)/plugin_upload.py
 
 RESOURCE_SRC=$(shell grep '^ *<file' resources.qrc | sed 's@</file>@@g;s/.*>//g' | tr '\n' ' ')
 
@@ -112,73 +87,13 @@ test: compile transcompile
 	@echo "e.g. source run-env-linux.sh <path to qgis install>; make test"
 	@echo "----------------------"
 
-deploy: compile doc transcompile
-	@echo
-	@echo "------------------------------------------"
-	@echo "Deploying plugin to your .qgis2 directory."
-	@echo "------------------------------------------"
-	# The deploy  target only works on unix like operating system where
-	# the Python plugin directory is located at:
-	# $HOME/$(QGISDIR)/python/plugins
-	mkdir -p $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vf $(PY_FILES) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vf $(UI_FILES) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vf $(COMPILED_RESOURCE_FILES) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vf $(EXTRAS) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vfr i18n $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-	cp -vfr $(HELP) $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)/help
-	# Copy extra directories if any
-	(foreach EXTRA_DIR,(EXTRA_DIRS), cp -R (EXTRA_DIR) (HOME)/(QGISDIR)/python/plugins/(PLUGINNAME)/;)
-
-
-# The dclean target removes compiled python files from plugin directory
-# also deletes any .git entry
-dclean:
-	@echo
-	@echo "-----------------------------------"
-	@echo "Removing any compiled python files."
-	@echo "-----------------------------------"
-	find $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME) -iname "*.pyc" -delete
-	find $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME) -iname ".git" -prune -exec rm -Rf {} \;
-
-
-derase:
-	@echo
-	@echo "-------------------------"
-	@echo "Removing deployed plugin."
-	@echo "-------------------------"
-	rm -Rf $(HOME)/$(QGISDIR)/python/plugins/$(PLUGINNAME)
-
-zip: deploy dclean
-	@echo
-	@echo "---------------------------"
-	@echo "Creating plugin zip bundle."
-	@echo "---------------------------"
-	# The zip target deploys the plugin and creates a zip file with the deployed
-	# content. You can then upload the zip file on http://plugins.qgis.org
-	rm -f $(PLUGINNAME).zip
-	cd $(HOME)/$(QGISDIR)/python/plugins; zip -9r $(CURDIR)/$(PLUGINNAME).zip $(PLUGINNAME)
-
-package: compile
-	# Create a zip package of the plugin named $(PLUGINNAME).zip.
-	# This requires use of git (your plugin development directory must be a
-	# git repository).
-	# To use, pass a valid commit or tag as follows:
-	#   make package VERSION=Version_0.3.2
-	@echo
-	@echo "------------------------------------"
-	@echo "Exporting plugin to zip package.	"
-	@echo "------------------------------------"
-	rm -f $(PLUGINNAME).zip
-	git archive --prefix=$(PLUGINNAME)/ -o $(PLUGINNAME).zip $(VERSION)
-	echo "Created package: $(PLUGINNAME).zip"
-
-upload: zip
-	@echo
-	@echo "-------------------------------------"
-	@echo "Uploading plugin to QGIS Plugin repo."
-	@echo "-------------------------------------"
-	$(PLUGIN_UPLOAD) $(PLUGINNAME).zip
+.PHONY: package
+package:
+	# The release artifact, built from a TAG by scripts/make-release-zip.sh (one build path:
+	# PLANNING/TODO_publish-0-4.md §6 Q3). Output: dist/groundtruther-$(VERSION).zip.
+	#   make package VERSION=v0.4
+	@test -n "$(VERSION)" || { echo "!! make package needs a tag: make package VERSION=v0.4"; exit 2; }
+	@scripts/make-release-zip.sh $(VERSION)
 
 transup:
 	@echo
@@ -209,13 +124,6 @@ clean:
 	@echo "Removing uic and rcc generated files"
 	@echo "------------------------------------"
 	rm $(COMPILED_UI_FILES) $(COMPILED_RESOURCE_FILES)
-
-doc:
-	@echo
-	@echo "------------------------------------"
-	@echo "Building documentation using sphinx."
-	@echo "------------------------------------"
-	cd help; make html
 
 pylint:
 	@echo

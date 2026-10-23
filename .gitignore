@@ -147,3 +147,8 @@ gtenv/
 config/config.yaml
 ribbon_work/
 ribbon_work_sim/
+
+# Release artifacts. scripts/make-release-zip.sh writes dist/ (covered by `dist/` above);
+# groundtruther.zip is where the deleted `make zip`/`make package` targets dropped theirs, including
+# the 0-byte one a `make package` with no VERSION left behind — never commit a release artifact.
+/groundtruther.zip
