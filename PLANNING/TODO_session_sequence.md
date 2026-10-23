@@ -59,7 +59,6 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 **Order rules** (only about open rows; a closing session deletes the ones about itself):
 
 - none yet
-  removes the path that would publish `config/config.yaml`. Nothing may be uploaded before it lands.
 - `seq-C1-deps-check` before `seq-U1-deps-message`: C1 provides `gt/deps_check.py`, which U1 calls.
 - `seq-U1-deps-message` before `seq-D1-install-docs`: the page describes the behaviour U1 builds.
 - The P strand (P2, P1) and the C/U/D strand share no file, so they may run side by side **if the
@@ -92,7 +91,7 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 
 | Due | What | From | Closes when |
 |---|---|---|---|
-| when the owner reviews | PR #50 is a code PR and is left for the owner to merge; nothing may be uploaded before it lands | `seq-P2-release-zip` | #50 merged |
+| **the owner's review, after the fact** | PR #50 is a code PR and should have been left for the owner (§6.3), but `scripts/session.sh close` was run without `--no-merge` and merged it into `master` at `63b9082` on 2026-10-24. The code is unreviewed, not unmerged. Revert it (`git revert -m 1 63b9082`) or review it on `master` | `seq-P2-release-zip` | the owner has read #50, or reverted it |
 | the owner's yes or no | the artifact still carries ~1 MB of repo furniture beyond the six stripped dirs (.githooks/, scripts/, help/, epsg, CLAUDE.md, pytest.ini, pylintrc, pb_tool.cfg, compile_ui.sh, tmp/) — asked in #50 | `seq-P2-release-zip` | they answer; if yes, the strip list grows in seq-P1-release-metadata |
 
 ## 2. Prompts
