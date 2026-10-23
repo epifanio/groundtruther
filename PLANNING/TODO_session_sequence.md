@@ -41,25 +41,29 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | Plugin on plugins.qgis.org | **0.3**, experimental, QGIS 3.0–3.99 · uploaded **2023-06-01** · plugin_id 2982 | 2023-06-01 | `plan-adopt-groundtruther` | **Read from the live feed** (`plugins.xml?qgis=3.99`), 2026-10-23 — *not* from `metadata.txt`, which says `version=0.4`, `qgisMinimumVersion=4.0`. **The QGIS 4 / Qt6 work has never been published:** `master` is 0.4, users get the 2023 QGIS-3 build. Publishing 0.4 is a production rollout — a production approver's go, each time (`WORKFLOW.md` §8). Rollback = re-upload the previous zip. |
 | Docs site (`gh-pages` → <https://epifanio.github.io/groundtruther/>) | built from `master` **650a164** (`gh-pages` abe7632, MkDocs 1.6.1) | 2026-09-24 | `plan-adopt-groundtruther` | **publishes itself**: `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every push to `master` touching `website/**`. No go, no staging — merging a `website/` change *is* the deploy. Read live 2026-10-23: HTTP 200, and `gh-pages` says "Deployed 650a164". The site lags `master` whenever the commits in between touched no `website/**` path — that is the rule working, not drift, so **compare the two shas before concluding anything**; this cell deliberately does not name `master`'s tip, because the next merge would make it false. Rollback = merge a fix; the workflow redeploys. |
 
-> **Both slots are empty** (since 2026-10-23, `plan-adopt-groundtruther`): there is no ⏭ and no ⬜,
-> so **there is nothing to paste**. That is not a fault — the harvest found no work in flight to
-> adopt. The next session is a **planning session**: open one, talk a topic through, and it writes
-> the plan and queues the first prompt (`WORKFLOW.md` §4, `/plan-session`). Delete this line as soon
-> as a slot has a row.
-
 ### Slot 1 — U (UI & plugin shell)
 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
+| ⏸ | `seq-U1-deps-message` | — | `publish-0-4` WP-4: load and say what is missing instead of dying, when the venv is absent | §2.4 | **Waits on** `seq-C1-deps-check` (it provides `gt/deps_check.py`) |
 
 ### Slot 2 — C (core & config), D (docs), P (packaging & install)
 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
+| ⏭ | `seq-P2-release-zip` | — | `publish-0-4` WP-1: one safe release zip from a tag; delete the two paths that ship the API key | §2.1 | |
+| ⬜ | `seq-P1-release-metadata` | — | `publish-0-4` WP-2: `metadata.txt` typos, tags, homepage, icon path, 0.4 changelog | §2.2 | |
+| ⬜ | `seq-C1-deps-check` | — | `publish-0-4` WP-3: `gt/deps_check.py` — which required modules are importable, Qt-free | §2.3 | unblocks `seq-U1-deps-message` in slot 1 |
+| ⏸ | `seq-D1-install-docs` | — | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | **Waits on** `seq-U1-deps-message` (the page describes its real behaviour) |
 
 **Order rules** (only about open rows; a closing session deletes the ones about itself):
 
-- none yet
+- `seq-P2-release-zip` runs before `seq-P1-release-metadata`: both are lane P, and P2 is what
+  removes the path that would publish `config/config.yaml`. Nothing may be uploaded before it lands.
+- `seq-C1-deps-check` before `seq-U1-deps-message`: C1 provides `gt/deps_check.py`, which U1 calls.
+- `seq-U1-deps-message` before `seq-D1-install-docs`: the page describes the behaviour U1 builds.
+- The P strand (P2, P1) and the C/U/D strand share no file, so they may run side by side **if the
+  owner starts a second slot-2 session** (`WORKFLOW.md` §3.1). Slot 2 runs one at a time by default.
 
 ### Beside the queue
 
@@ -95,6 +99,130 @@ One heading per queued session: `### 2.<n> \`<session>\``, its prompt in a `text
 as `WORKFLOW.md` §4.1. When a session closes, it removes its block and leaves the heading as
 `### 2.<n> \`<session>\` (closed <date>; its prompt is in git history)`, so the numbers never move.
 
+### 2.1 `seq-P2-release-zip`
+
+```text
+/build-session seq-P2-release-zip
+Plan: PLANNING/TODO_publish-0-4.md WP-1 (one safe release zip), slot 2, lane P. Scope: add
+scripts/make-release-zip.sh — `git archive --prefix=groundtruther/` from a TAG (not the working
+tree), then strip website/, tests/, PLANNING/, docs/, .claude/, .github/; delete make_zip.sh; fix
+or delete the Makefile's `deploy` and `zip` targets (QGISDIR is a hardcoded QGIS3 path that $HOME
+is prepended to and /python/plugins/ appended to twice; PY_FILES lists 3 files of ~150; EXTRAS
+names icon.png and groundtruther_dockwidget_base.ui, neither of which exists). Deleting them is
+acceptable and preferred over documenting them as dangerous — say which you chose and why. Also
+add the release artifact to .gitignore: `make package` with no VERSION exits 129 and leaves a
+0-byte groundtruther.zip at the repo root, which nothing ignores, so `git add -A` would commit it
+(6 MB on a successful build). Make a failed build leave nothing stageable.
+Verify on the real thing: `git status --short` is clean after both a successful and a failed
+build; then build the zip from a throwaway tag, `unzip -l` it and assert
+config/config.yaml, .venv, PLANNING/, website/, tests/ are ABSENT and qtui/icons/ is PRESENT;
+unpack it and grep the tree for the API key pattern — it must find nothing. That assertion is the
+point of this package: two of the three current paths put the key in the artifact. Put the
+`unzip -l` output in your PR.
+Touch only scripts/, Makefile, make_zip.sh. Do not touch metadata.txt (seq-P1-release-metadata owns
+it) and do not change what the plugin does. Needs a yes: any change to what ships beyond the six
+directories named in the plan's §6 Q3; never run an upload — the upload is the owner's, every time.
+Decisions that bind this work: D-006 (help/ is retired — do not resurrect the `doc` target's
+Sphinx build), D-007 (the Co-Authored-By trailer). Memory notes to read: MEMORY.md,
+2026-10-23_adopt-groundtruther.md. Docs check: mkdocs build --strict -f website/mkdocs.yml.
+```
+
+### 2.2 `seq-P1-release-metadata`
+
+```text
+/build-session seq-P1-release-metadata
+Plan: PLANNING/TODO_publish-0-4.md WP-2 (metadata), slot 2, lane P. Scope: in metadata.txt fix the
+two "Caracterization" typos (description, about) to "Characterization"; replace tags=python with
+real discovery tags (seafloor, bathymetry, multibeam, backscatter, habitat, GRASS, and whatever
+else fits); point homepage at https://epifanio.github.io/groundtruther/; correct
+icon=qtui/icons/qgis/epi.gif to qtui/icons/epi.gif (the stray qgis/ — the file does exist at the
+corrected path); write a real changelog entry for 0.4 describing the QGIS 4 / Qt6 work, replacing
+the current run-on line about settings and GRASS widgets; and delete the bare line "Category of
+the plugin: Raster, Vector, Database or Web", which configparser parses as a junk key because of
+the colon. Also fix "Serafloor Caracterization" in the __init__.py module docstring — docstring
+text only, do not touch _bootstrap_venv or classFactory (seq-U1-deps-message owns that file's
+code). Leave version=0.4 and experimental=True exactly as they are (plan §6 Q2, Q4).
+Verify on the real thing: python3 -c "import configparser; c=configparser.ConfigParser();
+c.read('metadata.txt'); print(dict(c['general']))" parses with no junk key, and the path in `icon`
+resolves to a file that exists and is tracked by git.
+Touch only metadata.txt and the __init__.py docstring. Needs a yes: any change to version or the
+experimental flag. Decisions that bind this work: D-007. Memory notes to read: MEMORY.md,
+2026-10-23_adopt-groundtruther.md. Docs check: mkdocs build --strict -f website/mkdocs.yml.
+```
+
+### 2.3 `seq-C1-deps-check`
+
+```text
+/build-session seq-C1-deps-check
+Plan: PLANNING/TODO_publish-0-4.md WP-3 (the dependency probe), slot 2, lane C. Scope: add
+gt/deps_check.py — a Qt-free, QGIS-free module that reads the required runtime module names and
+reports which are importable, returning enough for a caller to name the missing ones and decide
+which features must be disabled. The 20 runtime dependencies are listed in
+dependencies/requirements.txt: READ it, do not edit it, and note that a pip package name is not
+always its import name (opencv-python imports as cv2, scikit-image as skimage) — handle that
+mapping explicitly rather than guessing. Probe with importlib.util.find_spec, not by importing:
+importing numba or cv2 costs seconds and can abort. No Qt, no qgis, no dialog here — the message
+and the dialog are seq-U1-deps-message's.
+Verify on the real thing: unit tests under tests/unit/ that run with no QGIS, covering all present,
+some missing, and a package whose import name differs from its pip name. `.venv/bin/pytest
+tests/unit/` green.
+Touch only gt/deps_check.py and tests/unit/. Needs a yes: adding any new runtime dependency.
+Decisions that bind this work: D-008 (gt/ stays importable without QGIS — this module especially,
+since it must run before anything else works), D-003 (no print()), D-001 (absolute
+`from groundtruther...` imports), D-007. When you close, set seq-U1-deps-message in slot 1 from
+⏸ to ⏭: its wait is you. Memory notes to read: MEMORY.md, 2026-10-23_adopt-groundtruther.md.
+Docs check: mkdocs build --strict -f website/mkdocs.yml.
+```
+
+### 2.4 `seq-U1-deps-message`
+
+```text
+/build-session seq-U1-deps-message
+Plan: PLANNING/TODO_publish-0-4.md WP-4 (honest failure), slot 1, lane U. Scope: make the plugin
+load and explain itself when its dependencies are absent, instead of dying. Today
+__init__.py's _bootstrap_venv() is a no-op when there is no .venv — which is exactly what a QGIS
+Plugin Manager install produces — so every one of the 20 runtime dependencies fails to import.
+Call gt/deps_check.py (from seq-C1-deps-check) during startup; log the missing packages to the
+GroundTruther panel; show ONE dialog naming them and linking the install page; and disable the
+features that cannot work rather than letting them raise later. One dialog, not one per import.
+Also fix the second mismatch while you are in here: setup_wsl.sh --venv creates `gtenv` but
+_bootstrap_venv() looks for `.venv`, so the documented fallback install produces a venv the plugin
+never loads — make them agree and say which name won.
+Verify on the real thing: unpack the release zip into a CLEAN QGIS 4 profile with NO .venv and
+confirm the plugin loads, logs, and shows the dialog once. You cannot drive the QGIS GUI: do the
+headless import/load checks in CLAUDE.md, then write the GUI check into the queue's §3 for the
+owner, naming exactly what they should see. Do not claim it verified until they confirm.
+Touch only __init__.py, the dock/startup path, and setup_wsl.sh. Do not touch gt/deps_check.py
+(seq-C1-deps-check owns it) or metadata.txt. Needs a yes: anything that changes plugin behaviour
+beyond failing gracefully. Decisions that bind this work: D-003 (QgsMessageLog with the
+GroundTruther tag, never print()), D-004 (the qgis.PyQt shim, never PyQt6), D-001, D-008, D-007.
+Your PR changes code, so open it and LEAVE IT for the owner (§12 Q3): close your row ◐ with their
+review and merge as the open end. Memory notes to read: MEMORY.md,
+2026-10-23_adopt-groundtruther.md. Docs check: mkdocs build --strict -f website/mkdocs.yml.
+```
+
+### 2.5 `seq-D1-install-docs`
+
+```text
+/build-session seq-D1-install-docs
+Plan: PLANNING/TODO_publish-0-4.md WP-5 (the install page), slot 2, lane D. Scope: on the MkDocs
+site under website/docs/, say plainly what installing GroundTruther from the QGIS Plugin Manager
+does and does not give you — it does NOT install the 20 Python dependencies, because the plugin
+loads them from a .venv beside its source that the Plugin Manager never creates — and give the
+supported route per platform from setup_wsl.sh / setup_windows.ps1 / setup_mamba.bat. Describe the
+behaviour seq-U1-deps-message actually built (read its PR, do not assume), including what the
+missing-dependency dialog says, so the page and the plugin agree word for word. Add the page to
+the nav. Keep the project's habit of leading with the limitation rather than burying it — the
+seabed-ribbon page is the model.
+Verify on the real thing: mkdocs build --strict -f website/mkdocs.yml (strict catches a page
+missing from the nav and a broken internal link), and read the rendered page, not the diff.
+MERGING THIS PUBLISHES IT: any push to master touching website/** runs mkdocs gh-deploy
+(WORKFLOW.md §8). Record the published master sha in the docs-site State row when you close.
+Touch only website/. Needs a yes: none beyond the usual. Decisions that bind this work: D-006 (the
+MkDocs site is the user docs; help/ is retired and takes no new pages), D-007. Memory notes to
+read: MEMORY.md, 2026-10-23_adopt-groundtruther.md. Docs check: the build above IS the check.
+```
+
 ## 3. Checks owed by the owner
 
 Things only the owner can do (try it on a device, look at it in a browser, decide), each with the
@@ -109,6 +237,11 @@ session it came from and the date.
   `data-model-facts`, `documentation`, `project-overview`, `april-2026-refactor`, `install-and-run`)
   exists **only** on that machine. From `plan-adopt-groundtruther`, 2026-10-23. Also worth running
   `scripts/adopt-inventory.sh --repo /home/epinux/dev/groundtruther` there and pasting the output.
+- **Tag, build, verify and upload 0.4** (`publish-0-4` WP-6), after `seq-P2`…`seq-D1` have landed.
+  The upload is a production rollout: the owner's own go, each time, never reused
+  (`WORKFLOW.md` §8), with their plugins.qgis.org credentials, which no session holds (plan §6 Q5).
+  Before uploading, `unzip -l` the artifact and confirm `config/config.yaml` is not in it. From
+  `plan-publish-0-4`, 2026-10-23.
 - **Record the project's working state on `master`.** No file says whether the test suite passes
   today, or whether the plugin loads under QGIS 4 — only what is *deployed*. From the Linux machine
   (this Mac has no QGIS and no `.venv`): run `.venv/bin/pytest` and the offscreen load check in
@@ -139,6 +272,13 @@ them apart.
   it regenerates from stale `.ui` and silently drops hand-added widgets (`CLAUDE.md`).
 - `website/docs/configuration/settings-reference.md`: lane **D** owns the file, but any lane that
   adds a config key must add its row (§6.3 rule 3). Coordinate in the plan, or the suite fails.
+- `metadata.txt` and `__init__.py` during `publish-0-4`: `seq-P1-release-metadata` edits
+  `metadata.txt` and the `__init__.py` **docstring**; `seq-U1-deps-message` edits `__init__.py`
+  **code**. One file, two sessions, two lanes — the prompts say which part each owns, and the order
+  rules keep them apart. If they must overlap, the later one takes `master`'s version and redoes it.
+- `scripts/`: lane **P** owns it, but `scripts/session.sh`, `memory-repo.sh` and `ci-wait.sh` are
+  the session system's and are changed only by a planning session, never by a build session
+  tidying up.
 
 ## 5. Work outside the queue
 
@@ -194,7 +334,7 @@ The whole rulebook is [`WORKFLOW.md`](WORKFLOW.md). This section is the part eve
 
 | Lane | Touches | Rule |
 |---|---|---|
-| **U** UI & plugin shell | `pygui/`, `qtui/`, `mixins/`, `groundtruther.py`, `groundtruther_dockwidget.py`, `configure.py`, `resources.qrc`, `resources_rc.py`, `resources/`, `compile_ui.sh`; **and the live QGIS install on the Linux machine** | one session at a time (slot 1) |
+| **U** UI & plugin shell | `__init__.py`, `pygui/`, `qtui/`, `mixins/`, `groundtruther.py`, `groundtruther_dockwidget.py`, `configure.py`, `resources.qrc`, `resources_rc.py`, `resources/`, `compile_ui.sh`; **and the live QGIS install on the Linux machine** | one session at a time (slot 1) |
 | **C** core & config | `gt/`, `config_model.py`, `config/`, `ioutils.py`, `episg.py`, `epsg_list.py`, `search_epsg.py`, `epsg/`, `ellipse.py`, `rectangle.py`, `qtpandas.py`, `grassconfig.py`, `tests/` | one session at a time (slot 2) |
 | **D** docs | `website/`, `docs/`, `help/` | one session at a time (slot 2) |
 | **P** packaging & install | `Makefile`, `setup_windows.*`, `setup_mamba.bat`, `setup_wsl.sh`, `scripts/`, `dependencies/`, `pip_cpu.py`, `pip_cuda.py`, `plugin_upload.py`, `make_zip.sh`, `metadata.txt`, `pb_tool.cfg`, `environment.yml`, `.github/workflows/` | one session at a time (slot 2) |
