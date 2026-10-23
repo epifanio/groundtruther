@@ -1,0 +1,24 @@
+# The planning rules (PLANNING/WORKFLOW.md §9). No path filter on purpose: the PRs this check is for
+# are the ones that change only PLANNING/ Markdown, and a filtered job would skip them.
+name: planning rules
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  planning:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: check_planning.py
+        run: python3 PLANNING/check_planning.py
+      - name: the checker's own tests
+        run: python3 -m unittest PLANNING/test_check_planning.py -v
+      - name: the queue editor's tests
+        run: python3 -m unittest PLANNING/test_queue.py -v
