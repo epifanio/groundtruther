@@ -51,14 +51,14 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
-| ▶ | `seq-P2-release-zip` | claude | `publish-0-4` WP-1: one safe release zip from a tag; delete the two paths that ship the API key | §2.1 | started 2026-10-24 |
+| ◐ | `seq-P2-release-zip` | claude | `publish-0-4` WP-1: one safe release zip from a tag; delete the two paths that ship the API key | §2.1 | 2026-10-24 · #50 · verified: built from a throwaway tag: 2.7 MB / 237 files; config/config.yaml, .venv, PLANNING/, website/, tests/, docs/, .claude/, .github/, grassdata/ absent; qtui/icons/ present (82 entries); no API-key value in the unpacked tree, and a planted fake key was refused; git status --short clean after a successful AND a failed build · memory note: 2026-10-24_seq-P2-release-zip.md |
 | ⏭ | `seq-P1-release-metadata` | — | `publish-0-4` WP-2: `metadata.txt` typos, tags, homepage, icon path, 0.4 changelog | §2.2 |  |
 | ⬜ | `seq-C1-deps-check` | — | `publish-0-4` WP-3: `gt/deps_check.py` — which required modules are importable, Qt-free | §2.3 | unblocks `seq-U1-deps-message` in slot 1 |
 | ⏸ | `seq-D1-install-docs` | — | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | **Waits on** `seq-U1-deps-message` (the page describes its real behaviour) |
 
 **Order rules** (only about open rows; a closing session deletes the ones about itself):
 
-- `seq-P2-release-zip` runs before `seq-P1-release-metadata`: both are lane P, and P2 is what
+- none yet
   removes the path that would publish `config/config.yaml`. Nothing may be uploaded before it lands.
 - `seq-C1-deps-check` before `seq-U1-deps-message`: C1 provides `gt/deps_check.py`, which U1 calls.
 - `seq-U1-deps-message` before `seq-D1-install-docs`: the page describes the behaviour U1 builds.
@@ -92,6 +92,8 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 
 | Due | What | From | Closes when |
 |---|---|---|---|
+| when the owner reviews | PR #50 is a code PR and is left for the owner to merge; nothing may be uploaded before it lands | `seq-P2-release-zip` | #50 merged |
+| the owner's yes or no | the artifact still carries ~1 MB of repo furniture beyond the six stripped dirs (.githooks/, scripts/, help/, epsg, CLAUDE.md, pytest.ini, pylintrc, pb_tool.cfg, compile_ui.sh, tmp/) — asked in #50 | `seq-P2-release-zip` | they answer; if yes, the strip list grows in seq-P1-release-metadata |
 
 ## 2. Prompts
 
@@ -99,33 +101,7 @@ One heading per queued session: `### 2.<n> \`<session>\``, its prompt in a `text
 as `WORKFLOW.md` §4.1. When a session closes, it removes its block and leaves the heading as
 `### 2.<n> \`<session>\` (closed <date>; its prompt is in git history)`, so the numbers never move.
 
-### 2.1 `seq-P2-release-zip`
-
-```text
-/build-session seq-P2-release-zip
-Plan: PLANNING/TODO_publish-0-4.md WP-1 (one safe release zip), slot 2, lane P. Scope: add
-scripts/make-release-zip.sh — `git archive --prefix=groundtruther/` from a TAG (not the working
-tree), then strip website/, tests/, PLANNING/, docs/, .claude/, .github/; delete make_zip.sh; fix
-or delete the Makefile's `deploy` and `zip` targets (QGISDIR is a hardcoded QGIS3 path that $HOME
-is prepended to and /python/plugins/ appended to twice; PY_FILES lists 3 files of ~150; EXTRAS
-names icon.png and groundtruther_dockwidget_base.ui, neither of which exists). Deleting them is
-acceptable and preferred over documenting them as dangerous — say which you chose and why. Also
-add the release artifact to .gitignore: `make package` with no VERSION exits 129 and leaves a
-0-byte groundtruther.zip at the repo root, which nothing ignores, so `git add -A` would commit it
-(6 MB on a successful build). Make a failed build leave nothing stageable.
-Verify on the real thing: `git status --short` is clean after both a successful and a failed
-build; then build the zip from a throwaway tag, `unzip -l` it and assert
-config/config.yaml, .venv, PLANNING/, website/, tests/ are ABSENT and qtui/icons/ is PRESENT;
-unpack it and grep the tree for the API key pattern — it must find nothing. That assertion is the
-point of this package: two of the three current paths put the key in the artifact. Put the
-`unzip -l` output in your PR.
-Touch only scripts/, Makefile, make_zip.sh. Do not touch metadata.txt (seq-P1-release-metadata owns
-it) and do not change what the plugin does. Needs a yes: any change to what ships beyond the six
-directories named in the plan's §6 Q3; never run an upload — the upload is the owner's, every time.
-Decisions that bind this work: D-006 (help/ is retired — do not resurrect the `doc` target's
-Sphinx build), D-007 (the Co-Authored-By trailer). Memory notes to read: MEMORY.md,
-2026-10-23_adopt-groundtruther.md. Docs check: mkdocs build --strict -f website/mkdocs.yml.
-```
+### 2.1 `seq-P2-release-zip` (closed 2026-10-24; its prompt is in git history)
 
 ### 2.2 `seq-P1-release-metadata`
 
@@ -238,10 +214,12 @@ session it came from and the date.
   exists **only** on that machine. From `plan-adopt-groundtruther`, 2026-10-23. Also worth running
   `scripts/adopt-inventory.sh --repo /home/epinux/dev/groundtruther` there and pasting the output.
 - **Tag, build, verify and upload 0.4** (`publish-0-4` WP-6), after `seq-P2`…`seq-D1` have landed.
-  The upload is a production rollout: the owner's own go, each time, never reused
-  (`WORKFLOW.md` §8), with their plugins.qgis.org credentials, which no session holds (plan §6 Q5).
-  Before uploading, `unzip -l` the artifact and confirm `config/config.yaml` is not in it. From
-  `plan-publish-0-4`, 2026-10-23.
+  The build is one command — `git tag -a v0.4 && scripts/make-release-zip.sh v0.4` → `dist/groundtruther-v0.4.zip`
+  (`seq-P2-release-zip`, 2026-10-24: it refuses to write the zip unless `config/config.yaml`, `.venv`
+  and the stripped directories are absent, the icons are present, and no API-key value appears in the
+  tree). `unzip -l` it yourself anyway before uploading. The upload is a production rollout: the
+  owner's own go, each time, never reused (`WORKFLOW.md` §8), with their plugins.qgis.org
+  credentials, which no session holds (plan §6 Q5). From `plan-publish-0-4`, 2026-10-23.
 - **Record the project's working state on `master`.** No file says whether the test suite passes
   today, or whether the plugin loads under QGIS 4 — only what is *deployed*. From the Linux machine
   (this Mac has no QGIS and no `.venv`): run `.venv/bin/pytest` and the offscreen load check in
@@ -337,7 +315,7 @@ The whole rulebook is [`WORKFLOW.md`](WORKFLOW.md). This section is the part eve
 | **U** UI & plugin shell | `__init__.py`, `pygui/`, `qtui/`, `mixins/`, `groundtruther.py`, `groundtruther_dockwidget.py`, `configure.py`, `resources.qrc`, `resources_rc.py`, `resources/`, `compile_ui.sh`; **and the live QGIS install on the Linux machine** | one session at a time (slot 1) |
 | **C** core & config | `gt/`, `config_model.py`, `config/`, `ioutils.py`, `episg.py`, `epsg_list.py`, `search_epsg.py`, `epsg/`, `ellipse.py`, `rectangle.py`, `qtpandas.py`, `grassconfig.py`, `tests/` | one session at a time (slot 2) |
 | **D** docs | `website/`, `docs/`, `help/` | one session at a time (slot 2) |
-| **P** packaging & install | `Makefile`, `setup_windows.*`, `setup_mamba.bat`, `setup_wsl.sh`, `scripts/`, `dependencies/`, `pip_cpu.py`, `pip_cuda.py`, `plugin_upload.py`, `make_zip.sh`, `metadata.txt`, `pb_tool.cfg`, `environment.yml`, `.github/workflows/` | one session at a time (slot 2) |
+| **P** packaging & install | `Makefile`, `setup_windows.*`, `setup_mamba.bat`, `setup_wsl.sh`, `scripts/`, `dependencies/`, `pip_cpu.py`, `pip_cuda.py`, `plugin_upload.py`, `metadata.txt`, `pb_tool.cfg`, `environment.yml`, `.github/workflows/` | one session at a time (slot 2) |
 
 Slot 2 runs **one** session at a time by default, even though it holds three lanes: a second one
 only when the order rules say the two share no file and no machine, and only when the owner starts
