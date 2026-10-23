@@ -578,11 +578,14 @@ recommendation `setup-session-system` put to them, recorded as the answer.
   slot 2 = C, D and P, one session at a time. Tables: §3.1 and the queue's §6.2.
 - **Q2 memory repo, machines, cloud sessions:** a new **private** `epifanio/groundtruther-memory`,
   cloned at `~/dev/groundtruther-memory` on every machine (the same path resolves on both
-  `/Users/geno` and `/home/epinux`). *Still open, asked but not answered:* exactly which machines
-  and accounts will run sessions, and whether cloud sessions will. Known so far: this Mac
-  (`/Users/geno/dev/groundtruther`) and the Linux machine (`/home/epinux/dev/groundtruther`, which
-  carries the live QGIS profile symlink and the project's existing auto memory). A machine that
-  keeps the clone elsewhere overrides `autoMemoryDirectory` in `.claude/settings.local.json`.
+  `/Users/geno` and `/home/epinux`). **Answered 2026-10-23: "Both, plus cloud sessions."** —
+  this Mac (`/Users/geno/dev/groundtruther`), the Linux machine
+  (`/home/epinux/dev/groundtruther`, which carries the live QGIS profile symlink, the project's
+  existing auto memory, and lane **U**), and cloud sessions, which attach
+  `epifanio/groundtruther-memory` when they start and fall back to `PLANNING/memory_inbox/` if they
+  cannot reach it. A machine that keeps the clone elsewhere overrides `autoMemoryDirectory` in
+  `.claude/settings.local.json`. **The Linux machine still owes one command** (the queue's §3):
+  `scripts/memory-repo.sh init https://github.com/epifanio/groundtruther-memory --import <its auto-memory dir>`.
 - **Q3 merge style and who merges:** merge commits (`gh pr merge --merge`). A session merges its own
   **docs-only** PR when CI is green on the current tip; a PR that **changes code** is left for the
   owner, who reviews it and checks the plugin in the live QGIS. This keeps the project's existing
@@ -623,11 +626,20 @@ recommendation `setup-session-system` put to them, recorded as the answer.
   branches, 6 open PRs (#37, #39, #40, #41, #42, #43), 3 open issues (#1, #2, #4), and **no roadmap
   or decision files**. It found **no GroundTruther auto memory on this Mac** — every memory
   directory here belongs to FastGIS, a different project — so the freshest memory is on the Linux
-  machine. *Still open, asked but not answered:* the inventory from
-  `/home/epinux/dev/groundtruther`, and which of the 6 open PRs are live work rather than stale.
-  `/adopt-project` asks both before it harvests. Transcripts are read once and never committed.
+  machine, which still owes its import (Q2 above). **The six open PRs, answered 2026-10-23:**
+  *"those are all unrelated the fastgis at the moment keep them alone, we probably need to move them
+  out of fastgis and transfer them to my seafloor roughness repository"* — so #37, #39, #40, #41,
+  #42 and #43 are **neither queued nor dropped, and nobody touches those branches**; whether that
+  work moves to a separate seafloor-roughness repository is on *The owner's list* in the queue and
+  becomes a record only once they decide it. The harvest ran as
+  `plan-adopt-groundtruther` on 2026-10-23 and found **no work in flight to adopt**: all five plans
+  already in `PLANNING/` are `DONE`. It wrote D-001…D-008 from `CLAUDE.md`'s standing choices;
+  details in `PLANNING/adopt-groundtruther.md`. Transcripts are read once and never committed.
 
 ## 13. History
 
 - 2026-10-23: this file, the queue, the index, the decisions registry, the checker, the session
   scripts, the hooks, the skills, the memory repo (`setup-session-system`, from agent-session-kit).
+- 2026-10-23: the harvest (`plan-adopt-groundtruther`): D-001…D-008 from `CLAUDE.md`, §12 Q2 and
+  Q13 answered, the State table read from the running system, `CLAUDE.md` trimmed, and
+  `user_epifanio.md`. Nothing was queued — there was no work in flight to adopt.

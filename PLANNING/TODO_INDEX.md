@@ -15,3 +15,4 @@ row here and that every link resolves.
 
 | Closed | Plan | PRs |
 |---|---|---|
+| 2026-10-23 | [adopt-groundtruther.md](adopt-groundtruther.md) | #45 (the install), and this plan's own PR |
