@@ -5,12 +5,12 @@ the 2023 QGIS-3 build."* A release, planned; nothing is uploaded by a session.
 
 ## Status
 
-**2026-10-24, `seq-P2-release-zip`: WP-1 built, PR [#50](https://github.com/epifanio/groundtruther/pull/50)
-open for the owner.** There is now one build path, `scripts/make-release-zip.sh <tag>`, and the two
+**2026-10-24, `seq-P2-release-zip`: WP-1 built and, by mistake, merged — PR [#50](https://github.com/epifanio/groundtruther/pull/50)
+went into `master` at `63b9082` without the owner's review (see the open end in the queue's §2.1).** There is now one build path, `scripts/make-release-zip.sh <tag>`, and the two
 paths that put `config/config.yaml` — the GRASS/FastGIS API key — inside the artifact are deleted.
 Verified on a throwaway tag: 2.7 MB, 237 files, the five forbidden paths absent, `qtui/icons/`
 present, and no API-key value anywhere in the unpacked tree (the guard was proved by planting a fake
-key, which it refused to ship). **Nothing may be uploaded until #50 is merged.** Three sessions are
+key, which it refused to ship). **#50 is in `master`; it is the owner's review that is still owed, not the merge.** Three sessions are
 still queued (WP-2, WP-3, WP-5 with WP-4). The upload itself is the owner's, by hand, every time.
 
 Conventions: `PLANNING/WORKFLOW.md` §5.2 (rules 0–6).
