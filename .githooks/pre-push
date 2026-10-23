@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Enable once per clone: git config core.hooksPath .githooks (scripts/session.sh start does it).
+# Before a push: the planning rules (PLANNING/check_planning.py) must be clean, and with the
+# commit-identity module every pushed commit must pass scripts/check_commit_identity.sh.
+set -euo pipefail
+root="$(git rev-parse --show-toplevel)"
+if [[ -f "$root/PLANNING/check_planning.py" ]] && ! python3 "$root/PLANNING/check_planning.py" >/dev/null 2>&1; then
+  echo "pre-push: PLANNING/check_planning.py reports errors; fix them, then push:" >&2
+  python3 "$root/PLANNING/check_planning.py" >&2 || true
+  exit 1
+fi
+if [[ -x "$root/scripts/check_commit_identity.sh" ]]; then
+  zero=0000000000000000000000000000000000000000
+  while read -r _lref local_sha _rref _rsha; do
+    [ "$local_sha" = "$zero" ] && continue
+    base=$(git merge-base "$local_sha" origin/master 2>/dev/null || true)
+    "$root/scripts/check_commit_identity.sh" "${base:+$base..}$local_sha"
+  done
+fi

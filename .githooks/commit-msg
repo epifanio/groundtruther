@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# Enable once per clone: git config core.hooksPath .githooks (scripts/session.sh start does it).
+# With the commit-identity module (kit.config COMMIT_IDENTITY=yes): refuse an author outside the
+# allowlist and strip AI attribution trailers. Without the module this hook lets every commit through.
+set -euo pipefail
+[[ "no" == yes ]] || exit 0
+email=$(git var GIT_AUTHOR_IDENT | sed -E 's/.*<([^>]*)>.*/\1/')
+case "$email" in
+  *) ;;
+  *) echo "commit-msg: author <$email> is not allowed. Allowed: (any: the commit-identity module is not installed)" >&2
+     echo "Run: git config user.name <you> && git config user.email <one of them>" >&2
+     echo "(the setup machine uses epifanio <epifanio@users.noreply.github.com>)" >&2
+     exit 1;;
+esac
+tmp=$(mktemp)
+grep -viE '^[[:space:]]*(co-authored-by:.*(anthropic|claude|copilot)|claude-session:)|generated with \[?claude code|claude\.ai/code/session_' "$1" > "$tmp" || true
+awk '{ l[NR]=$0 } END { n=NR; while (n>0 && l[n] ~ /^[[:space:]]*$/) n--; for (i=1;i<=n;i++) print l[i] }' "$tmp" > "$1"
+rm -f "$tmp"

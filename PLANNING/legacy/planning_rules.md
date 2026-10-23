@@ -1,3 +1,8 @@
+> **Superseded on 2026-10-23** by [`PLANNING/WORKFLOW.md`](../WORKFLOW.md), the rulebook installed
+> by [agent-session-kit](https://github.com/epifanio/agent-session-kit). This file is kept as a
+> record of how planning worked on GroundTruther from 2026-06-23 to 2026-10-23; where it disagrees
+> with `WORKFLOW.md`, `WORKFLOW.md` wins. Start at [`PLANNING/README.md`](../README.md).
+
 # Planning Workflow — Rules & Bootstrap
 
 | | |
