@@ -5,10 +5,13 @@ the 2023 QGIS-3 build."* A release, planned; nothing is uploaded by a session.
 
 ## Status
 
-**2026-10-23, `plan-publish-0-4`: planned, nothing built.** Four sessions are queued. The release is
-blocked on none of them individually, but **no zip may be uploaded until `seq-P2` has landed**,
-because two of the three existing build paths put `config/config.yaml` — the GRASS/FastGIS API key —
-inside the artifact. The upload itself is the owner's, by hand, every time.
+**2026-10-24, `seq-P2-release-zip`: WP-1 built, PR [#50](https://github.com/epifanio/groundtruther/pull/50)
+open for the owner.** There is now one build path, `scripts/make-release-zip.sh <tag>`, and the two
+paths that put `config/config.yaml` — the GRASS/FastGIS API key — inside the artifact are deleted.
+Verified on a throwaway tag: 2.7 MB, 237 files, the five forbidden paths absent, `qtui/icons/`
+present, and no API-key value anywhere in the unpacked tree (the guard was proved by planting a fake
+key, which it refused to ship). **Nothing may be uploaded until #50 is merged.** Three sessions are
+still queued (WP-2, WP-3, WP-5 with WP-4). The upload itself is the owner's, by hand, every time.
 
 Conventions: `PLANNING/WORKFLOW.md` §5.2 (rules 0–6).
 
@@ -28,6 +31,10 @@ Read in the code at `master` 83ae64c, 2026-10-23, and from the live plugin feed.
 `plugin_id` 2982, author `epinux`, 949 downloads. The entire QGIS 4 / Qt6 rewrite is unpublished.
 
 ### Three ways to build a zip, two of which ship the API key
+
+*As read at `master` 83ae64c. `seq-P2-release-zip` (PR #50, 2026-10-24) deleted the first two and
+replaced the third with `scripts/make-release-zip.sh`; the table is kept as the record of what was
+wrong, since it is why the package existed.*
 
 | Path | What it produces |
 |---|---|
@@ -124,7 +131,7 @@ None of these bind work outside this plan, so none was promoted to a decision re
 
 | Package | Scope | Depends on | Lane | Size | State |
 |---|---|---|---|---|---|
-| `publish-0-4 WP-1` | `scripts/make-release-zip.sh`; delete `make_zip.sh`; fix or delete the Makefile release targets; gitignore the release artifact | — | P | M | queued `seq-P2-release-zip` |
+| `publish-0-4 WP-1` | `scripts/make-release-zip.sh`; delete `make_zip.sh`; fix or delete the Makefile release targets; gitignore the release artifact | — | P | M | **built** `seq-P2-release-zip` 2026-10-24, PR #50 open for the owner |
 | `publish-0-4 WP-2` | `metadata.txt` and the `__init__.py` docstring typo | — | P | S | queued `seq-P1-release-metadata` |
 | `publish-0-4 WP-3` | `gt/deps_check.py` + unit tests: which required modules are importable | — | C | M | queued `seq-C1-deps-check` |
 | `publish-0-4 WP-4` | `__init__.py` + one dialog and a log line when deps are missing; disable what cannot work | WP-3 | U | M | queued `seq-U1-deps-message` |
