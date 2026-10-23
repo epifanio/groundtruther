@@ -9,7 +9,8 @@ SETUP step 7c; the checklist is `/adopt-project`.
 **◐ closed 2026-10-23 by `plan-adopt-groundtruther`.** Everything the harvest could reach from this
 Mac is in its home: 8 decision records (D-001…D-008) from `CLAUDE.md`'s standing choices, the two
 late setup answers written into `WORKFLOW.md` §12 (Q2, Q13), the State table read from the running
-system, `CLAUDE.md` trimmed of the process rules the rulebook now covers, and `user_epifanio.md` in
+system, `CLAUDE.md` rewritten to cite the records (not *trimmed* — see the correction below), and
+`user_epifanio.md` in
 the memory repo. **Nothing was queued**: there is no live plan and no adopted work in flight, so
 both slots are empty and the test of the harvest is `/catch-up`, not a ⏭ prompt
 (`/adopt-project` step 8).
@@ -20,6 +21,24 @@ list* (whether the roughness work moves to a separate repository). Until the Lin
 the harvest is **incomplete by design** — see "What exists today".
 
 Conventions: `PLANNING/WORKFLOW.md` §5.2 (rules 0–6).
+
+## Correction, 2026-10-23 (`plan-adopt-groundtruther-gaps`)
+
+The catch-up test required by `/adopt-project` step 8 read these files cold and caught two false
+claims, both made by the sessions that wrote them:
+
+1. **`CLAUDE.md` was not "trimmed".** It went **191 lines at 650a164 → 223 at d7affe8 (the install)
+   → 239 at 88a36ad (this harvest)**: 48 lines *longer*. Process rules did move out to the rulebook,
+   but the record citations, the two corrections and the project-specific notes added more than that
+   removed. The honest word is *rewritten*, and the "191 lines" in `WORKFLOW.md` §12 Q13 is now
+   dated to the commit it was measured at.
+2. **A State row narrated `master`'s position** ("master has since moved to d7affe8"), and the very
+   next merge made it false. The cell no longer names `master`'s tip; it says how to compare the two
+   shas instead.
+
+Fourteen other gaps came out of the same test. The ones that live in this project are fixed in that
+session's PR; the ones that belong to agent-session-kit are listed for the kit. The test was worth
+more than the harvest it checked.
 
 ## What exists today
 
@@ -118,7 +137,7 @@ this plan wrote come from `CLAUDE.md`, not from an answer.
 |---|---|---|
 | `adopt-groundtruther WP-1` | the 8 decision records and their index rows | ✅ merged in this plan's PR |
 | `adopt-groundtruther WP-2` | §12 Q2 and Q13; the State table; *The owner's list*; the queue's §3 | ✅ merged in this plan's PR |
-| `adopt-groundtruther WP-3` | `CLAUDE.md` trimmed of the superseded process rules | ✅ merged in this plan's PR |
+| `adopt-groundtruther WP-3` | `CLAUDE.md`: process rules out to the rulebook, record citations in. **Net +48 lines, not a trim** | ✅ merged in this plan's PR |
 | `adopt-groundtruther WP-4` | `user_epifanio.md` and the memory note | ✅ synced to the memory repo |
 | `adopt-groundtruther WP-5` | the Linux machine's auto-memory import | ⏸ **the owner's**, queue §3 |
 
