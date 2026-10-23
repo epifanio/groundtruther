@@ -1,8 +1,8 @@
 # Memory inbox
 
 The **fallback** for memory written by a session that cannot reach `epifanio/groundtruther-memory` (a cloud session
-that did not attach it). When the memory repo is attached, write there instead (`CLAUDE.md` →
-"Memory").
+that did not attach it). When the memory repo is attached, write there instead
+(`WORKFLOW.md` §5.2 rule 5).
 
 ## Append-only convention
 

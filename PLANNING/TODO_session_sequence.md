@@ -39,7 +39,13 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | Unit | Now | Since (UTC) | Recorded by | Rollback · notes |
 |---|---|---|---|---|
 | Plugin on plugins.qgis.org | **0.3**, experimental, QGIS 3.0–3.99 · uploaded **2023-06-01** · plugin_id 2982 | 2023-06-01 | `plan-adopt-groundtruther` | **Read from the live feed** (`plugins.xml?qgis=3.99`), 2026-10-23 — *not* from `metadata.txt`, which says `version=0.4`, `qgisMinimumVersion=4.0`. **The QGIS 4 / Qt6 work has never been published:** `master` is 0.4, users get the 2023 QGIS-3 build. Publishing 0.4 is a production rollout — a production approver's go, each time (`WORKFLOW.md` §8). Rollback = re-upload the previous zip. |
-| Docs site (`gh-pages` → <https://epifanio.github.io/groundtruther/>) | built from `master` **650a164** (`gh-pages` abe7632, MkDocs 1.6.1) | 2026-09-24 | `plan-adopt-groundtruther` | **publishes itself**: `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every push to `master` touching `website/**`. No go, no staging — merging a `website/` change *is* the deploy. Read live 2026-10-23: HTTP 200, and `gh-pages` says "Deployed 650a164". `master` has since moved to d7affe8 (PR #45) and the site is **correctly** still at 650a164, because #45 touched no `website/**` path — which is the rule working, not drift. Rollback = merge a fix; the workflow redeploys. |
+| Docs site (`gh-pages` → <https://epifanio.github.io/groundtruther/>) | built from `master` **650a164** (`gh-pages` abe7632, MkDocs 1.6.1) | 2026-09-24 | `plan-adopt-groundtruther` | **publishes itself**: `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every push to `master` touching `website/**`. No go, no staging — merging a `website/` change *is* the deploy. Read live 2026-10-23: HTTP 200, and `gh-pages` says "Deployed 650a164". The site lags `master` whenever the commits in between touched no `website/**` path — that is the rule working, not drift, so **compare the two shas before concluding anything**; this cell deliberately does not name `master`'s tip, because the next merge would make it false. Rollback = merge a fix; the workflow redeploys. |
+
+> **Both slots are empty** (since 2026-10-23, `plan-adopt-groundtruther`): there is no ⏭ and no ⬜,
+> so **there is nothing to paste**. That is not a fault — the harvest found no work in flight to
+> adopt. The next session is a **planning session**: open one, talk a topic through, and it writes
+> the plan and queues the first prompt (`WORKFLOW.md` §4, `/plan-session`). Delete this line as soon
+> as a slot has a row.
 
 ### Slot 1 — U (UI & plugin shell)
 
@@ -64,7 +70,10 @@ Sessions that run without a queued row (urgent fixes, follow-ups) register here 
 
 ### The owner's list (not sessions)
 
-- **Where the roughness / mosaic work lives.** The owner, 2026-10-23: *"those are all unrelated the
+Each item carries the date it was raised, so a catch-up can say how long it has been waiting
+(`WORKFLOW.md` §2.1 step 5).
+
+- **Since 2026-10-23 · Where the roughness / mosaic work lives.** The owner, 2026-10-23: *"those are all unrelated the
   fastgis at the moment keep them alone, we probably need to move them out of fastgis and transfer
   them to my seafloor roughness repository"*. Open PRs **#37, #39, #40, #41, #42, #43** and their
   branches are **left untouched** until they decide — neither queued nor dropped. When they decide,
@@ -100,6 +109,11 @@ session it came from and the date.
   `data-model-facts`, `documentation`, `project-overview`, `april-2026-refactor`, `install-and-run`)
   exists **only** on that machine. From `plan-adopt-groundtruther`, 2026-10-23. Also worth running
   `scripts/adopt-inventory.sh --repo /home/epinux/dev/groundtruther` there and pasting the output.
+- **Record the project's working state on `master`.** No file says whether the test suite passes
+  today, or whether the plugin loads under QGIS 4 — only what is *deployed*. From the Linux machine
+  (this Mac has no QGIS and no `.venv`): run `.venv/bin/pytest` and the offscreen load check in
+  `CLAUDE.md` → Testing on `master`, and put the date and result in the State table as a
+  "Test suite on `master`" row. From `plan-adopt-groundtruther-gaps`, 2026-10-23.
 - **Is `sip` reachable through the QGIS shim in QGIS 4?** `mixins/video_browser_mixin.py:693` does
   `from PyQt6 import sip`, the only violation of D-004. If `from qgis.PyQt import sip` works, that
   line is a one-word fix and D-004 gains an `enforce: PyQt6 in mixins/` line in a follow-up record;
@@ -148,7 +162,10 @@ The whole rulebook is [`WORKFLOW.md`](WORKFLOW.md). This section is the part eve
   `master`'s version, finds the row already ▶ with another name in *Who*, and stops: it
   reports and builds nothing. The claim is the lock. `scripts/session.sh claim <session>` does the
   claim, PR and merge included.
-- **At the close**, in its last PR, a session does eight things:
+- **At the close**, in its last PR, a session does eight things. Throughout this section
+  "**merged**" means *merged by the session* for a **docs-only** PR, and *opened and left for the
+  owner* for a PR that **changes code** (`WORKFLOW.md` §6.3, §12 Q3) — a code row therefore closes
+  ◐, with the owner's review and merge as its open end:
   1. sets its row to ✅ with the date, the PRs, how it was verified, what it shipped as and the memory
      note. If something is still owed (a soak, a dated check, a rollout, a part cut short), the row is
      ◐ instead, and each owed thing gets a line in *Open ends*; a GitHub issue the plan's brief cites

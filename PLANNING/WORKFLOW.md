@@ -73,21 +73,32 @@ docs-only PR.
 
 A checkout nobody has used for days is behind `master`, and so is its `CLAUDE.md`,
 which is what a new session loads first. Only a prompt the owner pastes can get past that, so the
-first session on an idle account or machine is this one. It is read-only. Whatever the files could
-not answer, or answered wrongly, is a gap in them: it reports it, and the fix is a planning
-session's work.
+first session on an idle account or machine is this one. It **changes nothing in the project's
+history**: no commit on `master`, no PR, no deletion, nothing built or deployed. It does create its
+own worktree, fast-forward this machine's main checkout when that is clean, and push one memory
+note — so it is not literally read-only, and a session told "read-only" could not perform steps 1,
+2 and the last line. Whatever the files could not answer, or answered wrongly, is a gap in them: it
+reports it, and the fix is a planning session's work.
 
-**One catch-up per account at a time.** Before starting, look for one already running (the app's
-session list, or `ListAgents`). If one is running, message it instead of starting a second.
+**`<account>` is the machine's short name**, as `user_<login>.md` → *Machines* lists it: `mac`,
+`linux` or `cloud`. Not the GitHub login — there is one login here, so `catchup-epifanio-<date>`
+would collide between the Mac and the Linux machine, which is the incident §10 records.
+
+**One catch-up per account at a time.** Before starting, look for one already running: a
+`*-catchup-*` worktree in `git worktree list`, and a `catchup-` note with today's date in the memory
+repo. (If your harness has a session list or `ListAgents`, check that too.) If one is running,
+message it instead of starting a second.
 
 ```text
-Catch this account up with the GroundTruther project after a gap, as session `catchup-<account>-<date>`.
-Read-only: build nothing, deploy nothing, delete nothing. If another catch-up session is already
-running on this account (the app's session list, or ListAgents), do not start a second: message it
-instead, and stop.
+Catch this machine up with the GroundTruther project after a gap, as session
+`catchup-<account>-<date>`, where <account> is this machine's short name (mac, linux, cloud) from
+user_<login>.md. Build nothing, deploy nothing, delete nothing, open no PR, commit nothing to the
+project: your only writes are your own worktree, a fast-forward of a clean main checkout, and one
+memory note. If another catch-up is already running on this machine (a *-catchup-* worktree, or a
+catchup- note with today's date in the memory repo), do not start a second: message it and stop.
 1. The checkout this session started in may be days old, and so may its CLAUDE.md: trust neither.
    Run `git fetch origin`, then work in a fresh worktree:
-   `git worktree add ../groundtruther-catchup-<date> -b claude/catchup-<account>-<date> origin/master`
+   `git worktree add ../groundtruther-catchup-<account>-<date> -b claude/catchup-<account>-<date> origin/master`
    (an app-made session worktree counts: when its branch has no commits of its own,
    `git merge --ff-only origin/master`). Never switch branches in a checkout you did not
    create. Fast-forward this account's main checkout only if it is clean and on master.
@@ -96,7 +107,9 @@ instead, and stop.
 3. From the fresh worktree read CLAUDE.md, PLANNING/WORKFLOW.md and PLANNING/TODO_session_sequence.md §1.
 4. Run `python3 PLANNING/check_planning.py --live` and keep its warnings for the report.
 5. Answer from the files alone: what is deployed now (the State table), what is running, the next
-   prompt of each slot, what is owed and when (Open ends, the owner's list). Then check each answer
+   prompt of each slot (if a slot is empty, say so and name the line in the queue's §1 that says
+   what happens instead), what is owed and when (Open ends, the owner's list, the queue's §3), and
+   how old each item on the owner's list is. Then check each answer
    against the thing itself: `gh pr list`, `git log origin/master`, the running system if
    this account can reach it (read-only).
 6. This account's leftovers, listed and not touched: `git worktree list` with `git status --short` in
@@ -141,7 +154,7 @@ starts it; the owner's word goes into the order rules as "Slot <k> runs <n> sess
 | ⬜ | queued, later | its prompt (§) |
 | ⏸ | waiting on something that will happen: a session closing, a date, an answer | "**Waits on** …"; a due date, if there is one, right after *Waits on*, *by* or *until* |
 | ✅ | closed, nothing owed | date · PRs · how it was verified · what it shipped as · memory note |
-| ◐ | closed **with open ends**: the work is merged, but something is still owed (a soak, a device check, a rollout, a part cut short) | the same receipts, and one line per open end in *Open ends* |
+| ◐ | closed **with open ends**: the work is merged, but something is still owed (a soak, a device check, a rollout, a part cut short) | the same receipts, and one line per open end in *Open ends* — except a check only the owner can perform, which goes to the queue's §3 instead (§5.3), and an undated question of theirs, which goes to *The owner's list* |
 | 💤 | deferred: the owner said "not now", with no condition that will bring it back by itself | who said so, their words and the date |
 | 🚫 | dropped or superseded: it will not run | why, or by which row, and the date |
 
@@ -322,8 +335,16 @@ the ones in the queue's §1 and the index).
 
 **Closing with open ends (◐).** A plan whose work is all merged and deployed, and which owes only a
 check by the owner, a soak or an upstream step, closes the same way with a ◐ banner instead of ✅, *if*
-each owed item is first moved to where the owner will see it: a check into the queue's §3, a dated
-item into its *Open ends*. The banner names what was moved and where. A plan that still owes a work
+each owed item is first moved to where the owner will see it. Which home, by the kind of item:
+
+| The owed thing | Where it goes |
+|---|---|
+| anything with a date by which it must happen | the queue's *Open ends*, with that date |
+| a check only the owner can perform (a device, a GUI, a running system) | the queue's §3 |
+| an open question of the owner's with no date | *The owner's list*, with the date it was raised |
+
+The banner names what was moved and where. A plan closed ◐ whose items all went to §3 or to the
+owner's list leaves *Open ends* empty, and that is correct, not a miss. A plan that still owes a work
 package, a build or a decision keeps its prefix, and its banner says what is owed.
 
 ## 6. A build or side session
@@ -453,6 +474,14 @@ Two units, and they behave very differently.
 | Unit | How it ships | Go |
 |---|---|---|
 | **Plugin** on <https://plugins.qgis.org/plugins/groundtruther/> | a zip built from a `master` tag and uploaded (`make zip`, `plugin_upload.py`), after `metadata.txt` `version=` is raised | **a production approver's go, each time** |
+
+Read what is **actually published** — never `metadata.txt`, which is what the next release *will*
+be (at setup the two differed by a major version and three years):
+
+```bash
+curl -s "https://plugins.qgis.org/plugins/plugins.xml?qgis=3.99" \
+  | python3 -c "import sys,xml.etree.ElementTree as E; [print(p.attrib) for p in E.fromstring(sys.stdin.read()) if 'groundtruther' in (p.get('name') or '').lower()]"
+```
 | **Docs site** on `gh-pages` → <https://epifanio.github.io/groundtruther/> | **by itself**: `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every push to `master` touching `website/**` | none — merging a `website/` change *is* the deploy |
 
 **The docs site deploys on a merge.** That is the one exception to "nothing deploys on a merge", and
@@ -624,7 +653,8 @@ recommendation `setup-session-system` put to them, recorded as the answer.
   `plan-adopt-groundtruther` (`/adopt-project`). The inventory of 2026-10-23 found, on this Mac:
   `CLAUDE.md` (191 lines, dense and current-looking), the five `PLANNING/` topic files, 23 remote
   branches, 6 open PRs (#37, #39, #40, #41, #42, #43), 3 open issues (#1, #2, #4), and **no roadmap
-  or decision files**. It found **no GroundTruther auto memory on this Mac** — every memory
+  or decision files** (`CLAUDE.md` was 191 lines **at 650a164**, the measurement's own commit; it is
+  longer now). It found **no GroundTruther auto memory on this Mac** — every memory
   directory here belongs to FastGIS, a different project — so the freshest memory is on the Linux
   machine, which still owes its import (Q2 above). **The six open PRs, answered 2026-10-23:**
   *"those are all unrelated the fastgis at the moment keep them alone, we probably need to move them
@@ -641,5 +671,9 @@ recommendation `setup-session-system` put to them, recorded as the answer.
 - 2026-10-23: this file, the queue, the index, the decisions registry, the checker, the session
   scripts, the hooks, the skills, the memory repo (`setup-session-system`, from agent-session-kit).
 - 2026-10-23: the harvest (`plan-adopt-groundtruther`): D-001…D-008 from `CLAUDE.md`, §12 Q2 and
-  Q13 answered, the State table read from the running system, `CLAUDE.md` trimmed, and
-  `user_epifanio.md`. Nothing was queued — there was no work in flight to adopt.
+  Q13 answered, the State table read from the running system, `CLAUDE.md` rewritten to cite the
+  records, and `user_epifanio.md`. Nothing was queued — there was no work in flight to adopt.
+- 2026-10-23: `plan-adopt-groundtruther-gaps` — the catch-up test of the harvest (`/adopt-project`
+  step 8) read these files cold and found 16 gaps; this round fixes the ones that live here. Two of
+  them were false claims by the sessions above: that `CLAUDE.md` was "trimmed" (it grew, 191 → 239
+  lines) and a State row that narrated `master`'s position and went stale on the next merge.
