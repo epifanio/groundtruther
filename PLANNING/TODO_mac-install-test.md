@@ -21,8 +21,11 @@ Two corrections, both made after the owner tried it in the GUI:
 - §6 assumed the reader would switch profile. The owner opened QGIS, got `default`, and saw no
   GroundTruther at all. §6.0 now leads with the launch command, and §6.2 is a debugging guide.
 
-The other follow-up is `seq-U2-macos-profile-docs`; `publish-0-4` WP-3/WP-4 gained facts they were
-going to guess at. The GUI half is the owner's: §6. Nothing in this session touched plugin code.
+**WP-2 is now built** — `seq-C2-parquet-no-pandas`, **PR #73**, open for the owner; both call
+sites are fixed and verified in QGIS's own interpreter, and §5 gained that session's three further
+measurements below. The other follow-up is `seq-U2-macos-profile-docs`; `publish-0-4` WP-3/WP-4
+gained facts they were going to guess at. The GUI half is the owner's: §6. Nothing in *this* session
+touched plugin code.
 
 Conventions: `PLANNING/WORKFLOW.md` §5.2 (rules 0–6).
 
@@ -218,6 +221,29 @@ Two call sites, both in `gt/`, and both on paths a user reaches immediately:
 Nothing in `mixins/` or `pygui/` touches datetimes directly, so the blast radius is those two files.
 Avoiding `to_pandas()` is **not sufficient**: any code that builds or parses a datetime column dies.
 
+> **Three more measurements, `seq-C2-parquet-no-pandas` 2026-10-24** (the row that fixed both call
+> sites, PR #73). They did not change the diagnosis above; they changed what a fix is allowed to do.
+>
+> 1. **`pd.Series(np.array([], dtype="datetime64[us]"))` — an *empty* array — is SIGSEGV.** So the
+>    breakage **cannot be probed for at runtime: the probe is the crash.** Any future "detect the
+>    broken build and branch" idea is dead on arrival, which is why the fix is unconditional on
+>    every platform rather than macOS-only.
+> 2. **`pd.ArrowDtype` is a trap that looks like a win.** `pd.Series(arrow, dtype=pd.ArrowDtype(
+>    pa.timestamp("us")))` *stores* fine and `.dt.year` works — but reading one element back builds
+>    a `pd.Timestamp` and dies. A probe that only constructs and aggregates will wrongly call it
+>    safe. Arrow `duration` columns are SIGSEGV too; `date32`, `date64` and `time64` are fine.
+> 3. **Inference is the enemy, not any single call.** pandas infers a `datetime64` from an
+>    *object-dtype* array of datetimes in the `DataFrame` and `Series` constructors and in
+>    `set_index`, so building the values safely is not enough — the dtype must be spelled out at
+>    every hand-off. One edge therefore survives: object datetimes are inert in a *column*, but
+>    pandas re-infers them leaving an *index*, so `reset_index()` and `pd.concat()` on such a frame
+>    still die, while `copy`, `sort_index`, `iloc`, `at`, `to_csv` and `df.index[i]` are fine. The
+>    plugin calls neither — there is no `reset_index` and no `pd.concat` anywhere in `mixins/`,
+>    `gt/` or `pygui/`.
+>
+> The helpers and the full measurement table now live in **`gt/pandas_safe.py`** (PR #73), which is
+> where a decision record on this would point.
+
 ### Why the `.venv` cannot rescue it
 
 Prepending instead of appending gets the venv's working pandas, and the real file then reads fine —
@@ -407,7 +433,7 @@ checking the harness first would have saved the detour.
 | Package | Scope | Depends on | Lane | Size | State |
 |---|---|---|---|---|---|
 | `mac-install-test WP-1` | install from the zip, confirm the no-`.venv` blocker, measure every dependency, exercise `gt/` against the dataset, leave the owner §6 | — | U | M | ✅ this session |
-| `mac-install-test WP-2` | keep datetimes out of pandas: `gt/image_manager.py:70` and `gt/video_manager.py:170` | WP-1 | C | M | queued `seq-C2-parquet-no-pandas` |
+| `mac-install-test WP-2` | keep datetimes out of pandas: `gt/image_manager.py:70` and `gt/video_manager.py:170` | WP-1 | C | M | ◐ built by `seq-C2-parquet-no-pandas` 2026-10-24, **PR #73 open for the owner** |
 | `mac-install-test WP-3` | the macOS profile path and the faithful headless harness, in `CLAUDE.md` and the install page | WP-1 | U + D | S | queued `seq-U2-macos-profile-docs` |
 
 ## 8. Lane split
