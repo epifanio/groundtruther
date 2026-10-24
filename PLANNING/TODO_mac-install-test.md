@@ -488,9 +488,14 @@ nav follows the explicit toggle in `_toggle_image_dock`"*, and `_toggle_image_do
 no such thing — it shows only `_image_dock`. The code comment is wrong about its own design, which
 is why this reads as a missing widget rather than a hidden panel.
 
-**Owed:** the macOS hide wants either a comment giving its reason or removal; the stale comment at
-1018 wants deleting; and the install page should say that image navigation is a second toolbar
-button. None of that blocks the upload — §6.2 does.
+**Done 2026-10-24.** All three: the macOS `fwd`/`rwd` hide is **removed** — its reason was not
+recoverable from the tree and a user read it as the browse controls being missing, so macOS now
+matches every other platform (the dead `from sys import platform` went with it); the comment that
+claimed the nav follows `_toggle_image_dock` now names `_toggle_nav_dock`, which is what actually
+toggles it; and `website/docs/tools/image-browser.md` says the slider lives in its own **Image
+Index** panel behind its own toolbar button. **Still unverified in the window:** that the restored
+forward/back buttons lay out correctly on macOS — no agent can render the dock, and the original
+hide may have been working around something real.
 
 Please don't delete the two profiles afterwards, or the config in `gt-mac-test`: this list is the standing on-device check, and WP-6 of `TODO_publish-0-4.md` is gated on it.
 
