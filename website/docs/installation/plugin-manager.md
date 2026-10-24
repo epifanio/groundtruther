@@ -149,10 +149,12 @@ import them.
 | Windows (conda) | [`setup_mamba.bat`](https://github.com/epifanio/groundtruther/blob/master/setup_mamba.bat) | Creates or updates the `groundtruther` conda-forge environment from `environment.yml`, which contains QGIS **and** the dependencies. Requires Miniforge. |
 | macOS | *(no script)* | Use the conda/mamba route, or install into the app bundle's own Python — see [macOS](macos.md). |
 
-Both Windows scripts print a plugin folder under `QGIS3`, which is **stale**: on
-QGIS 4 the profile is `QGIS4`
-(`%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins\groundtruther`). The
-per-platform pages carry the current paths.
+Both Windows scripts, and `README_WINDOWS.md`, print the plugin folder under
+`QGIS4`
+(`%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins\groundtruther`),
+matching `qgisMinimumVersion=4.0`. They said `QGIS3` until 2026-10-24, which sent
+people to a directory QGIS 4 never reads; if you are working from a release
+earlier than that, use the path above rather than the one the script prints.
 
 Running the scripts means having a copy of the repository, because they read
 `dependencies/requirements.txt` and `environment.yml`. You can use that same copy
