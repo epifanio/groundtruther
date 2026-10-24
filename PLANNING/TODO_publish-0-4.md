@@ -59,10 +59,12 @@ word (*"Go ahead and merge #61"*), after being opened and left for their review 
 an import: `numba` and `cv2` cost seconds and can abort QGIS), carrying each package's pip name and
 import name explicitly, and returns a report naming what is missing and what it costs. 24 unit tests,
 no QGIS. **Its finding narrows WP-4:** a static module-level import-graph walk from
-`groundtruther.py` shows **16 of the 20 dependencies are reached by an unguarded module-level
+`groundtruther.py` shows **15 of the 20 dependencies are reached by an unguarded module-level
 import**, mostly through `pygui/querybuilder_gui.py`, which the dock imports eagerly — so with any
 of them missing the dock cannot be constructed and the only honest behaviour is to log, say so once
-and not load. Only `av`, `cv2` and `PyOpenGL` are guarded. "Disable what cannot work" is therefore a
+and not load. Of the other five, `av`, `cv2` and `PyOpenGL` are guarded and `pydantic` and
+`starlette` are off the chain. (Said 16 until 2026-10-24: a miscount in the prose; `REQUIREMENTS`
+always carried 15.) "Disable what cannot work" is therefore a
 much smaller lever than the plan assumed; making the heavy deps genuinely optional stays the
 separate plan Q1 names. Also: `starlette` is in `dependencies/requirements.txt` and no module
 imports it at 0.4.

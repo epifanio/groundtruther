@@ -70,11 +70,14 @@ class Requirement:
 #: ship with QGIS) and so are absent here.
 #:
 #: ``blocks_load`` was read off the static module-level import graph at
-#: ``master`` 4f4d6b5: 16 of the 20 are reached by an unguarded module-level
+#: ``master`` 4f4d6b5: **15 of the 20** are reached by an unguarded module-level
 #: import, mostly through ``pygui/querybuilder_gui.py``, which the dock imports
-#: eagerly.  Only the video backends and PyOpenGL are guarded.  A test asserts
-#: the package set still matches ``requirements.txt``; it cannot assert
-#: ``blocks_load``, so re-read the graph if the import structure changes.
+#: eagerly.  Of the other five, ``av``, ``cv2`` and ``PyOpenGL`` are guarded by
+#: ``try``/``except ImportError``, and ``pydantic`` and ``starlette`` are not on
+#: the chain at all.  A test asserts the package set still matches
+#: ``requirements.txt``; it cannot assert ``blocks_load``, so re-read the graph
+#: if the import structure changes.  (An earlier version of this comment, and of
+#: the plan's banner, said 16: a miscount in the prose, never in the tuple.)
 REQUIREMENTS: tuple[Requirement, ...] = (
     Requirement("numpy", "numpy", "all numeric work", True),
     Requirement("pandas", "pandas", "image, video and annotation tables", True),
