@@ -5,9 +5,9 @@ the 2023 QGIS-3 build."* A release, planned; nothing is uploaded by a session.
 
 ## Status
 
-**2026-10-24, `seq-C1-deps-check`: WP-3 is built** — PR
-[#61](https://github.com/epifanio/groundtruther/pull/61), CI green, **open for the owner's review**
-(§6.3). `gt/deps_check.py` probes the 20 runtime dependencies with `importlib.util.find_spec` (never
+**2026-10-24, `seq-C1-deps-check`: WP-3 is in `master`** — PR
+[#61](https://github.com/epifanio/groundtruther/pull/61), merged by the owner at `6e22c32` on their
+word (*"Go ahead and merge #61"*), after being opened and left for their review (§6.3). `gt/deps_check.py` probes the 20 runtime dependencies with `importlib.util.find_spec` (never
 an import: `numba` and `cv2` cost seconds and can abort QGIS), carrying each package's pip name and
 import name explicitly, and returns a report naming what is missing and what it costs. 24 unit tests,
 no QGIS. **Its finding narrows WP-4:** a static module-level import-graph walk from
@@ -32,7 +32,7 @@ icon that exists (`qtui/icons/epi.gif`; the old `qtui/icons/qgis/epi.gif` never 
 failed the upload), carries 13 discovery tags, points `homepage` at the docs site and has a real 0.4
 changelog. `version=0.4` and `experimental=True` are untouched (§6 Q2, Q4).
 
-One session is queued (WP-4, now ⏭) and WP-5 follows it. The upload itself is the owner's, by hand, every time.
+WP-4 is next (⏭ in slot 1) and WP-5 follows it. The upload itself is the owner's, by hand, every time.
 
 Conventions: `PLANNING/WORKFLOW.md` §5.2 (rules 0–6).
 
@@ -154,7 +154,7 @@ None of these bind work outside this plan, so none was promoted to a decision re
 |---|---|---|---|---|---|
 | `publish-0-4 WP-1` | `scripts/make-release-zip.sh`; delete `make_zip.sh`; fix or delete the Makefile release targets; gitignore the release artifact | — | P | M | **built** `seq-P2-release-zip` 2026-10-24, PR #50 open for the owner |
 | `publish-0-4 WP-2` | `metadata.txt` and the `__init__.py` docstring typo | — | P | S | ✅ `seq-P1-release-metadata` 2026-10-24, PR #56 merged (`master` 4f4d6b5) |
-| `publish-0-4 WP-3` | `gt/deps_check.py` + unit tests: which required modules are importable | — | C | M | **built** `seq-C1-deps-check` 2026-10-24, PR #61 open for the owner |
+| `publish-0-4 WP-3` | `gt/deps_check.py` + unit tests: which required modules are importable | — | C | M | ✅ `seq-C1-deps-check` 2026-10-24, PR #61 merged (`master` 6e22c32) |
 | `publish-0-4 WP-4` | `__init__.py` + one dialog and a log line when deps are missing; disable what cannot work | WP-3 | U | M | queued `seq-U1-deps-message` |
 | `publish-0-4 WP-5` | the install page on the docs site: what the Plugin Manager gives you and what it does not | WP-4 | D | S | queued `seq-D1-install-docs` |
 | `publish-0-4 WP-6` | **the owner's**: tag `v0.4`, build the zip, verify its contents, upload | WP-1…WP-5 | — | — | queue §3 |
