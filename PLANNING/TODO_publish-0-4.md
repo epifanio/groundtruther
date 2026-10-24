@@ -191,6 +191,16 @@ suite. Specifically:
   **the owner's GUI check**, in lane U, since no agent can drive the QGIS GUI.
 - WP-5: `mkdocs build --strict -f website/mkdocs.yml` (§5.2 rule 4).
 
+**2026-10-24, from the side session `mac-install-test`** (`PLANNING/TODO_mac-install-test.md`): the
+WP-4 case has now been measured on a real QGIS 4.2.1 on macOS, from an artifact built by WP-1's
+script. Three results bear directly on WP-3 and WP-4 — the first missing module is `pyqtgraph`
+(macOS QGIS ships pandas but not pyqtgraph, so the missing set is platform-specific),
+`qgis.utils.loadPlugin()` returns `True` in that state because it only does `__import__`, and the
+`GroundTruther` log tag is empty. It also found a blocker *outside* this plan's scope: the plugin's
+mandatory `HabCam.imagemetadata` read segfaults QGIS 4.2.1 on macOS, queued as
+`seq-C2-parquet-no-pandas`. **0.4 would install and enable on macOS and then crash the application
+on first use**, so WP-6's upload should wait for that row unless the owner decides otherwise.
+
 ## Kickoff
 
 Queued: `TODO_session_sequence.md` §2.1 … §2.5.
