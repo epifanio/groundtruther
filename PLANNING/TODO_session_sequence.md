@@ -45,7 +45,7 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
-| ⏸ | `seq-U1-deps-message` | — | `publish-0-4` WP-4: load and say what is missing instead of dying, when the venv is absent | §2.4 | **Waits on** `seq-C1-deps-check` (it provides `gt/deps_check.py`) |
+| ⏭ | `seq-U1-deps-message` | — | `publish-0-4` WP-4: load and say what is missing instead of dying, when the venv is absent | §2.4 | its wait is over: `seq-C1-deps-check` built `gt/deps_check.py` on **PR #61, which is open, not merged** — branch `claude/seq-C1-deps-check`. Read #61 before starting: 16 of the 20 deps stop the dock being constructed at all |
 
 ### Slot 2 — C (core & config), D (docs), P (packaging & install)
 
@@ -53,13 +53,12 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 |---|---|---|---|---|---|
 | ◐ | `seq-P2-release-zip` | claude | `publish-0-4` WP-1: one safe release zip from a tag; delete the two paths that ship the API key | §2.1 | 2026-10-24 · #50 · verified: built from a throwaway tag: 2.7 MB / 237 files; config/config.yaml, .venv, PLANNING/, website/, tests/, docs/, .claude/, .github/, grassdata/ absent; qtui/icons/ present (82 entries); no API-key value in the unpacked tree, and a planted fake key was refused; git status --short clean after a successful AND a failed build · memory note: 2026-10-24_seq-P2-release-zip.md |
 | ◐ | `seq-P1-release-metadata` | epifanio | `publish-0-4` WP-2: `metadata.txt` typos, tags, homepage, icon path, 0.4 changelog | §2.2 | 2026-10-24 · #56 **merged by the owner 2026-10-24** (`master` 4f4d6b5; they said *"Go ahead and merge #56"*) · verified: configparser on metadata.txt: one [general] section, no key containing a space (origin/master had the junk key "category of the plugin"); icon=qtui/icons/epi.gif exists on disk and is tracked by git (the declared qtui/icons/qgis/epi.gif did not exist); and inside a real artifact built with scripts/make-release-zip.sh from a throwaway tag at the PR head: the zips metadata.txt parses with no junk key, description/tags/homepage as intended, version=0.4 experimental=True qgisMinimumVersion=4.0 unchanged, and groundtruther/qtui/icons/epi.gif present (2439 bytes). git status --short clean after the build; tag and zip deleted. py_compile __init__.py passes; check_planning 0/0. No website/ or docs/ page references any changed value (grep), so no docs claim to re-verify; mkdocs is not installed on the Mac, CI docs.yml is the run that counts · memory note: 2026-10-24_seq-P1-release-metadata.md |
-| ▶ | `seq-C1-deps-check` | epifanio | `publish-0-4` WP-3: `gt/deps_check.py` — which required modules are importable, Qt-free | §2.3 | started 2026-10-24 · unblocks `seq-U1-deps-message` in slot 1 |
+| ◐ | `seq-C1-deps-check` | epifanio | `publish-0-4` WP-3: `gt/deps_check.py` — which required modules are importable, Qt-free | §2.3 | 2026-10-24 · #61 · verified: throwaway venv in the scratchpad (Python 3.15.0, pytest 9.1.1; this Mac has no .venv): pytest tests/unit/test_deps_check.py -> 24 passed. Whole unit suite, after installing numpy pandas pydantic requests PyYAML scipy (needed to collect at all): 421 passed, 3 skipped, 5 pre-existing failures wanting pyarrow and osgeo/GDAL in files this PR does not touch. check_planning 0/0; py_compile clean; no print() (D-003) and a test asserts no qgis/Qt in sys.modules after import (D-008). Finding: a static module-level import-graph walk from groundtruther.py shows 16 of the 20 deps are reached unguarded (mostly via pygui/querybuilder_gui.py, imported eagerly by the dock), so their absence stops the dock being constructed at all; only av, cv2, PyOpenGL are guarded and pydantic/starlette are off the chain. starlette is in requirements.txt and no module imports it. · memory note: 2026-10-24_seq-C1-deps-check.md |
 | ⏸ | `seq-D1-install-docs` | — | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | **Waits on** `seq-U1-deps-message` (the page describes its real behaviour) |
 
 **Order rules** (only about open rows; a closing session deletes the ones about itself):
 
 - none yet
-- `seq-C1-deps-check` before `seq-U1-deps-message`: C1 provides `gt/deps_check.py`, which U1 calls.
 - `seq-U1-deps-message` before `seq-D1-install-docs`: the page describes the behaviour U1 builds.
 - The P strand (P2, P1) and the C/U/D strand share no file, so they may run side by side **if the
   owner starts a second slot-2 session** (`WORKFLOW.md` §3.1). Slot 2 runs one at a time by default.
@@ -94,7 +93,8 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 |---|---|---|---|
 | **the owner's review, after the fact** | PR #50 is a code PR and should have been left for the owner (§6.3), but `scripts/session.sh close` was run without `--no-merge` and merged it into `master` at `63b9082` on 2026-10-24. Asked whether to revert, the owner said *"Leave #50 in master — I'll review it on master myself"* (2026-10-24), so **it stays in `master` and is not reverted**. What is owed is the review, not the merge | `seq-P2-release-zip` | the owner has reviewed `scripts/make-release-zip.sh` and the Makefile on `master` |
 | the owner's yes or no | the artifact still carries ~1 MB of repo furniture beyond the six stripped dirs (.githooks/, scripts/, help/, epsg, CLAUDE.md, pytest.ini, pylintrc, pb_tool.cfg, compile_ui.sh, tmp/) — asked in #50 | `seq-P2-release-zip` | they answer; if yes, the strip list grows in seq-P1-release-metadata |
-| before the next session that closes a code PR | scripts/session.sh close reuses whatever PR is open on claude/<session> and merges it, so closing on the code branch would have merged #56 — exactly how #50 went in by mistake. Branch claude/close-guard adds a path guard and is NOT in master. Until it lands, close a code session on a second branch cut from origin/master, with PLANNING/queue.py close plus the PR by hand (done here) | `seq-P1-release-metadata` | claude/close-guard is merged, or the rulebook names the two-branch order |
+| before the next session that closes a code PR | scripts/session.sh close reuses whatever PR is open on claude/<session> and merges it, so closing on the code branch would have merged #56 — exactly how #50 went in by mistake. Branch claude/close-guard adds a path guard and is NOT in master. Until it lands, close a code session on a second branch cut from origin/master, with PLANNING/queue.py close plus the PR by hand (done here, and again by `seq-C1-deps-check` on 2026-10-24) | `seq-P1-release-metadata` | claude/close-guard is merged, or the rulebook names the two-branch order |
+| the owner's review | PR #61 adds gt/deps_check.py and tests/unit/test_deps_check.py; it is a code PR, so per §6.3 it was opened and left for the owner to review and check in QGIS. CI green. blocks_load in REQUIREMENTS is the one claim no test can prove - it is read off the static import graph at master 4f4d6b5 | `seq-C1-deps-check` | the owner has reviewed and merged #61 |
 
 ## 2. Prompts
 
@@ -106,29 +106,7 @@ as `WORKFLOW.md` §4.1. When a session closes, it removes its block and leaves t
 
 ### 2.2 `seq-P1-release-metadata` (closed 2026-10-24; its prompt is in git history)
 
-### 2.3 `seq-C1-deps-check`
-
-```text
-/build-session seq-C1-deps-check
-Plan: PLANNING/TODO_publish-0-4.md WP-3 (the dependency probe), slot 2, lane C. Scope: add
-gt/deps_check.py — a Qt-free, QGIS-free module that reads the required runtime module names and
-reports which are importable, returning enough for a caller to name the missing ones and decide
-which features must be disabled. The 20 runtime dependencies are listed in
-dependencies/requirements.txt: READ it, do not edit it, and note that a pip package name is not
-always its import name (opencv-python imports as cv2, scikit-image as skimage) — handle that
-mapping explicitly rather than guessing. Probe with importlib.util.find_spec, not by importing:
-importing numba or cv2 costs seconds and can abort. No Qt, no qgis, no dialog here — the message
-and the dialog are seq-U1-deps-message's.
-Verify on the real thing: unit tests under tests/unit/ that run with no QGIS, covering all present,
-some missing, and a package whose import name differs from its pip name. `.venv/bin/pytest
-tests/unit/` green.
-Touch only gt/deps_check.py and tests/unit/. Needs a yes: adding any new runtime dependency.
-Decisions that bind this work: D-008 (gt/ stays importable without QGIS — this module especially,
-since it must run before anything else works), D-003 (no print()), D-001 (absolute
-`from groundtruther...` imports), D-007. When you close, set seq-U1-deps-message in slot 1 from
-⏸ to ⏭: its wait is you. Memory notes to read: MEMORY.md, 2026-10-23_adopt-groundtruther.md.
-Docs check: mkdocs build --strict -f website/mkdocs.yml.
-```
+### 2.3 `seq-C1-deps-check` (closed 2026-10-24; its prompt is in git history)
 
 ### 2.4 `seq-U1-deps-message`
 
@@ -141,6 +119,16 @@ Plugin Manager install produces — so every one of the 20 runtime dependencies 
 Call gt/deps_check.py (from seq-C1-deps-check) during startup; log the missing packages to the
 GroundTruther panel; show ONE dialog naming them and linking the install page; and disable the
 features that cannot work rather than letting them raise later. One dialog, not one per import.
+Read PR #61 first — it is OPEN, not merged, so gt/deps_check.py exists only on branch
+claude/seq-C1-deps-check: base your branch on it, or wait for the owner to merge it. Its API is
+check_dependencies() -> DependencyReport with .ok, .missing (Requirement: package, module, feature,
+blocks_load), .missing_packages, .disabled_features, .blocking_missing, .can_load, .summary().
+C1's finding limits what "disable" can mean: 16 of the 20 deps are reached by an UNGUARDED
+module-level import from groundtruther_dockwidget.py, mostly via pygui/querybuilder_gui.py which
+the dock imports eagerly, so with any of them missing the dock cannot be constructed and the only
+honest behaviour is to log, say so once, and not load. Only av, cv2 and PyOpenGL are guarded; that
+is the blocks_load field. Making the heavy deps genuinely optional is the separate dependency plan
+(§6 Q1), NOT yours: do not restructure those imports here.
 Also fix the second mismatch while you are in here: setup_wsl.sh --venv creates `gtenv` but
 _bootstrap_venv() looks for `.venv`, so the documented fallback install produces a venv the plugin
 never loads — make them agree and say which name won.
