@@ -71,7 +71,10 @@ fails the build.
   `print()`. Use `configure.log_exception(context, exc, warn=?)` for tracebacks. **D-003** —
   enforced in `mixins/` and `gt/`; older top-level files and `pygui/` still have a `print()` backlog.
 - Imports: **`from qgis.PyQt import ...`** (the QGIS Qt shim), not `PyQt6` directly. **D-004** —
-  one known violation, `mixins/video_browser_mixin.py:693`; see the queue's §3.
+  **no violations left** since `sip-shim-d004` (2026-10-24): `from qgis.PyQt import sip` was
+  measured working in QGIS 4.2.1, so `mixins/video_browser_mixin.py` now goes through the shim
+  like everything else. D-004 still carries no `enforce:` line; adding one is the follow-up
+  record the decision itself asks for.
 - **Intra-plugin imports are always `from groundtruther… import …`** — never a bare
   `from gt.… import` / `import ioutils`, and **never append the plugin directory to
   `sys.path`** (only `__init__.py`'s `_bootstrap_venv` may touch `sys.path`, and it
