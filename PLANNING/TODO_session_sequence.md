@@ -58,6 +58,7 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | ◐ | `plan-pandas-datetime-record` | epifanio | promote "no pandas datetimes in `gt/`" to a decision record, and queue the call sites still unfixed | §2.8 | 2026-10-24 · #127 (claim), this PR · wrote **D-009** (the pandas rule) and **D-010** (D-004 restated, with its enforce line) · verified: QGIS 4.2.3 (pandas 3.0.5, numpy 2.5.2, pyarrow 25.0.1) in the signed harness of CLAUDE.md, each case its own process with `-u` and its exit status read un-piped — **nine cases, all exit 0** (the per-case table is in D-009 and TODO_mac-install-test.md §5). **QGIS 4.2.1 is no longer installed**, so its side of that table is quoted from §5, not re-measured. Both records' enforce lines tested in both directions at `master` d6f09e9: clean as the tree stands, and planted violations reported as D4 in every scope, then reverted. check_planning 0/0. PLANNING/ only, no code touched. The prompt's "call sites still unfixed" were already fixed by PR #81 (`de84a58`), so no row was queued · memory note: 2026-10-24_plan-pandas-datetime-record.md |
 | ◐ | `seq-D1-install-docs` | epifanio | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | 2026-10-24 · #85 · verified: mkdocs build --strict -f website/mkdocs.yml clean (throwaway venv from website/requirements-docs.txt, python3.12 — 3.15 cannot build watchdog); rendered HTML read, not the diff; merged on the owner's go at master 31e13cb and the deploy confirmed live: https://epifanio.github.io/groundtruther/installation/plugin-manager/ HTTP 200, gh-pages 'Deployed 31e13cb' · shipped as: the docs site, published from master 31e13cb · memory note: 2026-10-24_seq-D1-install-docs.md |
 | ◐ | `seq-C2-parquet-no-pandas` | claude | `mac-install-test` WP-2: keep datetimes out of pandas — **every** pandas datetime operation segfaults QGIS 4.2.1 on macOS, at `gt/image_manager.py:70` and `gt/video_manager.py:170` (the row's name is narrower than the work) | §2.6 | 2026-10-24 · #73 · verified: in QGIS 4.2.1's own interpreter (the plan's §3 harness): the SIGSEGV reproduced at exit 139, then test_imagemetadata.pq reading 5900x38 with its timestamp index intact AND the survey-CSV reader and compute_frame_indices returning [0, 250] — both call sites of §5. 43 tests pass under the broken pandas 3.0.3 and 464 under a working 3.1.0; a reverted reader fails 14 tests on good pandas and takes pytest down with exit 139 on the broken one · memory note: 2026-10-24_seq-C2-parquet-no-pandas.md |
+| ⏭ | `seq-D2-docs-pandas-per-version` | — | the site says which QGIS build the pandas segfault belongs to, and stops claiming the MBES table is read with `pandas.read_parquet` | §2.9 | Queued on the owner's word, 2026-10-24: *"Queue a docs row for the two website pages."* Three findings at `master` 62a7d85, all lane D (D-006): `image-metadata.md:19` is accurate about 4.2.1 but frames it as the reason, where **D-009** is; `macos.md:67`'s "on QGIS 4.2.1 only 10 of the 20" is version-shaped and unmeasured on 4.2.3 (that is `mac-ondevice-test`'s own open end, folded in); and `mbes-soundings.md:6` is now **false** — PR #81 moved `pygui/querybuilder_gui.py` onto `pandas_safe.read_parquet`. **Merging `website/` publishes the site** (§1 State) |
 
 **Order rules** (only about open rows; a closing session deletes the ones about itself):
 
@@ -114,8 +115,8 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 | done 2026-10-24 | both Windows setup scripts printed a **QGIS3** profile path while `metadata.txt` declares `qgisMinimumVersion=4.0`, so anyone following them copied the plugin into a directory QGIS 4 never reads — and both scripts SHIP in the artifact. `setup_mamba.bat:52` and `setup_windows.ps1:139` now print QGIS4, each with the reason beside it. Still untested on Windows (issue #4) | `seq-D1-install-docs` | ✅ closed |
 | done 2026-10-24 | the follow-up record is **D-010**, written by `plan-pandas-datetime-record` on the owner's word (*"Fold the D-004 enforce record into plan-pandas-datetime-record when it runs."* (that record is D-010)): D-004 restated and superseded, carrying `enforce: ^\s*(from|import)\s+PyQt6` over `mixins/`, `gt/`, `pygui/`, `scripts/` and the root modules. It matches an **import statement**, not the bare name, which is what lets the scope be wide: the generated `pygui/Ui_*.py` headers, two code comments and the prose in `metadata.txt`, `README.md` and `website/` all carry the string and none of them match | `sip-shim-d004` | **closed** |
 | done 2026-10-24 | the GUI half of the on-device test. The owner ran §6.1 and QGIS segfaulted at step 10 (`mixins/image_browser_mixin.py:606`, `pd.DataFrame([row])` on a row named by the object-dtype datetime index — `TODO_mac-install-test.md` §6.2). Fixed in **PR #100, merged `0155844`**; both test profiles were refreshed from `master` (they hold copies, and were stale) and **the owner then confirmed in the window: *"The image drew and QGIS stayed up"*** — no new crash report, the process still alive. Both halves of the on-device test now pass | `mac-ondevice-test` | **closed** |
-| lane D, next docs session | the published install page says '15 of the 20 Python packages it needs are not installed'; measured on macOS QGIS 4.2.1 it is 10 of 20 (6 blocking), because the app bundles pandas/numpy/pyarrow/scipy. gt/deps_check.py:73's comment generalises the same way. The runtime dialog counts correctly; it is the prose that is platform-shaped | `mac-ondevice-test` | the page and the comment say it per-platform, or drop the number |
-| lane D, next docs session | website/docs/data-model/image-metadata.md and website/docs/installation/macos.md state the 4.2.1 pandas-datetime behaviour unqualified; D-009 measured 4.2.3 clean, so the site should say it per-version. NOT edited here: merging website/ publishes the site and publishing is the owner's to time (queue §1 State) | `plan-pandas-datetime-record` | both pages say which QGIS build the segfault belongs to, or the owner declines |
+| **queued 2026-10-24 as `seq-D2-docs-pandas-per-version`, §2.9** | the published install page says '15 of the 20 Python packages it needs are not installed'; measured on macOS QGIS 4.2.1 it is 10 of 20 (6 blocking), because the app bundles pandas/numpy/pyarrow/scipy. `gt/deps_check.py:73`'s comment generalises the same way. The runtime dialog counts correctly; it is the prose that is platform-shaped — and the page now says 10, still tied to 4.2.1 and never measured on 4.2.3 | `mac-ondevice-test` | that row closes, or the owner declines it |
+| **queued 2026-10-24 as `seq-D2-docs-pandas-per-version`, §2.9** (the owner: *"Queue a docs row for the two website pages."*) | the site should say which build the pandas segfault belongs to, now that D-009 measured 4.2.3 clean. **This line overstated it when written and is corrected here:** `macos.md` says nothing about the segfault — its version-shaped claim is the dependency count at `:67` — while `mbes-soundings.md:6` was missed and is now false (PR #81). All three are in the queued row. Not edited by `plan-pandas-datetime-record`: merging `website/` publishes the site and publishing is the owner's to time (§1 State) | `plan-pandas-datetime-record` | that row closes, or the owner declines it |
 | the owner | D-009's three questions (scope, the enforce lines, permanent-with-a-review-trigger) and D-010's scope question carry this session's recommendation and are accepted as written when the PR merges. A different answer is a new superseding record, not an edit | `plan-pandas-datetime-record` | the owner merges the PR, or answers differently |
 
 ## 2. Prompts
@@ -139,6 +140,74 @@ as `WORKFLOW.md` §4.1. When a session closes, it removes its block and leaves t
 ### 2.7 `seq-U2-macos-profile-docs` (closed 2026-10-24; its prompt is in git history)
 
 ### 2.8 `plan-pandas-datetime-record` (closed 2026-10-24; its prompt is in git history)
+
+### 2.9 `seq-D2-docs-pandas-per-version`
+
+```text
+Work on docs-audit WP-D2 (the site says which QGIS build the pandas segfault belongs to), as session
+`seq-D2-docs-pandas-per-version` (slot 2 of PLANNING/TODO_session_sequence.md). First command:
+`git fetch origin && git worktree add ../groundtruther-seq-D2-docs -b claude/seq-D2-docs-pandas-per-version origin/master`
+(if that branch already exists, add the worktree on it and carry on from what it holds; an app-made
+session worktree counts: name its branch `claude/seq-D2-docs-pandas-per-version`), then work only
+there. `scripts/session.sh start seq-D2-docs-pandas-per-version` does this and prints this prompt.
+Claim first: a PR that only sets your row in §1 to ▶ ("started" and the date, your handle in Who) and
+moves ⏭ on, merged before any other work (`scripts/session.sh claim seq-D2-docs-pandas-per-version`).
+Memory: attach `epifanio/groundtruther-memory` (local: `scripts/memory-repo.sh sync` at start and
+end); read `MEMORY.md` and 2026-10-24_plan-pandas-datetime-record.md.
+Read PLANNING/WORKFLOW.md §1-§5; PLANNING/decisions/D-009_no-pandas-datetime-dtypes.md (the rule and
+its per-case table) and PLANNING/TODO_mac-install-test.md §5 (the 4.2.1 measurements and the 4.2.3
+box); gt/pandas_safe.py's module docstring.
+
+Read the State table in §1 before you touch anything: merging a `website/` path PUBLISHES the site,
+with no staging and no go — `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every
+push to `master` touching `website/**`. So this PR is left OPEN for the owner (§6.3), and publishing
+is theirs to time. Do not pass `--merge`.
+
+Three findings, measured at `master` 62a7d85 by `plan-pandas-datetime-record`. Verify each still
+holds before you edit it; do not take these line numbers on trust.
+
+1. `website/docs/data-model/image-metadata.md:19` — "because on QGIS 4.2.1 on macOS building a
+   pandas `datetime64` crashes the whole application". That sentence is TRUE of 4.2.1 and must not
+   be deleted, but it reads as if 4.2.1 were the reason the plugin behaves this way. It is not: the
+   reason is D-009, which is unconditional on every platform and every build, because the fault
+   cannot be probed for at runtime (the probe is the crash) and nothing tells the plugin which
+   bundle it is in. Say both: the fault was measured on 4.2.1, QGIS 4.2.3 (pandas 3.0.5, numpy
+   2.5.2, pyarrow 25.0.1) is clean, and the object-dtype index is what the plugin hands you on every
+   build regardless. Keep it short — it is a note for someone scripting against the table, not a
+   changelog.
+2. `website/docs/installation/macos.md:67` — "so on QGIS 4.2.1 only 10 of the 20 are actually
+   missing". Version-shaped and never measured on 4.2.3; the page already hedges with "The figures
+   on this site are examples, not promises". This is `mac-ondevice-test`'s own open end, folded in
+   here: it also covers `gt/deps_check.py:73`, whose comment generalises the same way. Either say
+   the figure per-build or drop the number and keep the hedge — your call, with the reason in the
+   PR. Note that touching `gt/deps_check.py` puts this PR outside the docs lane; it is one comment,
+   it changes no behaviour, and the PR is left open either way.
+3. `website/docs/data-model/mbes-soundings.md:6` — "read with `pandas.read_parquet`, or
+   `cudf.read_parquet` …" is now FALSE. An earlier open end deliberately left this line alone
+   because PR #73 did not touch `pygui/querybuilder_gui.py`; PR #81 (`de84a58`) did, and that file
+   now reads through `gt/pandas_safe.py` (`temporal="epoch_us"` for this table — int64 microseconds,
+   8 bytes a row). D-009's `enforce` line would reject a reintroduction. Correct the line. While you
+   are there, `:108` says the file's `datetime` column is `datetime64[us]`: that is true of the FILE
+   and should stay. What changed is only what the plugin hands back.
+
+Nothing else on the site names 4.2.1 or the crash — at 62a7d85, `git ls-files website docs | xargs
+grep -lniE '4\.2\.1|segfault|sigsegv'` returns exactly `image-metadata.md` and `macos.md`. Run it
+again rather than assuming, and widen the row if it has changed.
+
+Touch only `website/` and, for finding 2, the one comment in `gt/deps_check.py`. Change no
+behaviour. Decisions that bind this work: D-006 (user docs are the MkDocs site), D-009 (the pandas
+rule this describes), D-007 (the commit trailer).
+Needs the owner's answers: nothing, unless you would drop a page section rather than qualify it.
+Before closing: `mkdocs build --strict -f website/mkdocs.yml` clean (a throwaway venv from
+`website/requirements-docs.txt` on python3.12 — 3.15 cannot build watchdog), and read the RENDERED
+page, not the diff; `python3 PLANNING/check_planning.py` clean.
+Close by PLANNING/TODO_session_sequence.md §6.1: your row ✅ (or ◐, with its open ends) with the
+date, PRs and memory note; ⏭ on the next row that can run; your prompt removed from §2; any later
+prompt your work made stale. `scripts/session.sh close seq-D2-docs-pandas-per-version --mark … --prs
+… --verified … --note …` does the mechanical part and leaves the PR open. Then push the dated memory
+note `seq-D2-docs-pandas-per-version` and put its commit in your final report.
+```
+
 
 ## 3. Checks owed by the owner
 
