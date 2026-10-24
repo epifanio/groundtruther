@@ -57,6 +57,7 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | ✅ | `seq-C1-deps-check` | epifanio | `publish-0-4` WP-3: `gt/deps_check.py` — which required modules are importable, Qt-free | §2.3 | 2026-10-24 · #61 **merged by the owner 2026-10-24** (`master` 6e22c32; they said *"Go ahead and merge #61"*) · verified: throwaway venv in the scratchpad (Python 3.15.0, pytest 9.1.1; this Mac has no .venv): pytest tests/unit/test_deps_check.py -> 24 passed. Whole unit suite, after installing numpy pandas pydantic requests PyYAML scipy (needed to collect at all): 421 passed, 3 skipped, 5 pre-existing failures wanting pyarrow and osgeo/GDAL in files this PR does not touch. check_planning 0/0; py_compile clean; no print() (D-003) and a test asserts no qgis/Qt in sys.modules after import (D-008). Finding: a static module-level import-graph walk from groundtruther.py shows 16 of the 20 deps are reached unguarded (mostly via pygui/querybuilder_gui.py, imported eagerly by the dock), so their absence stops the dock being constructed at all; only av, cv2, PyOpenGL are guarded and pydantic/starlette are off the chain. starlette is in requirements.txt and no module imports it. · memory note: 2026-10-24_seq-C1-deps-check.md |
 | ⏭ | `seq-D1-install-docs` | — | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | wait met by `seq-U1-deps-message` 2026-10-24: the behaviour the page describes is **in `master` at `ab010ed`** (#67) — read the code and §2.4's receipts, not this row. Nothing blocks it, and it now holds slot 2's ⏭ (`seq-C2-parquet-no-pandas` closed 2026-10-24) |
 | ◐ | `seq-C2-parquet-no-pandas` | claude | `mac-install-test` WP-2: keep datetimes out of pandas — **every** pandas datetime operation segfaults QGIS 4.2.1 on macOS, at `gt/image_manager.py:70` and `gt/video_manager.py:170` (the row's name is narrower than the work) | §2.6 | 2026-10-24 · #73 · verified: in QGIS 4.2.1's own interpreter (the plan's §3 harness): the SIGSEGV reproduced at exit 139, then test_imagemetadata.pq reading 5900x38 with its timestamp index intact AND the survey-CSV reader and compute_frame_indices returning [0, 250] — both call sites of §5. 43 tests pass under the broken pandas 3.0.3 and 464 under a working 3.1.0; a reverted reader fails 14 tests on good pandas and takes pytest down with exit 139 on the broken one · memory note: 2026-10-24_seq-C2-parquet-no-pandas.md |
+| ⬜ | `plan-pandas-datetime-record` | — | promote "no pandas datetimes in `gt/`" to a decision record, and queue the call sites still unfixed | §2.8 | Added on the owner's word, 2026-10-24: *"Queue a planning session to promote 'no pandas datetimes in gt/' to a decision record."* Settles two of `seq-C2-parquet-no-pandas`'s open ends. Writes `PLANNING/` only |
 
 **Order rules** (only about open rows; a closing session deletes the ones about itself):
 
@@ -99,8 +100,8 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 | — | The GUI check in QGIS on the Mac is the owner's: queue §3 -> PLANNING/TODO_mac-install-test.md §6, both profiles already built | `mac-install-test` | closes when the owner reports what they saw |
 | when #73 merges | PR #73 is a code PR left for the owner to review and merge; the GUI confirmation is step 9 of TODO_mac-install-test.md §6 (browse an image in the gt-mac-test profile), plus a survey-metadata CSV in the video browser for the second call site | `seq-C2-parquet-no-pandas` | #73 merged and both paths exercised without taking QGIS down |
 | done 2026-10-24 | website/docs/data-model/image-metadata.md said the file is read with pandas.read_parquet and that the index is a DatetimeIndex. Corrected in **#76**, merged after #73 (`e9a0d47`) so the site never described unbuilt behaviour; the page is published. mbes-soundings.md:6 is deliberately NOT part of it — the MBES table is read by pygui/querybuilder_gui.py, which #73 does not touch, so that line is still accurate | `seq-C2-parquet-no-pandas` | ✅ closed |
-| next planning session | the no-datetime64 constraint binds every future gt/ reader of temporal data, and gt/pandas_safe.py is where a record would point; a build session writes none (WORKFLOW.md §6.2) | `seq-C2-parquet-no-pandas` | a decision record exists or the owner declines it |
-| unscheduled, outside lane C | the same crash lives in pygui/querybuilder_gui.py:620,733,739 and scripts/build_ribbon.py:75,90; arrow_table_to_dataframe() is the drop-in | `seq-C2-parquet-no-pandas` | both read without pd.read_parquet |
+| next planning session — **queued 2026-10-24 as `plan-pandas-datetime-record`, §2.8** | the no-datetime64 constraint binds every future gt/ reader of temporal data, and gt/pandas_safe.py is where a record would point; a build session writes none (WORKFLOW.md §6.2) | `seq-C2-parquet-no-pandas` | a decision record exists or the owner declines it |
+| unscheduled, outside lane C — **`plan-pandas-datetime-record` (§2.8) is asked to queue it** | the same crash lives in pygui/querybuilder_gui.py:620,733,739 and scripts/build_ribbon.py:75,90; arrow_table_to_dataframe() is the drop-in | `seq-C2-parquet-no-pandas` | both read without pd.read_parquet |
 
 ## 2. Prompts
 
@@ -171,6 +172,78 @@ Decisions that bind this work: D-006 (user-facing docs are the MkDocs site), D-0
 merging a website/ change publishes it (WORKFLOW.md §8). Memory notes to read: MEMORY.md,
 2026-10-24_mac-install-test.md. Docs check: mkdocs build --strict -f website/mkdocs.yml.
 ```
+
+### 2.8 `plan-pandas-datetime-record`
+
+```text
+Plan the decision record for "no pandas datetimes in gt/", as session `plan-pandas-datetime-record`
+(slot 2 of PLANNING/TODO_session_sequence.md). This is a PLANNING session: it writes the record, the
+plan and the queue rows, and builds nothing. First command:
+`git fetch origin && git worktree add ../groundtruther-plan-pandas-datetime-record -b claude/plan-pandas-datetime-record origin/master`
+(if that branch already exists, add the worktree on it and carry on from what it holds; an app-made
+session worktree counts: name its branch `claude/plan-pandas-datetime-record`), then work only there.
+`scripts/session.sh start plan-pandas-datetime-record` does this and prints this prompt. The skill
+`/plan-session` carries PLANNING/WORKFLOW.md §1–§5; read §4 step 5 (promoting an answer to a record),
+§5.3 and PLANNING/decisions/README.md for the record's shape.
+Check the tokens left and ask the owner which model to use.
+Claim first: a PR that only sets your row in §1 to ▶ ("started" and the date, your handle in Who) and
+moves ⏭ on, merged before any other work (`scripts/session.sh claim plan-pandas-datetime-record`).
+Memory: attach `epifanio/groundtruther-memory` (local: `scripts/memory-repo.sh sync` at start and
+end); read `MEMORY.md`, 2026-10-24_seq-C2-parquet-no-pandas.md and 2026-10-24_mac-install-test.md.
+Read PLANNING/WORKFLOW.md §1–§5; PLANNING/TODO_mac-install-test.md §5 (the measurements and the
+crash frame); PLANNING/DECISIONS.md and PLANNING/decisions/ (D-008 is the closest in shape — same
+lanes, and it explains why it carries no enforce regex); gt/pandas_safe.py as it stands on `master`.
+
+Why there is a record to write. In QGIS 4.2.1 on macOS, pandas' datetime C extension is broken (a
+pandas/numpy C-API ABI mismatch in QGIS's own bundle): every pandas datetime operation SIGSEGVs the
+application — pd.to_datetime, any datetime64 Series, pd.to_timedelta, and even an EMPTY
+datetime64 array. `seq-C2-parquet-no-pandas` fixed the two gt/ call sites (#73, `e9a0d47`) behind
+gt/pandas_safe.py and left this as an open end, because a build session writes no record
+(WORKFLOW.md §6.2). Three findings of its own decide the shape of the rule: the breakage CANNOT be
+probed for at runtime (the probe is the crash), so the rule is unconditional on every platform and
+not a macOS gate; pd.ArrowDtype looks like the tidy alternative and is a trap (reading one element
+back builds a pd.Timestamp and dies); and the real hazard is pandas' type INFERENCE — the
+DataFrame/Series constructors and set_index infer datetime64 from object-dtype datetimes — so "do
+not call pd.to_datetime" would be too narrow a rule to be useful.
+
+What to decide with the owner, each asked with a recommendation (WORKFLOW.md §4, step 5), then frozen:
+1. The scope the record binds: gt/ only, or every module that reads temporal data (pygui/ and
+   scripts/ have call sites too — see the open end below). Recommend the wider scope, since the
+   crash does not care which directory it is in.
+2. Whether it carries an `enforce:` regex for the checker (D4) or, like D-008, says why it cannot.
+   A regex for `pd.to_datetime|read_parquet|datetime64` over gt/, pygui/ and scripts/ would be
+   cheap, but it cannot see inference through a constructor, which is the real hazard, and it must
+   not fire on gt/pandas_safe.py itself. Recommend an enforce line WITH an exemption for
+   pandas_safe.py, and say plainly in the record that it catches the obvious half only.
+3. Whether the rule is permanent or expires when QGIS ships a fixed bundle. Recommend permanent
+   with a stated review trigger, since nothing tells the plugin which build it is running on.
+Write the record as PLANNING/decisions/D-009_<slug>.md (the next free id; confirm it is free) with
+its row in PLANNING/DECISIONS.md in the same PR, status accepted on merge (one maintainer,
+WORKFLOW.md §4 step 5). Point it at gt/pandas_safe.py as the one home, and cite the crash frame.
+
+Also settle, while you are in here, the second open end seq-C2 left: the same crash lives in
+pygui/querybuilder_gui.py:620,733,739 and scripts/build_ribbon.py:75,90, which are lanes U and P,
+outside lane C — arrow_table_to_dataframe() is the drop-in. Queue that as its own row (or rows, if
+the two lanes must not share a session) with a pastable prompt, and say in the order rules how it
+relates to seq-U2-macos-profile-docs, which also touches lane U. Then move both of seq-C2's open
+ends: the record one closes when the record exists; the call-site one closes when its row does.
+
+Touch only PLANNING/. Build nothing, change no code, deploy nothing (WORKFLOW.md §2).
+Needs the owner's answers: the three questions above, and any row you add (§7).
+Decisions that bind this work: D-007 (the commit trailer). D-008 is the model to follow, not a
+constraint on this one.
+Before closing: update PLANNING/TODO_mac-install-test.md §5 and PLANNING/TODO_INDEX.md if the record
+changes what they claim; `python3 PLANNING/check_planning.py` clean (it checks the record's front
+matter, its index row, and runs any enforce line you add over the whole tree — so an enforce regex
+that is too broad will fail the build, which is the point of trying it before you commit to it).
+Close by PLANNING/TODO_session_sequence.md §6.1: your row ✅ (or ◐, with its open ends) with the
+date, PRs and memory note; ⏭ on the next row that can run; your prompt removed from §2; any later
+prompt your work made stale. `scripts/session.sh close plan-pandas-datetime-record --mark … --prs …
+--verified … --note …` does the mechanical part. Your PR is docs-only, so you merge it yourself
+(§6.3). Then push the dated memory note `plan-pandas-datetime-record` and put its commit in your
+final report.
+```
+
 
 ## 3. Checks owed by the owner
 
