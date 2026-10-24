@@ -134,9 +134,21 @@ fails the build.
   **Do NOT run `compile_ui.sh` wholesale** — it regenerates from stale `.ui` and silently
   drops widgets. Hand-edit the generated `.py`, or regenerate only a `.ui` you've
   verified is current. (`app_settings` and `grass_settings` are known-stale.)
-- **Don't register child docks on the inner `self.w` QMainWindow** — it triggers a Qt6
-  `QToolBar::widgetForAction` crash during QGIS dock-walk. Register docks with the QGIS
-  main window via `iface.addDockWidget(...)` (see how image/GRASS docks do it).
+- **Never let a QMainWindow that owns an `addToolBar()` toolbar sit inside a dock registered
+  on the QGIS main window.** That is what triggers the Qt6 `QToolBar::widgetForAction` crash
+  during QGIS's dock-walk: `addToolBar()` and `QToolBar.addWidget()` create wrapper actions,
+  and Qt dereferences their widget mapping when it walks the tree during a dock move. `self.w`
+  is stripped of its toolbar *and* all its docks in `init_ui` for exactly this reason, and
+  `_image_toolbar` is a plain `QToolBar` in a `QVBoxLayout` rather than `addToolBar()`.
+  Registering **docks** on a freshly-created inner QMainWindow is *not* the cause and is done
+  three times today — `_image_inner_window` (image metadata, annotation editor) and
+  `_video_inner_window` (video annotations); `9ffac03` ("dock stability") says so in the code.
+  **One live instance of the real hazard remains:** `pygui/grass_mdi_gui.py:99`
+  `GrassTools.addToolBar("GrassModules")`, with eight `addWidget()` calls on it, embedded via
+  `gisToolSplitter` in the `gisTools` dock that `groundtruther_dockwidget.py:237` registers with
+  `iface.addDockWidget`. Unconfirmed — the panel only appears once GRASS is enabled, so nobody
+  has dragged it. The fix, if it does crash, is the one already used twice: a plain `QToolBar`
+  in a layout instead of `addToolBar()`.
 - **You can't reliably launch the QGIS GUI from an agent shell** (it exits with no
   output). Verify with the headless patterns below; the live GUI is the user's job.
 
