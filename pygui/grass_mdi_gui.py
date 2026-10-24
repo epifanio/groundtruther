@@ -31,7 +31,7 @@ GrassLayerTableWidgetItem
     property alongside the display text.
 
 GrassTools
-    QMainWindow that owns the ``GrassMdi`` widget and provides the toolbar
+    Plain ``QWidget`` that owns the ``GrassMdi`` widget and provides the toolbar
     for controlling MDI layout and launching individual GRASS module panels
     (r.geomorphon, r.param.scale, r.grm.lsi).  Delegates zoom/clear actions
     to ``GrassIntegrationMixin`` methods on the parent dockwidget.
@@ -73,12 +73,17 @@ class GrassMdi(QWidget, Ui_grass_mdi):
         self.setupUi(self)
 
 
-class GrassTools(QMainWindow):
-    """QMainWindow container for GRASS module panels and the layer/query table.
+class GrassTools(QWidget):
+    """Container for GRASS module panels and the layer/query table.
 
-    Layout overview:
-    - Central widget: ``GrassMdi`` (MDI area + query result browser + layer table)
+    Layout overview (a plain ``QVBoxLayout`` on this widget):
     - Toolbar: MDI-layout selector, layer-table toggle, module action buttons
+    - Below it: ``GrassMdi`` (MDI area + query result browser + layer table)
+
+    A plain ``QWidget``, not a ``QMainWindow``: this widget is embedded in the
+    ``gisTools`` dock registered on the QGIS main window, and it uses no
+    ``QMainWindow`` feature — no menu bar, no status bar, no docks, and (since the
+    dock-walk fix) no registered toolbar.  See CLAUDE.md's CRITICAL list.
 
     Module sub-windows (r.geomorphon, r.param.scale, r.grm.lsi) are created
     here and shown/hidden via their respective toolbar actions.  Query results
@@ -94,14 +99,6 @@ class GrassTools(QMainWindow):
         # self.region_response = self.parent.region_response
         # self.project = self.parent.project
         self.grass_mdi = GrassMdi()
-        self.setCentralWidget(self.grass_mdi)
-        
-        # bar = self.menuBar()
-        # file = bar.addMenu("File")
-        # file.addAction("New")
-        # file.addAction("cascade")
-        # file.addAction("Tiled")
-        # file.triggered[QAction].connect(self.windowaction)
         
         layout1 = QHBoxLayout()
         #layout2 = QVBoxLayout()
@@ -111,7 +108,7 @@ class GrassTools(QMainWindow):
         self.grass_widget = QWidget()
         self.grass_widget.setLayout(layout1)
         
-        # Plain QToolBar inside a QVBoxLayout, NOT QMainWindow.addToolBar().  This window
+        # Plain QToolBar inside a QVBoxLayout, NOT QMainWindow.addToolBar().  This widget
         # is embedded (via gisToolSplitter) in the gisTools dock that
         # groundtruther_dockwidget registers with iface.addDockWidget, and an
         # addToolBar()-registered toolbar's wrapper actions are what Qt6 dereferences in
@@ -126,13 +123,11 @@ class GrassTools(QMainWindow):
         self.moduleToolBar = QToolBar()
         self.moduleToolBar.setMovable(False)
 
-        _grass_container = QWidget()
-        _grass_vbox = QVBoxLayout(_grass_container)
+        _grass_vbox = QVBoxLayout(self)
         _grass_vbox.setContentsMargins(0, 0, 0, 0)
         _grass_vbox.setSpacing(0)
         _grass_vbox.addWidget(self.moduleToolBar)
         _grass_vbox.addWidget(self.grass_widget)
-        self.setCentralWidget(_grass_container)
         
         # On-the-fly module picker: type/autocomplete any GRASS module name and
         # open a dialog built from its interface schema (mirrors the FastGIS web
@@ -246,13 +241,6 @@ class GrassTools(QMainWindow):
         self.moduleToolBar.addAction(gemorphon_action)
         self.moduleToolBar.addAction(paramscale_action)
         self.moduleToolBar.addAction(grm_lsi_action)
-        
-        # Using a QToolBar object
-        # editToolBar = QToolBar("Edit", self.grassWidgetContents)
-        # self.grassWidgetContents.addToolBar(editToolBar)
-        # Using a QToolBar object and a toolbar area
-        # helpToolBar = QToolBar("Help", self.grassWidgetContents)
-        # self.grassWidgetContents.addToolBar(Qt.ToolBarArea.LeftToolBarArea, helpToolBar)
         
         #
         # self.geomorphon_dialog = GeoMorphonDialog(self)
