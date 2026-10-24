@@ -209,7 +209,7 @@ None of these bind work outside this plan, so none was promoted to a decision re
 | `publish-0-4 WP-3` | `gt/deps_check.py` + unit tests: which required modules are importable | — | C | M | ✅ `seq-C1-deps-check` 2026-10-24, PR #61 merged (`master` 6e22c32) |
 | `publish-0-4 WP-4` | `__init__.py` + one dialog and a log line when deps are missing; disable what cannot work | WP-3 | U | M | ✅ `seq-U1-deps-message` 2026-10-24, #67 in `master` `ab010ed`, GUI confirmed |
 | `publish-0-4 WP-5` | the install page on the docs site: what the Plugin Manager gives you and what it does not | WP-4 (done, `ab010ed`) | D | S | ✅ `seq-D1-install-docs` 2026-10-24, PR #85 merged (`master` 31e13cb), **published** |
-| `publish-0-4 WP-6` | **the owner's**: tag `v0.4`, build the zip, verify its contents, upload | WP-1…WP-5 | — | — | queue §3 |
+| `publish-0-4 WP-6` | **the owner's**: tag `v0.4`, build the zip, verify its contents, upload | WP-1…WP-5 **+ the on-device test** | — | — | queue §3 · **gated**: the owner, 2026-10-24, *"we need a real on device test, before anything is shipped"*. The data half passed (`mac-ondevice-test`, beside the queue); the GUI half of `TODO_mac-install-test.md` §6.1 is theirs and still open |
 
 WP-1 and WP-2 are both lane P and run in that order (the zip script is what removes the key-leak
 path, so it goes first). WP-2 is small enough to fold into WP-1 if the owner would rather have one
