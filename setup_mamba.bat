@@ -46,7 +46,10 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 :: ── Plugin location reminder ───────────────────────────────────────────────
-set PLUGIN_DIR=%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins
+:: QGIS4, not QGIS3: metadata.txt declares qgisMinimumVersion=4.0, so the
+:: plugin only loads from the QGIS4 profile tree. Printing the QGIS3 path
+:: sent Windows users to a directory QGIS 4 never reads.
+set PLUGIN_DIR=%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins
 
 echo.
 echo  Done!
