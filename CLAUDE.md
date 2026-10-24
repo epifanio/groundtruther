@@ -8,7 +8,7 @@ standalone). Published at https://plugins.qgis.org/plugins/groundtruther/.
 
 This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fastgis.md](docs/grass_fastgis.md).
 
-## Run / develop (Linux)
+## Run / develop (Linux; the macOS differences are called out)
 - QGIS 4.0+ runs on **system Python 3.14** (PEP-668, no pip). Plugin Python deps live
   in a **`.venv`** beside the source (created `--system-site-packages`); the plugin's
   [__init__.py](__init__.py) `_bootstrap_venv()` appends it to `sys.path` at load, so
@@ -16,6 +16,15 @@ This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fas
 - Install = **symlink** this dir into the QGIS profile and enable it:
   `~/.local/share/QGIS/QGIS4/profiles/default/python/plugins/groundtruther → <repo>`
   (folder MUST be named `groundtruther` — code imports `from groundtruther...`).
+- **On macOS the profiles root is elsewhere, and it is `QGIS4`, not `QGIS3`:**
+  `~/Library/Application Support/QGIS/QGIS4/profiles/<profile>/python/plugins/groundtruther`
+  (same folder-name rule). Measured on QGIS 4.2.1 by `mac-install-test`, 2026-10-24.
+  Note that a profile installed from a **release zip holds a COPY of the plugin, not a
+  symlink** — checking a later change there shows the OLD code until you reinstall
+  (`scripts/make-release-zip.sh <tag>`, then unpack over it; move any `.venv` aside and
+  put it back). The two test profiles `gt-mac-test` (with `.venv`) and `gt-mac-novenv`
+  (Plugin-Manager-equivalent) on the owner's Mac are copies of this kind — don't delete
+  them, other rows want them.
 - **Launch with `QT_QPA_PLATFORM=xcb qgis`** on Wayland, otherwise floating dock
   widgets can't be dragged/repositioned. After code changes, reload via the
   **Plugin Reloader** plugin (or restart QGIS).
@@ -176,6 +185,60 @@ fails the build.
   ```
 - Authoritative load check: init a `QgsApplication(offscreen)` and
   `qgis.utils.loadPlugin("groundtruther")` (add the profile plugins dir to `sys.path`).
+- **The recipe above is Linux-only** (`/usr/share/qgis/python`, `python3.14`). On macOS
+  there is no equivalent, and **the obvious improvisation is wrong**: see the next bullet
+  before you write one.
+- **macOS headless harness — read this before improvising one.** The app bundle's
+  `Contents/MacOS/python3.12` carries the hardened runtime with **no entitlements**, while
+  the app binary *is* granted `com.apple.security.cs.disable-library-validation`. So the app
+  can `dlopen` pip wheels and that interpreter cannot: every pip-installed `.so` fails with
+  `code signature … not valid for use in process: … different Team IDs`, and a session that
+  runs probes under it **will report perfectly good dependencies as broken**. Removing or
+  re-signing the wheel does not help. `qgis --code` is not a way out either: QGIS starts
+  offscreen, populates the profile, and never reaches the script. What works is a copy of
+  that interpreter, ad-hoc signed with the entitlement, placed so its `@rpath` resolves:
+  ```bash
+  A=/Applications/QGIS-final-4_2_1.app          # your bundle
+  H=/tmp/gt-harness; mkdir -p "$H/MacOS"
+  ln -s "$A/Contents/Frameworks" "$H/Frameworks"; ln -s "$A/Contents/Resources" "$H/Resources"
+  cp "$A/Contents/MacOS/python3.12" "$H/MacOS/py312"
+  cat > /tmp/ent.plist <<'EOF'
+  <?xml version="1.0" encoding="UTF-8"?>
+  <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+  <plist version="1.0"><dict>
+  <key>com.apple.security.cs.disable-library-validation</key><true/>
+  </dict></plist>
+  EOF
+  codesign --force --sign - --options runtime --entitlements /tmp/ent.plist "$H/MacOS/py312"
+  export PYTHONHOME="$A/Contents/Frameworks" \
+         PYTHONPATH="$A/Contents/Resources/python3.12/site-packages" \
+         PROJ_DATA="$A/Contents/Resources/qgis/proj" GDAL_DATA="$A/Contents/Resources/qgis/gdal" \
+         QT_QPA_PLATFORM=offscreen \
+         QT_QPA_PLATFORM_PLUGIN_PATH="$A/Contents/PlugIns/platforms" QT_PLUGIN_PATH="$A/Contents/PlugIns"
+  "$H/MacOS/py312" your_probe.py        # NOT python3 -I — see below
+  ```
+  The probe itself makes `groundtruther` resolve to the repo the same way the Linux recipe
+  does (`sys.modules["groundtruther"]` with `__path__ = [<repo>]`, then
+  `sys.path.insert(0, <repo>)`).
+- **Never pass `-I` to that interpreter.** Isolated mode ignores `PYTHONHOME`, so it dies
+  before reaching your script with `Fatal Python error: init_fs_encoding: failed to get the
+  Python codec of the filesystem encoding` / `No module named 'encodings'`. This collides
+  with the general advice to run scripts near untrusted files with `-I`; here the harness
+  wins. Verified `seq-U1-deps-message` and `seq-U2-macos-profile-docs`, 2026-10-24.
+- **The harness cannot verify the QGIS log panel.** `QgsMessageLog`'s `messageReceived`
+  signal is **never delivered in a non-GUI `QgsApplication`** — connecting the explicit
+  3-arg overload on `QgsApplication.messageLog()` and calling `processEvents()` captures
+  nothing, not even a *direct* `QgsMessageLog.logMessage`. To assert log output headlessly,
+  swap `qgis.core.QgsMessageLog` for a spy object; that works because our `_log` helpers
+  resolve it from the module at call time. So such a test proves `logMessage` was **called**,
+  never that the panel displays it.
+- **`import qgis.core` imports `pandas` and `pyarrow` itself**, before any plugin code runs,
+  so a plugin cannot choose its own copy: by the time `_bootstrap_venv()` runs they are
+  already in `sys.modules` and no `sys.path` change — append or prepend — displaces them.
+  On macOS QGIS 4.2.1 the bundled **pandas 3.0.3** is the broken piece (a pandas↔numpy C-API
+  ABI mismatch: every datetime operation SIGSEGVs the process), **not** the pandas/pyarrow
+  pairing — so **no pin fixes it**, and the plugin instead keeps datetimes out of pandas
+  (`gt/pandas_safe.py`). Full measurements: `PLANNING/TODO_mac-install-test.md` §3 and §5.
 - For pure `gt/` helpers, stub `groundtruther.configure.log_exception` to avoid pulling
   in Qt/UI.
 
