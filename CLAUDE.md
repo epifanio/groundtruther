@@ -218,7 +218,7 @@ fails the build.
   offscreen, populates the profile, and never reaches the script. What works is a copy of
   that interpreter, ad-hoc signed with the entitlement, placed so its `@rpath` resolves:
   ```bash
-  A=/Applications/QGIS-final-4_2_1.app          # your bundle
+  A=/Applications/QGIS-final-4_2_3.app          # your bundle
   H=/tmp/gt-harness; mkdir -p "$H/MacOS"
   ln -s "$A/Contents/Frameworks" "$H/Frameworks"; ln -s "$A/Contents/Resources" "$H/Resources"
   cp "$A/Contents/MacOS/python3.12" "$H/MacOS/py312"
