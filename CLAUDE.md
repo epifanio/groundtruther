@@ -144,11 +144,12 @@ fails the build.
   three times today — `_image_inner_window` (image metadata, annotation editor) and
   `_video_inner_window` (video annotations); `9ffac03` ("dock stability") says so in the code.
   The last site that still matched — `GrassTools.addToolBar("GrassModules")`, embedded via
-  `gisToolSplitter` in the `gisTools` dock — was converted to the plain-`QToolBar` form too, so
-  **no embedded window registers a toolbar any more**, and
-  `tests/unit/test_embedded_toolbar_shape.py` fails if one comes back. It was never seen to
-  crash (the panel needs GRASS enabled, and the walk does not reproduce offscreen), so that
-  change removes the configuration, not an observed crash.
+  `gisToolSplitter` in the `gisTools` dock — was converted to the plain-`QToolBar` form, and
+  `GrassTools` is now a plain **`QWidget`** rather than a `QMainWindow`, so it cannot reach
+  `addToolBar()` at all. **No embedded window registers a toolbar any more**, and
+  `tests/unit/test_embedded_toolbar_shape.py` fails if one comes back (it guards the base class
+  too). Neither change was ever seen to fix a crash — the panel needs GRASS enabled, and the
+  walk does not reproduce offscreen — so they remove the configuration, not an observed fault.
 - **You can't reliably launch the QGIS GUI from an agent shell** (it exits with no
   output). Verify with the headless patterns below; the live GUI is the user's job.
 

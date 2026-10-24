@@ -28,12 +28,14 @@ symptom is recorded in ``CLAUDE.md``'s CRITICAL list, and the fix that first
 diagnosed it is ``9ffac03``, whose own comment says the cause was
 "addToolBar()'s QToolBarWidgetAction bookkeeping, not dock reparenting itself".
 
-Three windows are in that embedded position today: ``self.w`` (the
+Three ``QMainWindow``s are in that embedded position today: ``self.w`` (the
 ``.ui``-generated window inside the plugin's own dock), ``_image_inner_window``
-and ``_video_inner_window``, plus ``GrassTools``, which reaches the ``gisTools``
-dock through ``gisToolSplitter``.  Each one builds its toolbar as a plain
-``QToolBar`` in a ``QVBoxLayout`` instead, and ``init_ui`` additionally strips
-``self.w``'s ``.ui``-declared toolbar with ``removeToolBar``.
+and ``_video_inner_window``.  Each builds its toolbar as a plain ``QToolBar`` in a
+``QVBoxLayout`` instead, and ``init_ui`` additionally strips ``self.w``'s
+``.ui``-declared toolbar with ``removeToolBar``.  ``GrassTools``, which reaches
+the ``gisTools`` dock through ``gisToolSplitter``, was the fourth until it stopped
+being a ``QMainWindow`` at all — it is a plain ``QWidget`` now, which is why
+``test_grasstools_is_a_plain_qwidget`` guards the base class as well.
 
 **Why this test is source-level.** The crash is an access violation, not an
 exception: it kills the interpreter, so a behavioural assertion reports nothing
@@ -112,3 +114,19 @@ def test_the_grass_toolbar_is_a_plain_qtoolbar():
         "GrassTools.moduleToolBar is built but never added to a layout — it would "
         "not be shown at all"
     )
+
+
+def test_grasstools_is_a_plain_qwidget():
+    """``GrassTools`` must not go back to being a ``QMainWindow``.
+
+    It uses no ``QMainWindow`` feature — no menu bar, no status bar, no docks and
+    no registered toolbar — and being one is what made `addToolBar()` reachable in
+    the first place.  A ``QWidget`` cannot call it.
+    """
+    src = (ROOT / "pygui/grass_mdi_gui.py").read_text(encoding="utf-8")
+    assert "class GrassTools(QWidget):" in src, (
+        "GrassTools is no longer a plain QWidget. It sits inside the gisTools dock "
+        "registered on the QGIS main window, so making it a QMainWindow again puts "
+        "addToolBar() and the dock-walk crash back within reach."
+    )
+    assert "class GrassTools(QMainWindow)" not in src

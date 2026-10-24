@@ -49,10 +49,10 @@ class GrassIntegrationMixin:
     # ------------------------------------------------------------------ #
 
     def init_grass_ui(self):
+        # GrassTools is a plain QWidget, so it needs no setWindowFlags(Qt.Widget) to
+        # behave as a child inside the floating gisTools dock — that call was only
+        # there to stop the old QMainWindow presenting itself as a top-level window.
         self.grassWidgetContents = GrassTools(self)
-        # Embed the inner QMainWindow as a plain child widget (Qt.Widget) so it
-        # behaves correctly inside the floating gisTools dock.
-        self.grassWidgetContents.setWindowFlags(Qt.WindowType(1))
         self.grassWidgetContents.setObjectName("grassDockWidgetContents")
         self.w.gisToolSplitter.insertWidget(0, self.grassWidgetContents)
 
