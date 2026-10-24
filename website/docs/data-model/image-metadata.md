@@ -4,12 +4,23 @@
 [Image Browser](../tools/image-browser.md), the map lookup, the metadata panel
 and every position GroundTruther sends to a service.
 
-- **Format:** Apache **Parquet** (read with `pandas.read_parquet`; the file
-  extension does not matter — `.pq` and `.parquet` are both fine).
+- **Format:** Apache **Parquet** (read with **pyarrow**, via
+  `pyarrow.parquet.read_table`; the file extension does not matter — `.pq` and
+  `.parquet` are both fine).
 - **One row per image.**
-- **Index:** a `DatetimeIndex` — the acquisition time of each frame. The metadata
-  panel's **Time** row displays it, so a table indexed by something else will
-  show a blank there but is otherwise usable.
+- **Index:** the acquisition time of each frame. The metadata panel's **Time**
+  row displays it, so a table indexed by something else will show a blank there
+  but is otherwise usable.
+
+!!! note "The time index comes back as `datetime` objects, not `datetime64`"
+    Store the index in your file as an ordinary Parquet timestamp — nothing
+    about the **file** changed. What changed is what the plugin hands to Python:
+    the index is an object-dtype index of plain `datetime.datetime` values
+    rather than a pandas `DatetimeIndex`, because on QGIS 4.2.1 on macOS
+    building a pandas `datetime64` crashes the whole application. Comparing,
+    sorting and displaying the values all work as you would expect; the `.dt`
+    accessor and time-based slicing do not. This matters only if you script
+    against the loaded table — in the GUI there is nothing to notice.
 - **Reference file:** the sample dataset's `projectdata.pq`
   ([Zenodo 7995674](https://zenodo.org/records/7995674)) — 123 394 rows,
   38 columns. The tables below describe exactly that file.
@@ -146,7 +157,7 @@ output** — their scaling is not recorded anywhere in the plugin or the dataset
 
 ## Timing
 
-All redundant with the DatetimeIndex; none is read by the plugin.
+All redundant with the time index; none is read by the plugin.
 
 | Column | dtype | Meaning |
 |---|---|---|
@@ -182,7 +193,7 @@ The minimum viable table is:
 
 | You must provide | Why |
 |---|---|
-| A `DatetimeIndex` | The metadata panel's Time row. |
+| A timestamp index | The metadata panel's Time row. Write it as a normal Parquet timestamp; the plugin converts it on load (see the note at the top). |
 | `Imagename` | File resolution and annotation joins. |
 | `habcam_lon`, `habcam_lat` | Position, if you provide nothing better. |
 | `Xutm`, `Yutm`, `dx`, `dy` | Strongly recommended — the accurate position path. `dx`/`dy` may be zero if your positions need no offset. |
