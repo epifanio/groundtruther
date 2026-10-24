@@ -109,8 +109,49 @@ def test_the_message_says_what_each_missing_package_costs(plugin_init):
 def test_the_message_links_the_install_docs(plugin_init):
     """A user told what is missing still needs to be told what to do."""
     html, _ = plugin_init._missing_dependency_message(_report(["numpy"]))
-    assert plugin_init.INSTALL_DOCS_URL in html
-    assert f'href="{plugin_init.INSTALL_DOCS_URL}"' in html
+    expected = plugin_init.install_docs_url()
+    assert expected in html
+    assert f'href="{expected}"' in html
+
+
+@pytest.mark.parametrize("platform, page", [
+    ("darwin", "macos/"),
+    ("win32", "windows/"),
+    ("linux", "linux/"),
+    ("linux2", "linux/"),          # older builds still report this
+])
+def test_each_platform_gets_its_own_install_page(plugin_init, platform, page):
+    """The route differs per OS, so the link must too.
+
+    Sending every reader to the index makes each of them find their own page
+    first, and the one thing we know about them is which OS they are on.
+    """
+    assert plugin_init.install_docs_url(platform) == \
+        plugin_init.INSTALL_DOCS_URL + page
+
+
+@pytest.mark.parametrize("platform", ["freebsd14", "cygwin", "aix", ""])
+def test_an_unlisted_platform_falls_back_to_the_index(plugin_init, platform):
+    """Better the index than a 404: there is no page for these."""
+    assert plugin_init.install_docs_url(platform) == plugin_init.INSTALL_DOCS_URL
+
+
+def test_the_link_is_a_page_that_the_nav_actually_publishes(plugin_init):
+    """Guard against the link and the docs drifting apart.
+
+    `mkdocs.yml`'s nav is the list of pages that exist; a URL built from a name
+    that is not in it would 404 on the published site. Checked without the
+    network, against the repository's own nav.
+    """
+    import pathlib
+    import re
+    nav = pathlib.Path(__file__).parents[2] / "website" / "mkdocs.yml"
+    text = nav.read_text(encoding="utf-8")
+    for platform, _ in plugin_init._INSTALL_DOCS_BY_PLATFORM:
+        url = plugin_init.install_docs_url(platform)
+        slug = url.rstrip("/").rsplit("/", 1)[-1]
+        assert re.search(rf"installation/{re.escape(slug)}\.md", text), \
+            f"{url} has no installation/{slug}.md in the mkdocs nav"
 
 
 def test_a_present_install_is_reported_as_loadable(plugin_init):
