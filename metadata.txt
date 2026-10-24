@@ -6,7 +6,7 @@
 name=GroundTruther
 qgisMinimumVersion=4.0
 description=A toolset for Seafloor Characterization
-version=0.4
+version=0.4.1
 author=epinux
 email=epiesasha@me.com
 
@@ -19,7 +19,14 @@ repository=https://github.com/epifanio/groundtruther
 # Recommended items:
 
 hasProcessingProvider=no
-changelog=0.4 - QGIS 4 / Qt6 release
+changelog=0.4.1 - security fixes required by the plugin repository
+    - The 0.4 upload was blocked by plugins.qgis.org's automated scan. Three
+      HIGH findings are fixed: a shell call (os.system on a joined ogr2ogr
+      command line) is now subprocess.run on the argument list; an MD5 cache
+      key declares usedforsecurity=False; and plugin_upload.py, the
+      maintainer's upload tool, is no longer shipped inside the plugin.
+    - No user-facing behaviour changes.
+    0.4 - QGIS 4 / Qt6 release
     - Ported the whole plugin to QGIS 4 and Qt6 (PyQt6 via the qgis.PyQt shim);
       the 0.3 build only ran on QGIS 3.
     - The main dock was split into focused mixins: image browser, video browser

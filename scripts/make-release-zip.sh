@@ -38,6 +38,11 @@ STRIP=(website tests PLANNING docs .claude .github)
 # from every install, which is why this is a file list and not another entry in
 # STRIP above.
 STRIP_FILES=(
+  # The upload tool itself. It is for the maintainer, never for someone who
+  # installed the plugin — and `import xmlrpc.client` in it is Bandit B411 at
+  # HIGH severity, one of the three findings that blocked the 0.4 upload.
+  # Stripping removes the finding rather than patching code nobody ships.
+  plugin_upload.py
   scripts/adopt-inventory.sh
   scripts/ci-wait.sh
   scripts/import-memory-inbox.sh
@@ -65,6 +70,7 @@ FORBIDDEN=(
   "$PLUGINNAME/scripts/hooks"
   "$PLUGINNAME/scripts/make-release-zip.sh"
   "$PLUGINNAME/scripts/mac-profile-install.sh"
+  "$PLUGINNAME/plugin_upload.py"
 )
 
 # Must exist in the artifact. qtui/icons/ is the 81-icon set the old make_zip.sh silently dropped.
