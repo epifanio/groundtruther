@@ -228,7 +228,7 @@ script. Three results bear directly on WP-3 and WP-4 — the first missing modul
 `GroundTruther` log tag is empty. It also found a blocker *outside* this plan's scope: every pandas datetime
 operation segfaults QGIS 4.2.1 on macOS, which kills the mandatory `HabCam.imagemetadata` read,
 queued as
-`seq-C2-pandas-datetime`. **0.4 would install and enable on macOS and then crash the application
+`seq-C2-parquet-no-pandas`. **0.4 would install and enable on macOS and then crash the application
 on first use**, so WP-6's upload should wait for that row unless the owner decides otherwise.
 
 ## Kickoff

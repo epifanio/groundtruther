@@ -16,7 +16,7 @@ Two corrections, both made after the owner tried it in the GUI:
 
 - §5 first blamed a pandas/pyarrow pair and a `timestamp[us]` column. The macOS crash report shows
   the fault is inside **pandas' own datetime C extension**; pyarrow is only the caller. The row was
-  re-scoped and renamed `seq-C2-pandas-datetime`, and it now covers `gt/video_manager.py:170` as
+  re-scoped and renamed `seq-C2-parquet-no-pandas`, and it now covers `gt/video_manager.py:170` as
   well as `gt/image_manager.py:70`.
 - §6 assumed the reader would switch profile. The owner opened QGIS, got `default`, and saw no
   GroundTruther at all. §6.0 now leads with the launch command, and §6.2 is a debugging guide.
@@ -235,7 +235,7 @@ macOS QGIS 4.2.1.**
 So the fix is in the plugin: keep datetimes out of pandas on this platform — read parquet through
 `pyarrow` and hand back the timestamp column as something else (epoch integers, strings, or the
 index), and replace `pd.to_datetime` with parsing that does not build a pandas datetime dtype.
-Queued as `seq-C2-pandas-datetime`. It is bigger than a bug: it is a constraint on every future
+Queued as `seq-C2-parquet-no-pandas`. It is bigger than a bug: it is a constraint on every future
 `gt/` reader, which is why it is worth a decision record if the owner agrees — a build session
 writes neither (`WORKFLOW.md` §6.2).
 
@@ -338,7 +338,7 @@ in both profiles — `qgis.utils.findPlugins` returns `['groundtruther']` with v
    `~/dev/groundtruther_test_dataset/test_imagemetadata.pq`, and save.
 10. **The one that matters.** Browse an image. **Expect QGIS to vanish** — no dialog, no plugin
     error, the whole application gone. That is §5 reached through the UI. If QGIS *survives* and
-    shows a HabCam image, §5 is wrong about the GUI and `seq-C2-pandas-datetime` needs re-scoping;
+    shows a HabCam image, §5 is wrong about the GUI and `seq-C2-parquet-no-pandas` needs re-scoping;
     please say so.
 
 Please don't delete the two profiles afterwards; `seq-C2` will want them.
@@ -407,7 +407,7 @@ checking the harness first would have saved the detour.
 | Package | Scope | Depends on | Lane | Size | State |
 |---|---|---|---|---|---|
 | `mac-install-test WP-1` | install from the zip, confirm the no-`.venv` blocker, measure every dependency, exercise `gt/` against the dataset, leave the owner §6 | — | U | M | ✅ this session |
-| `mac-install-test WP-2` | keep datetimes out of pandas: `gt/image_manager.py:70` and `gt/video_manager.py:170` | WP-1 | C | M | queued `seq-C2-pandas-datetime` |
+| `mac-install-test WP-2` | keep datetimes out of pandas: `gt/image_manager.py:70` and `gt/video_manager.py:170` | WP-1 | C | M | queued `seq-C2-parquet-no-pandas` |
 | `mac-install-test WP-3` | the macOS profile path and the faithful headless harness, in `CLAUDE.md` and the install page | WP-1 | U + D | S | queued `seq-U2-macos-profile-docs` |
 
 ## 8. Lane split
