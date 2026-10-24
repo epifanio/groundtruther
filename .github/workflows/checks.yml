@@ -1,0 +1,50 @@
+# The tests and the docs build, on every pull request.
+#
+# Until this existed the only pre-merge gate was `planning rules`: the suite had
+# never run in CI at all, and `mkdocs --strict` ran for the first time in the
+# push-to-master job that also PUBLISHES the site — so a broken internal link
+# was found by publishing it. Both now run before a merge.
+#
+# No path filter, on purpose. These are required-check shaped: a filtered job is
+# "skipped" rather than "passed", and a PR that changes only Python would show no
+# docs result at all. Both jobs are short enough that always running is cheaper
+# than reasoning about when they should.
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+jobs:
+  tests:
+    name: unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r dependencies/requirements-test.txt
+      # tests/unit only: tests/gui needs QGIS importable and tests/integration
+      # needs a live FastGIS key, and both auto-skip rather than fail, so naming
+      # the directory keeps a green run honest about what it covered.
+      - run: pytest tests/unit -q
+
+  docs:
+    name: docs build (strict)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r website/requirements-docs.txt
+      # --strict turns a broken internal link or a page missing from the nav
+      # into a failure. This is the same build docs.yml publishes; the only
+      # difference is that this one does not deploy.
+      - run: mkdocs build --strict --config-file website/mkdocs.yml

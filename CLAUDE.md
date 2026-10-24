@@ -171,6 +171,10 @@ fails the build.
   logic to the stateless `gt/` package so it can be unit-tested (**D-008**: `gt/` stays
   importable without QGIS; `task_runner.py` is the named exception). `conftest.py`
   stubs `groundtruther.configure` so `gt/` imports stay QGIS-free.
+- **CI runs `pytest tests/unit` and `mkdocs build --strict` on every PR**
+  (`.github/workflows/checks.yml`, from `dependencies/requirements-test.txt`).
+  Before that workflow existed the suite had never run in CI and the strict docs
+  build first ran in the job that *publishes* the site.
 - Ad-hoc syntax check: `.venv/bin/python -m py_compile <files>`.
 - Import/construct under QGIS offscreen — make `groundtruther` resolve to the repo:
   ```bash
