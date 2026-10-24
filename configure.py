@@ -188,6 +188,8 @@ class ConfigDialog(QDialog, AppSettings):
         self.gpu_avaibility.currentIndexChanged.connect(self._on_gpu_index_changed)
         self.setOption.clicked.connect(self.write_config)
         self.quit.clicked.connect(self.close)
+        # Runs last: every section, generated or programmatic, must already exist.
+        self._make_sections_collapsible()
 
         # Repurpose the (otherwise unused) VRT row as the GroundTruther session
         # file picker — avoids regenerating the stale app-settings .ui.
@@ -336,6 +338,62 @@ class ConfigDialog(QDialog, AppSettings):
         )
         if file_name:
             self.mbes_path.setText(file_name)
+
+
+    # ------------------------------------------------------------------ #
+    # Collapsible sections                                                #
+    # ------------------------------------------------------------------ #
+
+    #: Sections that start collapsed for a first-run user. These are the ones
+    #: most installs never touch — the transport defaults are correct and the
+    #: mesh knobs are live-tunable on the dock itself. A saved state always
+    #: wins over this, so it only affects the very first open.
+    _COLLAPSED_BY_DEFAULT = ("filesystem_config_box", "roughness_config_box")
+
+    def _make_sections_collapsible(self):
+        """Give every settings section a collapsible header.
+
+        The dialog carries all 27 keys in seven sections and is taller than many
+        screens, so it opens scrolled and you hunt for the row you want. Each
+        section can now be folded away, and remembers that between sessions.
+
+        Each existing box is **wrapped** rather than converted: the sections come
+        from the generated (and stale) app-settings UI, and moving a *widget*
+        into another layout is safe where re-parenting its layout is not. The
+        inner box is flattened and un-titled so the pair reads as one frame.
+        """
+        try:
+            from qgis.gui import QgsCollapsibleGroupBox
+        except Exception as exc:          # noqa: BLE001 - cosmetic only
+            log_exception("settings: collapsible sections unavailable", exc, warn=True)
+            return
+
+        layout = self.scrollAreaWidgetContents.layout()
+        if layout is None:
+            return
+        # Snapshot first: the loop mutates the layout it walks.
+        boxes = []
+        for i in range(layout.count()):
+            w = layout.itemAt(i).widget()
+            if isinstance(w, QGroupBox) and not isinstance(w, QgsCollapsibleGroupBox):
+                boxes.append((i, w))
+
+        for index, box in boxes:
+            title = box.title()
+            name = box.objectName() or f"section_{index}"
+            wrapper = QgsCollapsibleGroupBox(title, self.scrollAreaWidgetContents)
+            # The objectName is the key QgsCollapsibleGroupBox stores its
+            # expanded/collapsed state under — without it nothing persists.
+            wrapper.setObjectName(f"gt_section_{name}")
+            wrapper.setSaveCollapsedState(True)
+            inner = QVBoxLayout(wrapper)
+            inner.setContentsMargins(0, 0, 0, 0)
+            box.setTitle("")              # the wrapper shows it now
+            box.setFlat(True)             # ... so drop the duplicate frame
+            inner.addWidget(box)          # reparents `box` off the old layout
+            layout.insertWidget(index, wrapper)
+            if name in self._COLLAPSED_BY_DEFAULT:
+                wrapper.setCollapsed(True)
 
     def _add_video_annotation_row(self):
         """Append the 'Annotations' row to the Video group box.
