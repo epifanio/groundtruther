@@ -1,7 +1,7 @@
 #/***************************************************************************
 # GroundTruther
 #
-# A toolset for Seafloor Caracterization
+# A toolset for Seafloor Characterization
 #							 -------------------
 #		begin				: 2023-05-09
 #		git sha				: $Format:%H$

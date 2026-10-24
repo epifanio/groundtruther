@@ -5,7 +5,7 @@
 [general]
 name=GroundTruther
 qgisMinimumVersion=4.0
-description=A toolset for Seafloor Caracterization
+description=A toolset for Seafloor Characterization
 version=0.4
 author=epinux
 email=epiesasha@me.com
@@ -19,15 +19,30 @@ repository=https://github.com/epifanio/groundtruther
 # Recommended items:
 
 hasProcessingProvider=no
-# Uncomment the following line and add your changelog:
-changelog=fixing issue with settings and miove grass widgets into a separate file, rename key settings. remove hardcoded url
+changelog=0.4 - QGIS 4 / Qt6 release
+    - Ported the whole plugin to QGIS 4 and Qt6 (PyQt6 via the qgis.PyQt shim);
+      the 0.3 build only ran on QGIS 3.
+    - The main dock was split into focused mixins: image browser, video browser
+      and per-frame video annotation, annotation editor, GRASS, report, settings
+      and dock-layout persistence.
+    - GRASS GIS work now goes through one HTTP client (gt/grass_api.py): set and
+      show the computational region, query rasters and backscatter, and run
+      arbitrary GRASS modules from schema-driven dialogs, asynchronously as QGIS
+      tasks.
+    - Settings moved to config/config.yaml with a pydantic schema and per-key,
+      severity-aware validation, so one stale path disables only its own feature
+      instead of blocking startup. The hardcoded service URL is gone.
+    - User documentation is now a MkDocs site: https://epifanio.github.io/groundtruther/
+    - Python dependencies are loaded from a virtualenv beside the plugin; a
+      Plugin Manager install does not create one yet, so this release stays
+      experimental. See the install page in the documentation.
 
 # Tags are comma separated with spaces allowed
-tags=python
+tags=seafloor,bathymetry,multibeam,backscatter,habitat,benthic,marine,GRASS,raster,imagery,video,annotation,oceanography
 
-homepage=https://github.com/epifanio/groundtruther
+homepage=https://epifanio.github.io/groundtruther/
 category=Plugins
-icon=qtui/icons/qgis/epi.gif
+icon=qtui/icons/epi.gif
 # experimental flag
 experimental=True
 
@@ -39,7 +54,6 @@ deprecated=False
 # Check the documentation for more information.
 # plugin_dependencies=
 
-Category of the plugin: Raster, Vector, Database or Web
 # category=
 
 # If the plugin can run on QGIS Server.
