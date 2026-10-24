@@ -26,6 +26,25 @@ feature string from `gt/deps_check.REQUIREMENTS`, so the page and the plugin say
 carries **15** (`pydantic` is `blocks_load=False`). The page follows the table, which is what the
 code computes. Open end below.
 
+**2026-10-24, `seq-U1-deps-message`: WP-6's artifact was dry-run end to end, and it passes.** Not
+the release — no `v0.4` tag was created and nothing was uploaded; both stay the owner's (§6 Q5).
+Built with `scripts/make-release-zip.sh` from a throwaway tag at `master` `9d01eb1` (deleted after),
+on macOS, and checked:
+
+| Check | Result |
+|---|---|
+| structure | 2.8 MB, 239 files, exactly one top-level `groundtruther/` |
+| forbidden paths | none — no `config/config.yaml`, `.venv`, `PLANNING/`, `website/`, `tests/`, `docs/`, `.claude/`, `.github/`, `grassdata/`, `ribbon_work/` |
+| icons | 82 under `qtui/icons/`; the declared `qtui/icons/epi.gif` present |
+| `metadata.txt` | parses, one `[general]`, no key containing a space, `version=0.4`, `experimental=True`, `qgisMinimumVersion=4.0`, changelog names 0.4 |
+| secret | no real `config/config.yaml` exists on that machine; the shipped example carries `grass_api_key: ""`; no key-shaped assignment anywhere in the tree |
+| D-004 | **no `PyQt6` import in any shipped `.py`** — the `sip` fix (#91) ships as `from qgis.PyQt import sip` |
+| it loads | unpacked into a clean profile with **no `.venv`**: `startPlugin` True, 13 messages tagged `GroundTruther`, WP-4's dialog path working from the artifact itself |
+
+So the only parts of WP-6 left are the ones no session may do: create the real tag, build from it, and
+upload with the owner's plugins.qgis.org credentials. Rebuild from the real tag anyway rather than
+shipping a dry-run zip, and `unzip -l` it once before uploading.
+
 **2026-10-24, `seq-U1-deps-message`: WP-4 is in `master`** — PR
 [#67](https://github.com/epifanio/groundtruther/pull/67), merged by the owner at `ab010ed` on their
 word (*"Go ahead and merge #67"*), after being opened and left for their review (§6.3,
@@ -256,6 +275,11 @@ operation segfaults QGIS 4.2.1 on macOS, which kills the mandatory `HabCam.image
 queued as
 `seq-C2-parquet-no-pandas`. **0.4 would install and enable on macOS and then crash the application
 on first use**, so WP-6's upload should wait for that row unless the owner decides otherwise.
+**Updated 2026-10-24:** that row's fix is in `master` (#73), but the row is still ◐ — its open end is
+the GUI confirmation that both call sites now survive (step 9 of `TODO_mac-install-test.md` §6). So
+the caution stands, and what it now waits on is that check rather than the work. The root cause is
+QGIS's own bundled pandas 3.0.3, which cannot hold a datetime at all, so no pin in this plan fixes
+it; `plan-pandas-datetime-record` is promoting the rule to a decision record.
 
 ## Kickoff
 
