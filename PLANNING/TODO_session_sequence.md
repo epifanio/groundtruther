@@ -72,7 +72,7 @@ Sessions that run without a queued row (urgent fixes, follow-ups) register here 
 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
-| ▶ | `mac-install-test` | epifanio | install GroundTruther on macOS QGIS 4.2.1 and exercise it against the Zenodo test dataset | — | started 2026-10-24 |
+| ◐ | `mac-install-test` | epifanio | install GroundTruther on macOS QGIS 4.2.1 and exercise it against the Zenodo test dataset | — | 2026-10-24 · #54 (claim), this PR · verified: installed from a `make-release-zip.sh` artifact into two fresh profiles (`gt-mac-test` with a `.venv`, `gt-mac-novenv` without). Found two blockers: `gt.image_manager.load_metadata` **SIGSEGVs QGIS 4.2.1** and no `sys.path` fix exists, and `CLAUDE.md`'s headless recipe makes good wheels look broken. 23 of 24 deps work; `pydantic` fails in *stock* QGIS. Full measurements, and the owner's GUI checklist, in `PLANNING/TODO_mac-install-test.md` · memory note: 2026-10-24_mac-install-test.md |
 
 ### The owner's list (not sessions)
 
@@ -98,6 +98,8 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 | the owner's yes or no | the artifact still carries ~1 MB of repo furniture beyond the six stripped dirs (.githooks/, scripts/, help/, epsg, CLAUDE.md, pytest.ini, pylintrc, pb_tool.cfg, compile_ui.sh, tmp/) — asked in #50 | `seq-P2-release-zip` | they answer; if yes, the strip list grows in seq-P1-release-metadata |
 | before the next session that closes a code PR | scripts/session.sh close reuses whatever PR is open on claude/<session> and merges it, so closing on the code branch would have merged #56 — exactly how #50 went in by mistake. Branch claude/close-guard adds a path guard and is NOT in master. Until it lands, close a code session on a second branch cut from origin/master, with PLANNING/queue.py close plus the PR by hand (done here, and again by `seq-C1-deps-check` on 2026-10-24) | `seq-P1-release-metadata` | claude/close-guard is merged, or the rulebook names the two-branch order |
 | the owner's review | PR #61 adds gt/deps_check.py and tests/unit/test_deps_check.py; it is a code PR, so per §6.3 it was opened and left for the owner to review and check in QGIS. CI green. blocks_load in REQUIREMENTS is the one claim no test can prove - it is read off the static import graph at master 4f4d6b5 | `seq-C1-deps-check` | the owner has reviewed and merged #61 |
+| — | PR for this record awaits CI and the session's own merge (docs-only) | `mac-install-test` | closes when merged |
+| — | The GUI check in QGIS on the Mac is the owner's: queue §3 -> PLANNING/TODO_mac-install-test.md §6, both profiles already built | `mac-install-test` | closes when the owner reports what they saw |
 
 ## 2. Prompts
 
