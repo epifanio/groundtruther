@@ -111,11 +111,28 @@ class GrassTools(QMainWindow):
         self.grass_widget = QWidget()
         self.grass_widget.setLayout(layout1)
         
-        #self.grassWidgetContents.setCentralWidget(self.gis_tool_report)
-        self.setCentralWidget(self.grass_widget)
+        # Plain QToolBar inside a QVBoxLayout, NOT QMainWindow.addToolBar().  This window
+        # is embedded (via gisToolSplitter) in the gisTools dock that
+        # groundtruther_dockwidget registers with iface.addDockWidget, and an
+        # addToolBar()-registered toolbar's wrapper actions are what Qt6 dereferences in
+        # QToolBar::widgetForAction while walking the widget tree during a dock move --
+        # the dock-walk crash in CLAUDE.md.  The 8 addWidget() calls below make that
+        # worse: each one creates a QWidgetAction.  Mirrors self.w.toolBar in
+        # groundtruther_dockwidget.init_ui and _image_toolbar in ImageBrowserMixin.
+        #
+        # toggleViewAction() is deliberately gone with addToolBar(): it existed only to
+        # disable this toolbar's entry in the QMainWindow toolbar context menu, and an
+        # unregistered toolbar has no such entry.
+        self.moduleToolBar = QToolBar()
+        self.moduleToolBar.setMovable(False)
 
-        self.moduleToolBar = self.addToolBar("GrassModules")
-        self.moduleToolBar.toggleViewAction().setEnabled(False)
+        _grass_container = QWidget()
+        _grass_vbox = QVBoxLayout(_grass_container)
+        _grass_vbox.setContentsMargins(0, 0, 0, 0)
+        _grass_vbox.setSpacing(0)
+        _grass_vbox.addWidget(self.moduleToolBar)
+        _grass_vbox.addWidget(self.grass_widget)
+        self.setCentralWidget(_grass_container)
         
         # On-the-fly module picker: type/autocomplete any GRASS module name and
         # open a dialog built from its interface schema (mirrors the FastGIS web

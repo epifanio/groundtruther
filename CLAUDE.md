@@ -143,12 +143,12 @@ fails the build.
   Registering **docks** on a freshly-created inner QMainWindow is *not* the cause and is done
   three times today — `_image_inner_window` (image metadata, annotation editor) and
   `_video_inner_window` (video annotations); `9ffac03` ("dock stability") says so in the code.
-  **One live instance of the real hazard remains:** `pygui/grass_mdi_gui.py:99`
-  `GrassTools.addToolBar("GrassModules")`, with eight `addWidget()` calls on it, embedded via
-  `gisToolSplitter` in the `gisTools` dock that `groundtruther_dockwidget.py:237` registers with
-  `iface.addDockWidget`. Unconfirmed — the panel only appears once GRASS is enabled, so nobody
-  has dragged it. The fix, if it does crash, is the one already used twice: a plain `QToolBar`
-  in a layout instead of `addToolBar()`.
+  The last site that still matched — `GrassTools.addToolBar("GrassModules")`, embedded via
+  `gisToolSplitter` in the `gisTools` dock — was converted to the plain-`QToolBar` form too, so
+  **no embedded window registers a toolbar any more**, and
+  `tests/unit/test_embedded_toolbar_shape.py` fails if one comes back. It was never seen to
+  crash (the panel needs GRASS enabled, and the walk does not reproduce offscreen), so that
+  change removes the configuration, not an observed crash.
 - **You can't reliably launch the QGIS GUI from an agent shell** (it exits with no
   output). Verify with the headless patterns below; the live GUI is the user's job.
 
