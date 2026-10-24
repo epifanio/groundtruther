@@ -18,7 +18,7 @@
         <link rel="prev" href="..">
       
       
-        <link rel="next" href="linux/">
+        <link rel="next" href="plugin-manager/">
       
       
         
@@ -442,6 +442,8 @@
       
         
       
+        
+      
     
     
     
@@ -497,6 +499,34 @@
           </label>
           <ul class="md-nav__list" data-md-scrollfix>
             
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="plugin-manager/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    From the QGIS Plugin Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
               
             
               
@@ -1301,6 +1331,14 @@ own. Installing it has three parts:</p>
 <li><strong>Make the plugin's Python dependencies importable by QGIS's Python.</strong></li>
 <li><strong>Install the plugin itself</strong> (QGIS Plugin Manager, or a symlink for development).</li>
 </ol>
+<div class="admonition warning">
+<p class="admonition-title">Step 2 is not optional, and the Plugin Manager does not do it</p>
+<p>Installing GroundTruther from <em>Plugins → Manage and Install Plugins</em> gives you
+the plugin's code — <strong>not</strong> the 20 Python packages it needs. Without them the
+plugin loads, shows one dialog naming what is missing, and cannot open its
+panel. Read <strong><a href="plugin-manager/">From the QGIS Plugin Manager</a></strong> for what
+that looks like and why, then do step 2 below for your platform.</p>
+</div>
 <div class="admonition info">
 <p class="admonition-title">The key idea: deps must reach <em>QGIS's</em> Python</p>
 <p>QGIS ships and uses its <strong>own</strong> Python interpreter. The plugin's extra
@@ -1342,6 +1380,10 @@ Then install the plugin (below).</p>
 <p>=== "From the QGIS Plugin Manager"
     <em>Plugins → Manage and Install Plugins → search "GroundTruther" → Install.</em>
     (Marked experimental — enable <em>Show experimental plugins</em> in settings.)</p>
+<div class="highlight"><pre><span></span><code>This installs the plugin's code only. **Do the dependency step above first**
+— see [From the QGIS Plugin Manager](plugin-manager.md) for what happens if
+you don't, and which packages stop the plugin from starting at all.
+</code></pre></div>
 <p>=== "From source (development)"
     Symlink the repository into your QGIS profile's plugins folder; the folder
     <strong>must</strong> be named <code>groundtruther</code>:</p>
