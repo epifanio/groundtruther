@@ -37,12 +37,22 @@ if [[ $USE_VENV -eq 0 ]] && command -v mamba &>/dev/null; then
 fi
 
 # ── Pip venv fallback (system QGIS must already be installed) ─────────────────
-echo "==> Using pip venv (--system-site-packages)"
-python3 -m venv --system-site-packages gtenv
-source gtenv/bin/activate
+# The venv MUST be `.venv`, beside the plugin source: that is the one path
+# `__init__.py`'s _bootstrap_venv() appends to sys.path, so a venv anywhere else
+# or under any other name is one the plugin never loads.  This script used to
+# create `gtenv` in the current directory, which was exactly that bug.
+HERE="$(cd "$(dirname "$0")" && pwd)"
+VENV="$HERE/.venv"
+
+echo "==> Using pip venv (--system-site-packages) at $VENV"
+python3 -m venv --system-site-packages "$VENV"
+# shellcheck disable=SC1091
+source "$VENV/bin/activate"
 pip install --upgrade pip
-pip install -r "$(dirname "$0")/dependencies/requirements.txt"
+pip install -r "$HERE/dependencies/requirements.txt"
 
 echo ""
-echo "==> Done.  Activate with:"
-echo "      source gtenv/bin/activate"
+echo "==> Done.  QGIS picks these up on its own: _bootstrap_venv() appends"
+echo "    $VENV to sys.path when the plugin loads."
+echo "    To use the same interpreter yourself:"
+echo "      source $VENV/bin/activate"
