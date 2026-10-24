@@ -372,8 +372,9 @@ in both profiles — `qgis.utils.findPlugins` returns `['groundtruther']` with v
    in `gt-mac-test`: `mac-ondevice-test` wrote that config into the profile on 2026-10-24, pointing
    at the whole dataset (images, metadata, the detector CSV, the soundings and the reference
    surface), with an empty `grass_api_key`. Open Settings to look at it, then go on to 10.
-10. **The one that matters.** Browse an image. **Expect it to work**: the image draws, with its
-    annotation boxes, and QGIS stays up.
+10. **The one that matters.** Browse an image. **2026-10-24: the owner ran this and QGIS vanished.**
+    See §6.2 — the crash is real, its cause is known, and it blocks the 0.4 upload. Expect it to
+    work only once that is fixed: the image draws, with its annotation boxes, and QGIS stays up.
 
     **This expectation was reversed on 2026-10-24, and that is the point of the step.** It used to
     read *"Expect QGIS to vanish — no dialog, no plugin error, the whole application gone"*, because
@@ -388,6 +389,94 @@ in both profiles — `qgis.utils.findPlugins` returns `['groundtruther']` with v
     **If QGIS still vanishes**, the fix does not reach the path the dock actually uses: say so, and
     name what you clicked. That is a new blocker and it blocks the 0.4 upload — not a re-scoping of
     `seq-C2`, whose own call sites are measured and fixed.
+
+### 6.2 The crash step 10 found — `pd.DataFrame([row])` with a datetime row name
+
+**2026-10-24. The owner loaded the plugin, opened the dock, and QGIS vanished** — reported as:
+*"i was able to load the plugin, open its gui, but the image browser was missing the component to
+browse the images (buttons and slider to switch image indexes) - when I open the image annotation
+tool, click on a row of an annotated image got me a crash"*. So the trigger was **the annotation
+tool's row click**, not the browse buttons, which they could not find (§6.3).
+
+The step used to predict exactly this, and `mac-ondevice-test` had just argued it would not happen.
+Both were right about their own evidence: the reads are fixed, and the dock crashes anyway, one call
+further on.
+
+**The faulting frame**, from `~/Library/Logs/DiagnosticReports/QGIS-final-4_2_1-2026-10-24-094356.ips`
+— `SIGSEGV`, `EXC_BAD_ACCESS`, `KERN_INVALID_ADDRESS at 0x20`, main thread:
+
+```text
+0  pandas_datetime…so   get_datetime_metadata_from_dtype
+1  np_datetime…so       pandas._libs.tslibs.np_datetime.is_supported_dtype
+9  lib…so               pandas._libs.lib.maybe_convert_objects
+   … slot_tp_new / type_call: a pandas object is being CONSTRUCTED
+```
+
+So this is not a Parquet read. It is pandas **inferring a dtype** while constructing an object, and
+`gt/pandas_safe.py` already names that hazard — it just does not reach this call.
+
+**How the row click reaches it.** `pygui/annotation_editor_gui.py:690` emits `seek_requested` →
+`mixins/annotation_editor_mixin.py:115` `_on_annotation_seek_image` → `self.w.ImageIndexSlider
+.setValue(index)` → the slider's signal → `add_image` → the metadata-panel update. So **every** way
+of changing the image reaches the same call; the annotation list is simply the one the owner could
+find.
+
+**The call**, `mixins/image_browser_mixin.py:606`, in the metadata panel:
+
+```python
+md_str = pd.DataFrame(
+    [self.imageMetadata[available].iloc[self.imageindex]]
+).to_html()
+```
+
+`available` is eleven **numeric** columns, so the data is safe. The crash comes from the Series'
+**name**: `.iloc[i]` carries the index label, which is a `datetime.datetime` (the metadata index is
+object dtype by design), and `pd.DataFrame([series])` builds the new frame's index from that name —
+straight into `maybe_convert_objects`.
+
+**Reproduced and measured** in QGIS 4.2.1's own interpreter against the test dataset: the call exits
+**139** (SIGSEGV). Three one-line fixes were each measured to survive and produce the same HTML:
+
+| Candidate | Result |
+|---|---|
+| `pd.DataFrame([row.rename(None)])` | survives, 676 chars — drops the name; the panel has its own Time row (line 428) |
+| `pd.DataFrame([row.to_dict()])` | survives, 676 chars |
+| `pd.DataFrame([row.to_dict()], index=pd.Index([str(row.name)], dtype=object))` | survives, 701 chars — keeps the timestamp in the table |
+
+**Scope.** A scan of the whole plugin for the same shape found **only this site**:
+`querybuilder_gui.py:1096` describes soundings read as `epoch_us` (int64),
+`scripts/build_ribbon.py:306` builds from dicts, and `gt/video_manager.py:141` and
+`gt/roughness_join.py:112` pass an explicit dtype.
+
+**This blocks `TODO_publish-0-4.md` WP-6.** It is lane U code (`mixins/`), one line, and it is the
+difference between a working plugin and one that kills QGIS the first time a user browses an image —
+the plugin's primary action.
+
+### 6.3 Why the browse controls looked missing — macOS hides them, and the slider is a separate dock
+
+Same session, same report: *"the image browser was missing the component to browse the images
+(buttons and slider to switch image indexes)"*. Nothing is broken; two deliberate decisions combine
+badly on macOS.
+
+1. **The forward/back buttons are hidden on macOS, by design.**
+   `mixins/image_browser_mixin.py:191` — `if platform == "darwin": self.w.fwd.hide();
+   self.w.rwd.hide()`. Introduced in `80ca551` ("split dockwidget into four focused mixins"), with
+   no comment saying why, so the reason is not recoverable from the tree. On macOS the arrows simply
+   are not there.
+2. **The slider lives in its own top-level dock with its own toolbar button.** The nav controls
+   (slider, spinbox, step, zoom-to, range) are re-parented out of the browser into a QGIS dock
+   titled **"Image Index"** (line 764) which `.hide()`s at startup (line 770). It is opened by a
+   *second* toolbar action, "Show / hide the Image Index navigator" (line 808) — **not** by the
+   Image Browser button.
+
+So the plugin is usable: click the second toolbar action. But the comment at line 1018 says *"The
+nav follows the explicit toggle in `_toggle_image_dock`"*, and `_toggle_image_dock` (line 988) does
+no such thing — it shows only `_image_dock`. The code comment is wrong about its own design, which
+is why this reads as a missing widget rather than a hidden panel.
+
+**Owed:** the macOS hide wants either a comment giving its reason or removal; the stale comment at
+1018 wants deleting; and the install page should say that image navigation is a second toolbar
+button. None of that blocks the upload — §6.2 does.
 
 Please don't delete the two profiles afterwards, or the config in `gt-mac-test`: this list is the standing on-device check, and WP-6 of `TODO_publish-0-4.md` is gated on it.
 
