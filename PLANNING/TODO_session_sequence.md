@@ -45,7 +45,7 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
-| ◐ | `seq-U1-deps-message` | epifanio | `publish-0-4` WP-4: load and say what is missing instead of dying, when the venv is absent | §2.4 | 2026-10-24 · #67 **merged by the owner 2026-10-24** (`master` `ab010ed`; they said *"Go ahead and merge #67"*), after being opened and left for their review (§6.3) · verified: QGIS 4.2.1 (macOS, arm64) in the signed harness of TODO_mac-install-test.md §3: with no .venv, startPlugin True (was False), 13 messages tagged GroundTruther (were 0), the stub is what QGIS holds; with a full .venv grafted on, the bootstrap finds it and the real plugin module imports. tests/unit 432 passed, 5 pre-existing pyarrow/GDAL failures. The log PANEL and the dialog's appearance are NOT verified — headless QgsApplication never delivers messageReceived, so the lines were captured at the call site. Re-run against `master`'s own content after the merge (`git diff origin/master` empty on all three files): still startPlugin True, 13 messages, the stub. · memory note: 2026-10-24_seq-U1-deps-message.md |
+| ✅ | `seq-U1-deps-message` | epifanio | `publish-0-4` WP-4: load and say what is missing instead of dying, when the venv is absent | §2.4 | 2026-10-24 · #67 **merged by the owner** (`master` `ab010ed`; *"Go ahead and merge #67"*), opened and left for their review (§6.3) · verified: QGIS 4.2.1 (macOS, arm64) in the signed harness of TODO_mac-install-test.md §3, re-run against `master`'s own content after the merge — with no `.venv`, `startPlugin` True (was **False**), **13** messages tagged GroundTruther (were **0**), the stub is what QGIS holds; with a `.venv`, the real plugin module imports. tests/unit 432 passed, 5 pre-existing pyarrow/GDAL failures. **GUI confirmed by the owner 2026-10-24** on `gt-mac-novenv`, reinstalled from a `make-release-zip.sh` artifact of `ab010ed` first (both profiles still held pre-WP-4 code): the dialog renders with a live install link, headline *"6 of the 20"*, the 4 optional ones apart, Show Details carrying all ten REQUIRED/optional; `groundtruther=true`, no error marker. The log *panel*'s display was not eyeballed, but `_log_report` runs before the stub that produced that dialog is returned · memory note: 2026-10-24_seq-U1-deps-message.md
 | ⏭ | `seq-U2-macos-profile-docs` | — | `mac-install-test` WP-3: the macOS profile path and a headless harness that is faithful to the app's signing, in `CLAUDE.md` and the install page | §2.7 | wait met by `seq-U1-deps-message` 2026-10-24, and **in `master` at `ab010ed`**: `_bootstrap_venv()` keeps the `.venv` name and now **returns** the directory it added (or `None`), and `setup_wsl.sh` creates `.venv` beside the plugin instead of `gtenv` in the cwd. Nothing blocks this row |
 
 ### Slot 2 — C (core & config), D (docs), P (packaging & install)
@@ -97,7 +97,6 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 | the owner's yes or no | the artifact still carries ~1 MB of repo furniture beyond the six stripped dirs (.githooks/, scripts/, help/, epsg, CLAUDE.md, pytest.ini, pylintrc, pb_tool.cfg, compile_ui.sh, tmp/) — asked in #50 | `seq-P2-release-zip` | they answer; if yes, the strip list grows in seq-P1-release-metadata |
 | before the next session that closes a code PR | scripts/session.sh close reuses whatever PR is open on claude/<session> and merges it, so closing on the code branch would have merged #56 — exactly how #50 went in by mistake. Branch claude/close-guard adds a path guard and is NOT in master. Until it lands, close a code session on a second branch cut from origin/master, with PLANNING/queue.py close plus the PR by hand (done here, and again by `seq-C1-deps-check` on 2026-10-24) | `seq-P1-release-metadata` | claude/close-guard is merged, or the rulebook names the two-branch order |
 | — | The GUI check in QGIS on the Mac is the owner's: queue §3 -> PLANNING/TODO_mac-install-test.md §6, both profiles already built | `mac-install-test` | closes when the owner reports what they saw |
-| owner | run the GUI check in §3 — the review and merge are **done** (#67 at `master` `ab010ed`, 2026-10-24) | `seq-U1-deps-message` | the owner confirms the log panel shows the 13 lines and the dialog appears once |
 
 ## 2. Prompts
 
@@ -220,37 +219,6 @@ session it came from and the date.
   expected to **take QGIS down with it**, and if it does not, `seq-C2-parquet-no-pandas` needs
   re-scoping. Please don't delete the two profiles; `seq-C2` will want them. From
   `mac-install-test`, 2026-10-24.
-- **Look at the missing-dependency message in QGIS** — the GUI half of `seq-U1-deps-message`
-  (`publish-0-4` WP-4), and the part no agent can do: the `messageReceived` signal is never
-  delivered in a headless `QgsApplication`, so the log lines were captured at the call site, which
-  does not prove the **panel** shows them. PR #67 is merged (`master` `ab010ed`), so a plain
-  install of current `master` is the case. The profile is already
-  built: `gt-mac-novenv` (`~/Library/Application Support/QGIS/QGIS4/profiles/`) is a Plugin Manager
-  install, no `.venv`. Launch QGIS on it with the plugin enabled and check, in order:
-    1. QGIS does **not** show its generic Python-error traceback dialog. That dialog was the old
-       behaviour and its absence is the fix.
-    2. **One** dialog appears, titled *GroundTruther — dependencies missing*, after the main window
-       is up — not behind it, and not one per missing package. It should say *"cannot start: 6 of
-       the 20 Python packages it needs are not installed"* (the count is computed per machine, so a
-       different number is fine; **10** would be the bug, since only 6 of the 10 actually block),
-       then list `scikit-image, pyqtgraph, plotnine, simplekml, geojson, numba`, then say 4 more are
-       missing and only disable features.
-    3. The install link in it is clickable and goes to
-       <https://epifanio.github.io/groundtruther/installation/>.
-    4. **Show Details** opens the per-package breakdown, each line marked `REQUIRED` or `optional`.
-    5. *View → Panels → Log Messages → GroundTruther* holds **13** lines: one headline, ten
-       `missing:` lines, one saying there is no `.venv`, one with the install URL. **This is the
-       step that matters** — it is the one thing the headless probe could not prove, and before
-       this change the tab held nothing at all.
-    6. Dismiss the dialog. *Plugins → GroundTruther* has one entry,
-       *GroundTruther (dependencies missing)*, and clicking it brings the same dialog back. There
-       is deliberately **no** toolbar button and no dock.
-    7. Disable and re-enable the plugin in the Plugin Manager: no traceback, and the dialog returns
-       once.
-  Then the opposite case in `gt-mac-test` (which has a full `.venv`): the plugin loads as it always
-  did, with **no** missing-dependency dialog. Expect step 9 of
-  `PLANNING/TODO_mac-install-test.md` §6 to still take QGIS down when browsing an image — that is
-  `seq-C2-parquet-no-pandas`, not this change. From `seq-U1-deps-message`, 2026-10-24.
 - **Tag, build, verify and upload 0.4** (`publish-0-4` WP-6), after `seq-P2`…`seq-D1` have landed.
   The build is one command — `git tag -a v0.4 && scripts/make-release-zip.sh v0.4` → `dist/groundtruther-v0.4.zip`
   (`seq-P2-release-zip`, 2026-10-24: it refuses to write the zip unless `config/config.yaml`, `.venv`
