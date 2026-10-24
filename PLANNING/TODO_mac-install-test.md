@@ -10,9 +10,8 @@ session: it produces knowledge, not a feature.
 real QGIS 4 on macOS, and almost every dependency works. But the plugin's *mandatory* startup path
 — reading `HabCam.imagemetadata` — **segfaults QGIS 4.2.1 on macOS**, and the `.venv` strategy
 cannot fix it, because `import qgis.core` has already imported QGIS's own broken `pandas`/`pyarrow`
-before any plugin code runs. Two follow-up rows were queued; **WP-2 is now built** (`seq-C2-parquet-no-pandas`, PR #73, open
-for the owner) and `seq-U2-macos-profile-docs` is still queued; `publish-0-4` WP-3/WP-4 gain facts
-they were going to guess at. §5's diagnosis was narrower than the truth — see the correction there. The
+before any plugin code runs. Two follow-up rows are queued (`seq-C2-parquet-no-pandas`,
+`seq-U2-macos-profile-docs`); `publish-0-4` WP-3/WP-4 gain facts they were going to guess at. The
 GUI half is the owner's: §6 below is a launch-and-look checklist, with both profiles already built.
 Nothing in this session touched plugin code.
 
@@ -185,22 +184,6 @@ So it is a **QGIS 4.2.1 macOS bundling bug**: that pandas/pyarrow pair cannot co
 doubles fine, both string columns fine, and `test_imagemetadata.pq`'s `index` column is
 `timestamp[us]` — so the plugin's own test dataset triggers it.
 
-> **Correction, `seq-C2-parquet-no-pandas` 2026-10-24.** The fault is **wider than the Arrow bridge,
-> and pyarrow is innocent.** Measured one process per case on the bundled stack (pandas 3.0.3,
-> pyarrow 23.0.1, numpy 2.5.0): `to_pandas()` on timestamp of *every* unit with or without a
-> timezone **and on duration**, `pd.to_datetime(int64, unit=…)`,
-> `pd.Series(np.array([], dtype="datetime64[us]"))` — an **empty** array — and
-> `pd.Series(arrow, dtype=pd.ArrowDtype(timestamp))` are all SIGSEGV; `date32`, `date64`, `time64`,
-> doubles, strings and object-dtype `datetime.datetime` are all fine, as is numpy's own
-> `datetime64`. So it is pandas' **dtype machinery** (pandas 3.0.3 against numpy 2.5.0, an ABI
-> mismatch), not the data and not the bridge alone. A sibling measurement confirmed pandas is the
-> sole variable: QGIS's own pyarrow 23.0.1 is fine under pandas 2.x. Two consequences: pinning
-> pyarrow could never have helped, and **the breakage cannot be probed for at runtime, because the
-> probe is the crash** — which is why the fix in PR #73 is unconditional rather than
-> platform-branched. One edge remains: object datetimes are inert in a *column* but pandas
-> re-infers them leaving an *index*, so `reset_index()` and `pd.concat()` on such a frame still
-> die. The plugin calls neither.
-
 **And the `.venv` cannot rescue it.** Prepending instead of appending gets the venv's working
 pandas 3.1.0 / pyarrow 26.0.0 and the real file then reads fine — but only in a process that has not
 started QGIS. Measured:
@@ -291,7 +274,7 @@ Please don't delete the two profiles afterwards; `seq-C2` will want them.
 | Package | Scope | Depends on | Lane | Size | State |
 |---|---|---|---|---|---|
 | `mac-install-test WP-1` | install from the zip, confirm the no-`.venv` blocker, measure every dependency, exercise `gt/` against the dataset, leave the owner §6 | — | U | M | ✅ this session |
-| `mac-install-test WP-2` | parquet without `pandas.to_pandas()` on timestamp columns | WP-1 | C | M | ◐ built by `seq-C2-parquet-no-pandas` 2026-10-24, **PR #73 open for the owner** |
+| `mac-install-test WP-2` | parquet without `pandas.to_pandas()` on timestamp columns | WP-1 | C | M | queued `seq-C2-parquet-no-pandas` |
 | `mac-install-test WP-3` | the macOS profile path and the faithful headless harness, in `CLAUDE.md` and the install page | WP-1 | U + D | S | queued `seq-U2-macos-profile-docs` |
 
 ## 8. Lane split
