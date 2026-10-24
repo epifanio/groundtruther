@@ -30,6 +30,7 @@ from groundtruther.config.config import config
 from groundtruther.configure import (
     get_settings_checked, error_message, log_exception)
 from groundtruther.gt import config_check
+from groundtruther.gt import pandas_safe
 from groundtruther.gt.mbes_fields import detect_backscatter_fields
 from groundtruther.pygui.reference_3d_view import Reference3DView
 from groundtruther.ellipse import getEllipseCoords
@@ -616,8 +617,12 @@ class QueryBuilder(QWidget, Ui_Form):
                 self.point_df = cudf.read_parquet(self.pointdatasource)
                 self.image_df = cudf.read_parquet(self.image_metadata)
             else:
-                self.point_df = pd.read_parquet(self.pointdatasource)
-                self.image_df = pd.read_parquet(self.image_metadata)
+                # Never ``pd.read_parquet``: both files carry a timestamp
+                # column, and converting one segfaults QGIS on macOS.  See
+                # ``gt/pandas_safe.py``.
+                self.point_df = pandas_safe.read_parquet(
+                    self.pointdatasource, temporal="epoch_us")
+                self.image_df = pandas_safe.read_parquet(self.image_metadata)
 
             if self.pointdatasource not in self.qb_pointdatasource.allItems():
                 self.qb_pointdatasource.addItem(self.pointdatasource)
@@ -706,12 +711,17 @@ class QueryBuilder(QWidget, Ui_Form):
             widget.setVisible(rect)
 
 
-    def _read_parquet(self, path, label):
+    def _read_parquet(self, path, label, temporal="objects"):
         """Read *path* as a dataframe, or ``None`` when it is unusable.
 
         A configured path can be empty, stale, or not a parquet file at all;
         these are re-read on user actions long after startup, so they log and
         degrade rather than raise.
+
+        Reads through :mod:`groundtruther.gt.pandas_safe`, never
+        ``pd.read_parquet``: letting pandas convert a timestamp column segfaults
+        QGIS on macOS, which no ``except`` can catch.  *temporal* is that
+        module's policy — ``"epoch_us"`` for the million-row MBES table.
         """
         if not path or not os.path.isfile(path):
             QgsMessageLog.logMessage(
@@ -722,7 +732,7 @@ class QueryBuilder(QWidget, Ui_Form):
         try:
             if self.settings['Processing']['gpu_avaibility']:
                 return cudf.read_parquet(path)
-            return pd.read_parquet(path)
+            return pandas_safe.read_parquet(path, temporal=temporal)
         except (ArrowInvalid, FileNotFoundError, OSError, ValueError) as exc:
             log_exception(f"reading {label} ({path})", exc, warn=True)
             return None
@@ -737,7 +747,8 @@ class QueryBuilder(QWidget, Ui_Form):
         if self.point_df is not None:
             del self.point_df
         self.point_df = self._read_parquet(
-            self.pointdatasource, "MBES soundings (Mbes.soundings)")
+            self.pointdatasource, "MBES soundings (Mbes.soundings)",
+            temporal="epoch_us")
 
     def get_backscatter_field(self, index):
         self.backscatter_field = self.set_backscatter_field.itemText(index)

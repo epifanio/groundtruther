@@ -362,3 +362,115 @@ def test_elapsed_seconds_all_null():
 def test_object_array_never_coerces_to_datetime64():
     out = pandas_safe.object_array([datetime.datetime(2015, 1, 1)])
     assert out.dtype == object      # np.array() alone would give datetime64
+
+
+# --- the temporal policy, for tables too big to carry Python objects -------
+
+def test_epoch_us_is_int64_microseconds(tmp_path):
+    df = im.load_metadata(_write(tmp_path, _timestamp_table()))  # default: objects
+    assert isinstance(df.index[0], datetime.datetime)
+    cheap = pandas_safe.read_parquet(_write(tmp_path, _timestamp_table(), "b.parquet"),
+                                     temporal="epoch_us")
+    assert cheap.index.dtype == np.int64
+    assert _temporal_dtypes(cheap) == []
+    # same instant, 8 bytes instead of ~56
+    expected = datetime.datetime(2015, 6, 19, 18, 11, 42, 496000)
+    epoch = datetime.datetime(1970, 1, 1)
+    assert cheap.index[0] == int((expected - epoch).total_seconds() * 1_000_000)
+
+
+@pytest.mark.parametrize("unit", ["s", "ms", "us", "ns"])
+def test_epoch_us_normalises_every_unit(tmp_path, unit):
+    """Whatever the file's unit, the result is microseconds."""
+    df = pandas_safe.read_parquet(_write(tmp_path, _timestamp_table(unit=unit)),
+                                  temporal="epoch_us")
+    assert df.index.dtype == np.int64
+    assert df.index[0] == 1434737502496000 if unit in ("us", "ns") else df.index[0] > 0
+
+
+def test_epoch_us_for_durations(tmp_path):
+    table = pa.table({
+        "x": pa.array([1.0]),
+        "dt": pa.array([datetime.timedelta(seconds=5)], type=pa.duration("us")),
+    })
+    df = pandas_safe.read_parquet(_write(tmp_path, table), temporal="epoch_us")
+    assert df["dt"].iloc[0] == 5_000_000
+    assert _temporal_dtypes(df) == []
+
+
+def test_epoch_us_keeps_the_memory_flat(tmp_path):
+    """The point of the policy: 8 bytes a row, as pandas had before."""
+    stamps = pa.array([datetime.datetime(2015, 1, 1)] * 5000, type=pa.timestamp("us"))
+    df = pandas_safe.read_parquet(_write(tmp_path, pa.table({"t": stamps})),
+                                  temporal="epoch_us")
+    assert df["t"].dtype == np.int64
+    assert df["t"].memory_usage(index=False) == 5000 * 8
+
+
+def test_unknown_temporal_policy_is_refused():
+    with pytest.raises(ValueError, match="temporal must be"):
+        pandas_safe.arrow_table_to_dataframe(_timestamp_table(), temporal="datetime64")
+
+
+def test_set_index_false_leaves_the_index_as_a_column(tmp_path):
+    """What build_ribbon needs instead of reset_index(), which would crash."""
+    df = pandas_safe.read_parquet(_write(tmp_path, _timestamp_table()), set_index=False)
+    assert isinstance(df.index, pd.RangeIndex)
+    assert "index" in df.columns
+    assert list(df.columns) == ["Imagename", "habcam_lon", "habcam_lat", "index"]
+    assert isinstance(df["index"].iloc[0], datetime.datetime)
+    assert _temporal_dtypes(df) == []
+    # numpy (unlike pandas) converts object datetimes safely, which is how
+    # scripts/build_ribbon.py turns the column into seconds
+    seconds = df["index"].values.astype("datetime64[ns]").astype("int64") / 1e9
+    assert seconds[0] == pytest.approx(1434737502.496)
+
+
+# --- what the map <-> image synchronisation depends on ---------------------
+# It is positional (a KD-tree over lon/lat, then .iloc), never the index, so the
+# index dtype cannot move a marker. These pin that.
+
+def test_map_click_to_frame_is_positional_not_index_keyed(tmp_path):
+    df = im.load_metadata(_write(tmp_path, _timestamp_table()))
+    idx, dist = im.nearest_image_index(im.build_kdtree(df), -68.87, 41.07)
+    assert isinstance(idx, int) and idx == 1
+    assert df["Imagename"].iloc[idx] == "img_b"
+    # the same answer with the cheap index: the dtype is not part of the lookup
+    cheap = pandas_safe.read_parquet(
+        _write(tmp_path, _timestamp_table(), "b.parquet"), temporal="epoch_us")
+    assert im.nearest_image_index(im.build_kdtree(cheap), -68.87, 41.07)[0] == idx
+
+
+def test_positional_navigation_bounds(tmp_path):
+    """The spinbox/slider are bounded by len-1 and read with .iloc."""
+    df = im.load_metadata(_write(tmp_path, _timestamp_table()))
+    assert len(df) - 1 == 2
+    assert df["Imagename"].iloc[0] == "img_a"
+    assert df["Imagename"].iloc[len(df) - 1] == "img_c"
+
+
+def test_the_index_is_usable_as_a_label_key(tmp_path):
+    """`annotation_editor_mixin` writes via `.at[df.index[i], col]`.
+
+    The object-dtype datetime index is a perfectly good label key: the write
+    below is the mixin's, and it succeeds. (It fails on pandas 3 when the
+    ``Annotation`` column came back all-NaN float64, i.e. when the annotation
+    file matched no image — but that is a pre-existing pandas-3 dtype problem,
+    not an index one: it fails identically with a RangeIndex or a string index.)
+    """
+    df = im.load_metadata(_write(tmp_path, _timestamp_table()))
+    df = im.attach_annotations(df, {"img_a": {"Species": ["z"]}})
+    assert df["Annotation"].dtype == object
+    label = df.index[1]
+    df.at[label, "Annotation"] = {"Species": ["x"]}
+    assert df["Annotation"].iloc[1] == {"Species": ["x"]}
+    assert df.index.is_unique
+
+
+def test_record_name_is_the_time_the_panel_shows(tmp_path):
+    """`_update_metadata_panel` passes `record.name` to a Qt datetime widget,
+    which accepts a `datetime.datetime`.
+    """
+    df = im.load_metadata(_write(tmp_path, _timestamp_table()))
+    assert isinstance(df.iloc[1].name, datetime.datetime)
+    assert df.iloc[1].name == datetime.datetime(2015, 6, 19, 18, 11, 43, 500000)

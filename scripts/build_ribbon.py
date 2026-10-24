@@ -71,8 +71,8 @@ def stereo_left(stereo_dir, imagename):
 
 
 def read_inventory(work):
-    import pandas as pd
-    return pd.read_parquet(os.path.join(work, "inventory.pq"))
+    from groundtruther.gt import pandas_safe
+    return pandas_safe.read_parquet(os.path.join(work, "inventory.pq"))
 
 
 # --------------------------------------------------------------------------
@@ -87,7 +87,12 @@ def cmd_inventory(args):
     meta = cfg["HabCam"]["imagemetadata"]
     bathy = cfg["Mbes"]["reference_surface"]
 
-    df = pd.read_parquet(meta).reset_index()
+    # ``pandas_safe`` rather than ``pd.read_parquet().reset_index()``: pandas
+    # segfaults converting the timestamp index on macOS, and moving object
+    # datetimes out of an index re-triggers the same fault, so the index column
+    # is left as a column instead.  See ``gt/pandas_safe.py``.
+    from groundtruther.gt import pandas_safe
+    df = pandas_safe.read_parquet(meta, set_index=False)
     df["row"] = np.arange(len(df))
     have = {f[: -len("_orig.png")] for f in os.listdir(stereo_dir)
             if f.endswith("_orig.png")}

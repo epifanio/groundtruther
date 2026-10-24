@@ -1,11 +1,15 @@
 from numba import jit, njit
 import numba
 import numpy as np
-import pandas as pd
 
 
 def read_mbes(pq):
-    return pd.read_parquet(pq)
+    # Not ``pd.read_parquet``: the MBES table has a timestamp column, and
+    # letting pandas convert one segfaults QGIS on macOS.  See
+    # ``gt/pandas_safe.py``; ``epoch_us`` keeps this million-row table at 8
+    # bytes a row.
+    from groundtruther.gt import pandas_safe
+    return pandas_safe.read_parquet(pq, temporal="epoch_us")
 
 
 @jit(nopython=True)
