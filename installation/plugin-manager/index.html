@@ -1733,10 +1733,12 @@ import them.</p>
 </tr>
 </tbody>
 </table>
-<p>Both Windows scripts print a plugin folder under <code>QGIS3</code>, which is <strong>stale</strong>: on
-QGIS 4 the profile is <code>QGIS4</code>
-(<code>%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins\groundtruther</code>). The
-per-platform pages carry the current paths.</p>
+<p>Both Windows scripts, and <code>README_WINDOWS.md</code>, print the plugin folder under
+<code>QGIS4</code>
+(<code>%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins\groundtruther</code>),
+matching <code>qgisMinimumVersion=4.0</code>. They said <code>QGIS3</code> until 2026-10-24, which sent
+people to a directory QGIS 4 never reads; if you are working from a release
+earlier than that, use the path above rather than the one the script prints.</p>
 <p>Running the scripts means having a copy of the repository, because they read
 <code>dependencies/requirements.txt</code> and <code>environment.yml</code>. You can use that same copy
 as the plugin — symlinked into your profile, which is also the development setup
