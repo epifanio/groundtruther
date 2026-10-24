@@ -39,7 +39,7 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | Unit | Now | Since (UTC) | Recorded by | Rollback · notes |
 |---|---|---|---|---|
 | Plugin on plugins.qgis.org | **0.3**, experimental, QGIS 3.0–3.99 · uploaded **2023-06-01** · plugin_id 2982 | 2023-06-01 | `plan-adopt-groundtruther` | **Read from the live feed** (`plugins.xml?qgis=3.99`), 2026-10-23 — *not* from `metadata.txt`, which says `version=0.4`, `qgisMinimumVersion=4.0`. **The QGIS 4 / Qt6 work has never been published:** `master` is 0.4, users get the 2023 QGIS-3 build. Publishing 0.4 is a production rollout — a production approver's go, each time (`WORKFLOW.md` §8). Rollback = re-upload the previous zip. |
-| Docs site (`gh-pages` → <https://epifanio.github.io/groundtruther/>) | built from `master` **cf8be3d** (PR #80, `seq-U2`; was 650a164 until then) | 2026-10-24 | `seq-U2-macos-profile-docs` | **publishes itself**: `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every push to `master` touching `website/**`. No go, no staging — merging a `website/` change *is* the deploy. Read live 2026-10-23: HTTP 200, and `gh-pages` says "Deployed 650a164"; republished 2026-10-24 from `cf8be3d` when #80 merged `website/docs/installation/macos.md`. The site lags `master` whenever the commits in between touched no `website/**` path — that is the rule working, not drift, so **compare the two shas before concluding anything**; this cell deliberately does not name `master`'s tip, because the next merge would make it false. Rollback = merge a fix; the workflow redeploys. |
+| Docs site (`gh-pages` → <https://epifanio.github.io/groundtruther/>) | built from `master` **31e13cb** (PR #85, `seq-D1`; was cf8be3d, and 650a164 before that) | 2026-10-24 | `seq-D1-install-docs` | **publishes itself**: `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every push to `master` touching `website/**`. No go, no staging — merging a `website/` change *is* the deploy. Read live 2026-10-23: HTTP 200, and `gh-pages` says "Deployed 650a164"; republished 2026-10-24 from `cf8be3d` when #80 merged `website/docs/installation/macos.md`, and again the same day from `31e13cb` when #85 added `website/docs/installation/plugin-manager.md` — `gh-pages` says *"Deployed 31e13cb"* and the new page answered HTTP 200. The site lags `master` whenever the commits in between touched no `website/**` path — that is the rule working, not drift, so **compare the two shas before concluding anything**; this cell deliberately does not name `master`'s tip, because the next merge would make it false. Rollback = merge a fix; the workflow redeploys. |
 
 ### Slot 1 — U (UI & plugin shell)
 
@@ -56,12 +56,12 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | ◐ | `seq-P1-release-metadata` | epifanio | `publish-0-4` WP-2: `metadata.txt` typos, tags, homepage, icon path, 0.4 changelog | §2.2 | 2026-10-24 · #56 **merged by the owner 2026-10-24** (`master` 4f4d6b5; they said *"Go ahead and merge #56"*) · verified: configparser on metadata.txt: one [general] section, no key containing a space (origin/master had the junk key "category of the plugin"); icon=qtui/icons/epi.gif exists on disk and is tracked by git (the declared qtui/icons/qgis/epi.gif did not exist); and inside a real artifact built with scripts/make-release-zip.sh from a throwaway tag at the PR head: the zips metadata.txt parses with no junk key, description/tags/homepage as intended, version=0.4 experimental=True qgisMinimumVersion=4.0 unchanged, and groundtruther/qtui/icons/epi.gif present (2439 bytes). git status --short clean after the build; tag and zip deleted. py_compile __init__.py passes; check_planning 0/0. No website/ or docs/ page references any changed value (grep), so no docs claim to re-verify; mkdocs is not installed on the Mac, CI docs.yml is the run that counts · memory note: 2026-10-24_seq-P1-release-metadata.md |
 | ✅ | `seq-C1-deps-check` | epifanio | `publish-0-4` WP-3: `gt/deps_check.py` — which required modules are importable, Qt-free | §2.3 | 2026-10-24 · #61 **merged by the owner 2026-10-24** (`master` 6e22c32; they said *"Go ahead and merge #61"*) · verified: throwaway venv in the scratchpad (Python 3.15.0, pytest 9.1.1; this Mac has no .venv): pytest tests/unit/test_deps_check.py -> 24 passed. Whole unit suite, after installing numpy pandas pydantic requests PyYAML scipy (needed to collect at all): 421 passed, 3 skipped, 5 pre-existing failures wanting pyarrow and osgeo/GDAL in files this PR does not touch. check_planning 0/0; py_compile clean; no print() (D-003) and a test asserts no qgis/Qt in sys.modules after import (D-008). Finding: a static module-level import-graph walk from groundtruther.py shows 16 of the 20 deps are reached unguarded (mostly via pygui/querybuilder_gui.py, imported eagerly by the dock), so their absence stops the dock being constructed at all; only av, cv2, PyOpenGL are guarded and pydantic/starlette are off the chain. starlette is in requirements.txt and no module imports it. · memory note: 2026-10-24_seq-C1-deps-check.md |
 | ⏭ | `plan-pandas-datetime-record` | — | promote "no pandas datetimes in `gt/`" to a decision record, and queue the call sites still unfixed | §2.8 | Added on the owner's word, 2026-10-24: *"Queue a planning session to promote 'no pandas datetimes in gt/' to a decision record."* **Moved ahead of `seq-D1-install-docs` by epifanio, 2026-10-24:** *"Move plan-pandas-datetime-record ahead of seq-D1-install-docs in slot 2."* `seq-D1` had already claimed the slot by then (#83), so it runs to its close and this is the ⏭ behind it (§3.2). Settles two of `seq-C2-parquet-no-pandas`'s open ends. Writes `PLANNING/` only |
-| ▶ | `seq-D1-install-docs` | epifanio | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | started 2026-10-24 · wait met by `seq-U1-deps-message` 2026-10-24: the behaviour the page describes is **in `master` at `ab010ed`** (#67) — read the code and §2.4's receipts, not this row. Nothing blocks it, and it now holds slot 2's ⏭ (`seq-C2-parquet-no-pandas` closed 2026-10-24) |
+| ◐ | `seq-D1-install-docs` | epifanio | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | 2026-10-24 · #85 · verified: mkdocs build --strict -f website/mkdocs.yml clean (throwaway venv from website/requirements-docs.txt, python3.12 — 3.15 cannot build watchdog); rendered HTML read, not the diff; merged on the owner's go at master 31e13cb and the deploy confirmed live: https://epifanio.github.io/groundtruther/installation/plugin-manager/ HTTP 200, gh-pages 'Deployed 31e13cb' · shipped as: the docs site, published from master 31e13cb · memory note: 2026-10-24_seq-D1-install-docs.md |
 | ◐ | `seq-C2-parquet-no-pandas` | claude | `mac-install-test` WP-2: keep datetimes out of pandas — **every** pandas datetime operation segfaults QGIS 4.2.1 on macOS, at `gt/image_manager.py:70` and `gt/video_manager.py:170` (the row's name is narrower than the work) | §2.6 | 2026-10-24 · #73 · verified: in QGIS 4.2.1's own interpreter (the plan's §3 harness): the SIGSEGV reproduced at exit 139, then test_imagemetadata.pq reading 5900x38 with its timestamp index intact AND the survey-CSV reader and compute_frame_indices returning [0, 250] — both call sites of §5. 43 tests pass under the broken pandas 3.0.3 and 464 under a working 3.1.0; a reverted reader fails 14 tests on good pandas and takes pytest down with exit 139 on the broken one · memory note: 2026-10-24_seq-C2-parquet-no-pandas.md |
 
 **Order rules** (only about open rows; a closing session deletes the ones about itself):
 
-- `plan-pandas-datetime-record` before `seq-D1-install-docs`: the owner moved it up on 2026-10-24,
+- none yet
   after `seq-D1` had already claimed the slot (#83). Nothing technical orders the two — both only
   write docs — so `seq-D1` was left to run to its close rather than being stopped, and the moved row
   is the ⏭ behind it. Paste it as soon as `seq-D1` closes.
@@ -104,6 +104,8 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 | done 2026-10-24 | website/docs/data-model/image-metadata.md said the file is read with pandas.read_parquet and that the index is a DatetimeIndex. Corrected in **#76**, merged after #73 (`e9a0d47`) so the site never described unbuilt behaviour; the page is published. mbes-soundings.md:6 is deliberately NOT part of it — the MBES table is read by pygui/querybuilder_gui.py, which #73 does not touch, so that line is still accurate | `seq-C2-parquet-no-pandas` | ✅ closed |
 | next planning session — **queued 2026-10-24 as `plan-pandas-datetime-record`, §2.8** | the no-datetime64 constraint binds every future gt/ reader of temporal data, and gt/pandas_safe.py is where a record would point; a build session writes none (WORKFLOW.md §6.2) | `seq-C2-parquet-no-pandas` | a decision record exists or the owner declines it |
 | unscheduled, outside lane C — **`plan-pandas-datetime-record` (§2.8) is asked to queue it** | the same crash lives in pygui/querybuilder_gui.py:620,733,739 and scripts/build_ribbon.py:75,90; arrow_table_to_dataframe() is the drop-in | `seq-C2-parquet-no-pandas` | both read without pd.read_parquet |
+| lane C, next session touching gt/ | gt/deps_check.py's module docstring says 16 of the 20 block the load; the REQUIREMENTS tuple carries 15 (pydantic is blocks_load=False), and the plan's banner repeats the 16 | `seq-D1-install-docs` | the docstring and the banner say 15, or the tuple changes to match |
+| the owner, before WP-6 | both Windows setup scripts print a QGIS3 profile path; the new page says so rather than fixing them, since they are outside lane D | `seq-D1-install-docs` | setup_windows.ps1 and setup_mamba.bat print QGIS4 |
 
 ## 2. Prompts
 
@@ -119,27 +121,7 @@ as `WORKFLOW.md` §4.1. When a session closes, it removes its block and leaves t
 
 ### 2.4 `seq-U1-deps-message` (closed 2026-10-24; its prompt is in git history)
 
-### 2.5 `seq-D1-install-docs`
-
-```text
-/build-session seq-D1-install-docs
-Plan: PLANNING/TODO_publish-0-4.md WP-5 (the install page), slot 2, lane D. Scope: on the MkDocs
-site under website/docs/, say plainly what installing GroundTruther from the QGIS Plugin Manager
-does and does not give you — it does NOT install the 20 Python dependencies, because the plugin
-loads them from a .venv beside its source that the Plugin Manager never creates — and give the
-supported route per platform from setup_wsl.sh / setup_windows.ps1 / setup_mamba.bat. Describe the
-behaviour seq-U1-deps-message actually built (read its PR, do not assume), including what the
-missing-dependency dialog says, so the page and the plugin agree word for word. Add the page to
-the nav. Keep the project's habit of leading with the limitation rather than burying it — the
-seabed-ribbon page is the model.
-Verify on the real thing: mkdocs build --strict -f website/mkdocs.yml (strict catches a page
-missing from the nav and a broken internal link), and read the rendered page, not the diff.
-MERGING THIS PUBLISHES IT: any push to master touching website/** runs mkdocs gh-deploy
-(WORKFLOW.md §8). Record the published master sha in the docs-site State row when you close.
-Touch only website/. Needs a yes: none beyond the usual. Decisions that bind this work: D-006 (the
-MkDocs site is the user docs; help/ is retired and takes no new pages), D-007. Memory notes to
-read: MEMORY.md, 2026-10-23_adopt-groundtruther.md. Docs check: the build above IS the check.
-```
+### 2.5 `seq-D1-install-docs` (closed 2026-10-24; its prompt is in git history)
 
 ### 2.6 `seq-C2-parquet-no-pandas` (closed 2026-10-24; its prompt is in git history)
 

@@ -5,6 +5,27 @@ the 2023 QGIS-3 build."* A release, planned; nothing is uploaded by a session.
 
 ## Status
 
+**2026-10-24, `seq-D1-install-docs`: WP-5 is in `master` and published** — PR
+[#85](https://github.com/epifanio/groundtruther/pull/85), merged on the owner's go
+(*"Go — merge #85 and publish"*) at `31e13cb`, which `.github/workflows/docs.yml` deployed to
+<https://epifanio.github.io/groundtruther/installation/plugin-manager/> (live, HTTP 200, from
+`gh-pages` *"Deployed 31e13cb"*). **WP-5 is done**, and with it every package a session owns:
+WP-6, the tag and the upload, is the owner's.
+
+The page leads with the limitation rather than burying it (the seabed-ribbon page's shape): the
+Plugin Manager installs the code and **none** of the 20 dependencies, so without them the plugin
+loads, shows one dialog and cannot open its panel. It quotes WP-4's behaviour from the code at
+`ab010ed` — dialog title and body, the `REQUIRED  <pkg> (import <mod>) — <feature>` details format,
+the once-per-session menu entry, the `no .venv beside the plugin …` log line — and takes every
+feature string from `gt/deps_check.REQUIREMENTS`, so the page and the plugin say the same words.
+`installation/index.md` carries the same warning up front, because `INSTALL_DOCS_URL` is
+`…/installation/`: the dialog's link lands on the index, not on the new page.
+
+**One drift found, not fixed** (lane C's): `gt/deps_check.py`'s module docstring says *16 of the
+20* are reached by an unguarded module-level import, while the `REQUIREMENTS` table it describes
+carries **15** (`pydantic` is `blocks_load=False`). The page follows the table, which is what the
+code computes. Open end below.
+
 **2026-10-24, `seq-U1-deps-message`: WP-4 is in `master`** — PR
 [#67](https://github.com/epifanio/groundtruther/pull/67), merged by the owner at `ab010ed` on their
 word (*"Go ahead and merge #67"*), after being opened and left for their review (§6.3,
@@ -59,7 +80,7 @@ icon that exists (`qtui/icons/epi.gif`; the old `qtui/icons/qgis/epi.gif` never 
 failed the upload), carries 13 discovery tags, points `homepage` at the docs site and has a real 0.4
 changelog. `version=0.4` and `experimental=True` are untouched (§6 Q2, Q4).
 
-WP-5 is next once #67 is merged (it quotes WP-4's dialog word for word); WP-4's own open end is that review. The upload itself is the owner's, by hand, every time.
+WP-5 is done (`seq-D1-install-docs`, #85, published from `31e13cb`); WP-4's own open end was that review, given on 2026-10-24. Every package a session owns is now in `master`. The upload itself is the owner's, by hand, every time.
 
 Conventions: `PLANNING/WORKFLOW.md` §5.2 (rules 0–6).
 
@@ -185,7 +206,7 @@ None of these bind work outside this plan, so none was promoted to a decision re
 | `publish-0-4 WP-2` | `metadata.txt` and the `__init__.py` docstring typo | — | P | S | ✅ `seq-P1-release-metadata` 2026-10-24, PR #56 merged (`master` 4f4d6b5) |
 | `publish-0-4 WP-3` | `gt/deps_check.py` + unit tests: which required modules are importable | — | C | M | ✅ `seq-C1-deps-check` 2026-10-24, PR #61 merged (`master` 6e22c32) |
 | `publish-0-4 WP-4` | `__init__.py` + one dialog and a log line when deps are missing; disable what cannot work | WP-3 | U | M | ✅ `seq-U1-deps-message` 2026-10-24, #67 in `master` `ab010ed`, GUI confirmed |
-| `publish-0-4 WP-5` | the install page on the docs site: what the Plugin Manager gives you and what it does not | WP-4 (done, `ab010ed`) | D | S | queued `seq-D1-install-docs` |
+| `publish-0-4 WP-5` | the install page on the docs site: what the Plugin Manager gives you and what it does not | WP-4 (done, `ab010ed`) | D | S | ✅ `seq-D1-install-docs` 2026-10-24, PR #85 merged (`master` 31e13cb), **published** |
 | `publish-0-4 WP-6` | **the owner's**: tag `v0.4`, build the zip, verify its contents, upload | WP-1…WP-5 | — | — | queue §3 |
 
 WP-1 and WP-2 are both lane P and run in that order (the zip script is what removes the key-leak
@@ -218,7 +239,10 @@ suite. Specifically:
 - WP-4: unpack the zip into a clean QGIS 4 profile **with no `.venv`** and confirm the plugin loads,
   logs to the `GroundTruther` panel (D-003) and shows one dialog naming the missing packages —
   **the owner's GUI check**, in lane U, since no agent can drive the QGIS GUI.
-- WP-5: `mkdocs build --strict -f website/mkdocs.yml` (§5.2 rule 4).
+- WP-5: `mkdocs build --strict -f website/mkdocs.yml` (§5.2 rule 4). **Done 2026-10-24**: clean,
+  run in a throwaway venv built from `website/requirements-docs.txt` because this Mac has no
+  `mkdocs` (python3.12 — on 3.15 `watchdog` has no wheel and fails to compile). The rendered
+  page was read, not the diff, and the published page answered HTTP 200.
 
 **2026-10-24, from the side session `mac-install-test`** (`PLANNING/TODO_mac-install-test.md`): the
 WP-4 case has now been measured on a real QGIS 4.2.1 on macOS, from an artifact built by WP-1's
