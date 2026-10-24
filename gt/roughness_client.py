@@ -16,25 +16,41 @@
 # You should have received a copy of the GNU General Public License along
 # with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Stateless HTTP client for the FastGIS seafloor-roughness route.
+"""Stateless HTTP client for the seafloor-roughness route.
 
 Per-frame seafloor surface roughness is computed server-side from HabCam stereo
-pairs (RAFT-Stereo on a GPU microservice).  FastGIS exposes a *roughness* route
-that proxies that microservice over the Cloudflare tunnel; GroundTruther sends
+pairs (RAFT-Stereo on a GPU microservice).  Two deployments proxy that
+microservice over the Cloudflare tunnel under the same ``/seafloor/*`` paths —
+FastGIS (keyed) and ``seafloor-gateway`` (keyless) — and GroundTruther sends
 only a ``frame_key`` (the HabCam image id it already has for the current browser
-frame) and the server reads the stereo image from its own mounted archive.
+frame); the server reads the stereo image from its own mounted archive.
 
 Like :mod:`groundtruther.gt.grass_api`, every function here is pure: it takes a
-base ``endpoint`` URL and an ``api_key`` (sent as the ``X-API-Key`` header) and
-returns the parsed JSON payload.  No Qt, no QGIS, no plugin state.
+base ``endpoint`` URL and an optional ``api_key`` (sent as the ``X-API-Key``
+header when there is one) and returns the parsed JSON payload.  No Qt, no QGIS,
+no plugin state.  Unlike ``grass_api``, the key is *optional* here: the
+``/grass/*`` routes are keyed without exception (D-002), the seafloor ones are
+not.
 
-Two transports, same request/response contract:
+Two transports and two auth shapes, same request/response contract:
 
-* **FastGIS route** (default): ``POST {endpoint}{route}`` with ``X-API-Key`` —
-  FastGIS forwards to the GPU service and passes the JSON straight back.
+* **composed route** (default): ``POST {endpoint}{route}``.  Authentication is
+  *inferred from the configuration*: when an API key is configured the
+  ``X-API-Key`` header is sent (the keyed FastGIS deployment at
+  ``api.fastgis.eu``); when none is, **no auth header is sent at all** — which
+  is what the keyless ``seafloor-gateway`` deployment at ``seafloor.fastgis.eu``
+  expects, being unauthenticated by design (D-011).  An empty header is never
+  sent: the key is either present and non-blank, or absent.
 * **direct fast-path** (opt-in, GT running *on* the GPU host): ``POST
   {direct_url}`` (e.g. ``http://127.0.0.1:7871/roughness``) with no auth header,
-  skipping the tunnel.
+  skipping both the tunnel and the ``endpoint``+``route`` composition.
+
+A keyless *remote* gateway is therefore a supported configuration of the
+composed route (``base_url`` + ``route``, no key), not a use of ``direct_url``:
+``direct_url`` is the on-host fast path, takes one full URL per route, and
+sibling routes have to be derived from it by hand.  If the server does want a
+key and none was configured, it answers 401/403 and :class:`RoughnessError`
+says so in as many words.
 
 Response contract (pass-through from the GPU service)::
 
@@ -55,13 +71,15 @@ import requests
 
 from groundtruther.configure import log_exception
 
-# The FastGIS roughness route path (relative to the API endpoint).  Confirmed
-# live against the FastGIS OpenAPI: POST /seafloor/roughness (RoughnessRequest:
-# frame_key required; res_mm/n_water/return_dem optional).  Kept overridable
-# per-call / via config so the plugin can be repointed without a code change.
+# The roughness route path (relative to the API endpoint).  Confirmed live
+# against the FastGIS OpenAPI: POST /seafloor/roughness (RoughnessRequest:
+# frame_key required; res_mm/n_water/return_dem optional), and served under the
+# same path by the keyless seafloor-gateway (seafloor.fastgis.eu).  Kept
+# overridable per-call / via config so the plugin can be repointed without a
+# code change.
 DEFAULT_ROUTE = "/seafloor/roughness"
 
-# Sibling health probe (GET, X-API-Key) for connectivity diagnostics.
+# Sibling health probe (GET, keyed or keyless) for connectivity diagnostics.
 HEALTH_ROUTE = "/seafloor/health"
 
 # Mosaic route — composite contiguous frames into one georeferenced UTM raster.
@@ -117,6 +135,53 @@ def _extract_detail(response) -> str:
             return "; ".join(d.get("msg", str(d)) for d in detail)
         return str(detail)
     return str(body)
+
+
+def _headers(api_key: str | None) -> dict:
+    """The request headers, with ``X-API-Key`` only when a key is configured.
+
+    Keylessness is *inferred*: a key that is absent, ``None`` or blank means the
+    header is left out entirely rather than sent empty, because the keyless
+    ``seafloor-gateway`` deployment is unauthenticated by design (D-011) and an
+    empty ``X-API-Key`` is a credential the proxy would have to reject.
+    """
+    headers = {"accept": "application/json", "Content-Type": "application/json"}
+    if api_key and api_key.strip():
+        headers["X-API-Key"] = api_key.strip()
+    return headers
+
+
+def _target(endpoint, api_key, route, direct_url, what: str = "roughness"):
+    """Resolve one request's ``(url, headers)`` for either transport.
+
+    ``direct_url`` wins and is used verbatim (the on-host fast path).  Otherwise
+    the URL is composed from ``endpoint`` + ``route``; only the endpoint is
+    required, since the gateway may be keyless.
+    """
+    if direct_url and direct_url.strip():
+        return direct_url.strip(), _headers(None)
+    if not (endpoint and endpoint.strip()):
+        raise RoughnessError(f"No {what} endpoint configured")
+    return f"{endpoint.rstrip('/')}/{route.lstrip('/')}", _headers(api_key)
+
+
+def _raise_for_response(response, what: str, keyed: bool, *,
+                        log_as: str | None = None) -> None:
+    """Raise :class:`RoughnessError` for a non-2xx *response*.
+
+    When the service answers 401/403 and no key was sent, say that plainly: it
+    is the one failure a keyless configuration causes that a local guard used to
+    catch, and "Unauthorized" alone would not point at the missing key.  *what*
+    names the service in that message; *log_as* labels the log line.
+    """
+    detail = _extract_detail(response)
+    if response.status_code in (401, 403) and not keyed:
+        detail = (f"{detail} — this {what} service requires an API key and none "
+                  f"is configured (set Processing.grass_api_key, or point "
+                  f"Roughness.base_url at a keyless gateway)")
+    log_exception(f"{log_as or what}: HTTP {response.status_code}: {detail}",
+                  RoughnessError(detail, response.status_code), warn=True)
+    raise RoughnessError(detail, response.status_code)
 
 
 def _build_body(frame_key, res_mm, n_water, return_dem, geo=None, *,
@@ -182,13 +247,18 @@ def roughness_for_frame(frame_key, *, endpoint: str | None = None,
         ``"201503.20150619.181140656.204627"``, ``"204627"``, or the filename).
         Only the key is sent; the server reads the stereo image itself.
     endpoint, api_key:
-        FastGIS base URL and ``X-API-Key`` (the same credentials the GRASS client
-        uses).  Required unless ``direct_url`` is given.
+        Base URL of the seafloor API and its ``X-API-Key`` (the same credentials
+        the GRASS client uses).  ``endpoint`` is required unless ``direct_url``
+        is given; ``api_key`` is optional — omit it for the keyless
+        ``seafloor-gateway`` deployment and no auth header is sent.
     route:
-        Roughness route path appended to ``endpoint`` (default ``/roughness``).
+        Roughness route path appended to ``endpoint``
+        (default ``/seafloor/roughness``).
     direct_url:
         When set, POST straight to this URL (the on-host GPU service) with no
-        auth header, skipping the FastGIS tunnel.  Same request/response.
+        auth header, skipping both the tunnel and the ``endpoint``+``route``
+        composition.  For a keyless *remote* gateway use ``endpoint`` without a
+        key instead; this is the on-host fast path.  Same request/response.
     res_mm, n_water, return_dem:
         Optional compute knobs.  Set ``return_dem=True`` only when the caller
         wants the micro-DEM preview overlay (``micro_dem_png_b64``).
@@ -202,7 +272,9 @@ def roughness_for_frame(frame_key, *, endpoint: str | None = None,
     Raises
     ------
     RoughnessError
-        On missing config, network failure, non-2xx response, or non-JSON body.
+        On a missing endpoint, network failure, non-2xx response, or non-JSON
+        body.  A missing API key is no longer an error here: the request simply
+        goes out unauthenticated, and a service that wanted one answers 401/403.
         A ``quality != "ok"`` response is NOT an error — it returns normally with
         null roughness fields.
     """
@@ -214,17 +286,7 @@ def roughness_for_frame(frame_key, *, endpoint: str | None = None,
         include_left_preview=include_left_preview,
         include_spectrum=include_spectrum)
 
-    if direct_url and direct_url.strip():
-        url = direct_url.strip()
-        headers = {"accept": "application/json", "Content-Type": "application/json"}
-    else:
-        if not (endpoint and endpoint.strip()):
-            raise RoughnessError("No roughness endpoint configured")
-        if not (api_key and api_key.strip()):
-            raise RoughnessError("No API key configured")
-        url = f"{endpoint.rstrip('/')}/{route.lstrip('/')}"
-        headers = {"accept": "application/json", "Content-Type": "application/json",
-                   "X-API-Key": api_key}
+    url, headers = _target(endpoint, api_key, route, direct_url)
 
     try:
         response = requests.post(url, headers=headers, json=body, timeout=timeout)
@@ -233,11 +295,8 @@ def roughness_for_frame(frame_key, *, endpoint: str | None = None,
         raise RoughnessError(f"Cannot reach the roughness service: {exc}") from exc
 
     if not response.ok:
-        detail = _extract_detail(response)
-        log_exception(
-            f"roughness_for_frame: HTTP {response.status_code}: {detail}",
-            RoughnessError(detail, response.status_code), warn=True)
-        raise RoughnessError(detail, response.status_code)
+        _raise_for_response(response, "roughness", "X-API-Key" in headers,
+                            log_as="roughness_for_frame")
 
     try:
         payload = response.json()
@@ -252,30 +311,18 @@ def _post_json(body: dict, *, endpoint, api_key, route, direct_url, timeout,
                what: str = "roughness") -> dict:
     """POST *body* to the FastGIS *route* (or *direct_url*) and return parsed JSON.
 
-    Same transport/auth contract as :func:`roughness_for_frame` (X-API-Key over the
-    FastGIS tunnel, or an unauthenticated direct POST when *direct_url* is set).
+    Same transport/auth contract as :func:`roughness_for_frame`: ``X-API-Key``
+    when a key is configured, no auth header when none is (the keyless gateway),
+    and an unauthenticated POST to *direct_url* when that is set.
     """
-    if direct_url and direct_url.strip():
-        url = direct_url.strip()
-        headers = {"accept": "application/json", "Content-Type": "application/json"}
-    else:
-        if not (endpoint and endpoint.strip()):
-            raise RoughnessError(f"No {what} endpoint configured")
-        if not (api_key and api_key.strip()):
-            raise RoughnessError("No API key configured")
-        url = f"{endpoint.rstrip('/')}/{route.lstrip('/')}"
-        headers = {"accept": "application/json", "Content-Type": "application/json",
-                   "X-API-Key": api_key}
+    url, headers = _target(endpoint, api_key, route, direct_url, what)
     try:
         response = requests.post(url, headers=headers, json=body, timeout=timeout)
     except requests.exceptions.RequestException as exc:
         log_exception(f"{what}: network error", exc, warn=True)
         raise RoughnessError(f"Cannot reach the roughness service: {exc}") from exc
     if not response.ok:
-        detail = _extract_detail(response)
-        log_exception(f"{what}: HTTP {response.status_code}: {detail}",
-                      RoughnessError(detail, response.status_code), warn=True)
-        raise RoughnessError(detail, response.status_code)
+        _raise_for_response(response, what, "X-API-Key" in headers)
     try:
         payload = response.json()
     except ValueError as exc:
@@ -374,26 +421,27 @@ def mosaic_by_reference(reference_key, *, window: int = 5, mode: str = "auto",
                       direct_url=direct_url, timeout=timeout, what="mosaic")
 
 
-def health(endpoint: str, api_key: str, *, route: str = HEALTH_ROUTE,
-           timeout: int = 10) -> dict:
+def health(endpoint: str, api_key: str | None = None, *,
+           route: str = HEALTH_ROUTE, timeout: int = 10) -> dict:
     """Probe the roughness service health (``GET /seafloor/health``).
 
-    Returns the parsed JSON body; raises :class:`RoughnessError` on any failure.
-    Useful for a quick "is the GPU service reachable?" check before computing.
+    Same auth shape as the POST routes: ``X-API-Key`` when a key is configured,
+    no auth header when none is (the keyless gateway).  Returns the parsed JSON
+    body; raises :class:`RoughnessError` on any failure.  Useful for a quick "is
+    the GPU service reachable?" check before computing.
     """
     if not (endpoint and endpoint.strip()):
         raise RoughnessError("No roughness endpoint configured")
-    if not (api_key and api_key.strip()):
-        raise RoughnessError("No API key configured")
     url = f"{endpoint.rstrip('/')}/{route.lstrip('/')}"
+    headers = _headers(api_key)
+    headers.pop("Content-Type", None)      # a GET carries no body
     try:
-        response = requests.get(
-            url, headers={"accept": "application/json", "X-API-Key": api_key},
-            timeout=timeout)
+        response = requests.get(url, headers=headers, timeout=timeout)
     except requests.exceptions.RequestException as exc:
         raise RoughnessError(f"Cannot reach the roughness service: {exc}") from exc
     if not response.ok:
-        raise RoughnessError(_extract_detail(response), response.status_code)
+        _raise_for_response(response, "roughness", "X-API-Key" in headers,
+                            log_as="health")
     try:
         return response.json()
     except ValueError as exc:

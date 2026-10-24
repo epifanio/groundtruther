@@ -25,18 +25,28 @@ its own archive, runs stereo matching (RAFT-Stereo on a GPU), and returns the
 metrics plus whatever optional rasters you asked for. No image bytes leave your
 machine.
 
-Two transports, same request and response:
+Three ways to reach it, same request and response:
 
-- **Through FastGIS** (the normal case) — `POST /seafloor/roughness` with your
+- **Keyed API** (the normal case) — `POST {base_url}/seafloor/roughness` with your
   `X-API-Key`. It reuses the GRASS credentials, so if the
   [GRASS toolbox](grass-fastgis.md) works, roughness works.
+- **Keyless gateway** — the same `base_url` + `route`, with no API key
+  configured. GroundTruther then sends no `X-API-Key` header at all, which is
+  what the `seafloor-gateway` deployment (`https://seafloor.fastgis.eu`) expects:
+  it is unauthenticated by design. Nothing else to set — keylessness follows from
+  the absence of a key.
 - **Direct** — set `Roughness.direct_url` to POST straight at the GPU service
-  with no auth. Only useful when QGIS is running on the GPU host itself.
+  with no auth. Only useful when QGIS is running on the GPU host itself: it takes
+  one full URL per route rather than composing `base_url` + `route`.
 
-Configure both in
+Configure all three in
 [Settings → Seafloor roughness](../configuration/settings-reference.md#roughness).
-If neither the FastGIS credentials nor a direct URL are set, the panel says
-*"roughness service not configured"* and does nothing else.
+A **base URL is all that is required** — from `Roughness.base_url` or, when that
+is empty, `Processing.grass_api_endpoint`. With neither a base URL nor a direct
+URL the panel says *"roughness service not configured"* and does nothing else.
+A base URL but no key is not a misconfiguration: the request goes out
+unauthenticated, and if that service wanted a key it answers 401/403 and the
+panel says the key is missing.
 
 !!! tip "First call is slow"
     The GPU model loads lazily — expect ~14 s for the first frame of a session
@@ -423,7 +433,7 @@ work — it deliberately normalises radiometry.
 | Setting | What it is |
 |---|---|
 | `Processing.grass_api_endpoint`, `Processing.grass_api_key` | The credentials roughness reuses. |
-| `Roughness.base_url`, `Roughness.route`, `Roughness.direct_url` | Override the transport. Empty = reuse FastGIS. |
+| `Roughness.base_url`, `Roughness.route`, `Roughness.direct_url` | Override the transport. Empty = reuse the FastGIS endpoint. A `base_url` with no API key is the keyless gateway. |
 | `Roughness.res_mm`, `Roughness.n_water`, `Roughness.dem_max_side` | Compute knobs. Leave the first two unset. |
 | `Roughness.georeference`, `epsg`, `heading_offset_deg`, `mirror` | Georeferencing defaults — **overridden by a saved per-dataset calibration**. |
 | `Roughness.dem_trim_border`, `dem_clip_sigma`, `dem_erode` | Starting values for the 3-D mesh mitigation controls. |
