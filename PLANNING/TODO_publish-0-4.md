@@ -8,7 +8,7 @@ the 2023 QGIS-3 build."* A release, planned; nothing is uploaded by a session.
 **2026-10-24, `seq-U1-deps-message`: WP-4 is in `master`** — PR
 [#67](https://github.com/epifanio/groundtruther/pull/67), merged by the owner at `ab010ed` on their
 word (*"Go ahead and merge #67"*), after being opened and left for their review (§6.3,
-`WORKFLOW.md` §12 Q3). What is still owed is the **GUI check** in the queue's §3, not the merge. `classFactory` now probes `gt/deps_check.py` before it
+`WORKFLOW.md` §12 Q3), and **confirmed in the GUI by the owner the same day**: on `gt-mac-novenv` the dialog renders as intended, with the live install link, the headline counting only the 6 that block, and the other 4 listed apart. **WP-4 is done.** `classFactory` now probes `gt/deps_check.py` before it
 imports anything, and when something the dock needs is missing it logs every missing package with
 what that package costs and hands QGIS a `_MissingDependenciesPlugin` **instead of raising**: that
 object loads cleanly, adds one menu entry that re-opens the explanation, shows **one** dialog naming
@@ -184,7 +184,7 @@ None of these bind work outside this plan, so none was promoted to a decision re
 | `publish-0-4 WP-1` | `scripts/make-release-zip.sh`; delete `make_zip.sh`; fix or delete the Makefile release targets; gitignore the release artifact | — | P | M | **built** `seq-P2-release-zip` 2026-10-24, PR #50 open for the owner |
 | `publish-0-4 WP-2` | `metadata.txt` and the `__init__.py` docstring typo | — | P | S | ✅ `seq-P1-release-metadata` 2026-10-24, PR #56 merged (`master` 4f4d6b5) |
 | `publish-0-4 WP-3` | `gt/deps_check.py` + unit tests: which required modules are importable | — | C | M | ✅ `seq-C1-deps-check` 2026-10-24, PR #61 merged (`master` 6e22c32) |
-| `publish-0-4 WP-4` | `__init__.py` + one dialog and a log line when deps are missing; disable what cannot work | WP-3 | U | M | ◐ `seq-U1-deps-message` 2026-10-24, #67 in `master` `ab010ed`; GUI check owed |
+| `publish-0-4 WP-4` | `__init__.py` + one dialog and a log line when deps are missing; disable what cannot work | WP-3 | U | M | ✅ `seq-U1-deps-message` 2026-10-24, #67 in `master` `ab010ed`, GUI confirmed |
 | `publish-0-4 WP-5` | the install page on the docs site: what the Plugin Manager gives you and what it does not | WP-4 (done, `ab010ed`) | D | S | queued `seq-D1-install-docs` |
 | `publish-0-4 WP-6` | **the owner's**: tag `v0.4`, build the zip, verify its contents, upload | WP-1…WP-5 | — | — | queue §3 |
 
