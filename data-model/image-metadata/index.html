@@ -1521,12 +1521,26 @@
 <a href="../../tools/image-browser/">Image Browser</a>, the map lookup, the metadata panel
 and every position GroundTruther sends to a service.</p>
 <ul>
-<li><strong>Format:</strong> Apache <strong>Parquet</strong> (read with <code>pandas.read_parquet</code>; the file
-  extension does not matter — <code>.pq</code> and <code>.parquet</code> are both fine).</li>
+<li><strong>Format:</strong> Apache <strong>Parquet</strong> (read with <strong>pyarrow</strong>, via
+  <code>pyarrow.parquet.read_table</code>; the file extension does not matter — <code>.pq</code> and
+  <code>.parquet</code> are both fine).</li>
 <li><strong>One row per image.</strong></li>
-<li><strong>Index:</strong> a <code>DatetimeIndex</code> — the acquisition time of each frame. The metadata
-  panel's <strong>Time</strong> row displays it, so a table indexed by something else will
-  show a blank there but is otherwise usable.</li>
+<li><strong>Index:</strong> the acquisition time of each frame. The metadata panel's <strong>Time</strong>
+  row displays it, so a table indexed by something else will show a blank there
+  but is otherwise usable.</li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">The time index comes back as <code>datetime</code> objects, not <code>datetime64</code></p>
+<p>Store the index in your file as an ordinary Parquet timestamp — nothing
+about the <strong>file</strong> changed. What changed is what the plugin hands to Python:
+the index is an object-dtype index of plain <code>datetime.datetime</code> values
+rather than a pandas <code>DatetimeIndex</code>, because on QGIS 4.2.1 on macOS
+building a pandas <code>datetime64</code> crashes the whole application. Comparing,
+sorting and displaying the values all work as you would expect; the <code>.dt</code>
+accessor and time-based slicing do not. This matters only if you script
+against the loaded table — in the GUI there is nothing to notice.</p>
+</div>
+<ul>
 <li><strong>Reference file:</strong> the sample dataset's <code>projectdata.pq</code>
   (<a href="https://zenodo.org/records/7995674">Zenodo 7995674</a>) — 123 394 rows,
   38 columns. The tables below describe exactly that file.</li>
@@ -1830,7 +1844,7 @@ output</strong> — their scaling is not recorded anywhere in the plugin or the 
 </tbody>
 </table>
 <h2 id="timing">Timing<a class="headerlink" href="#timing" title="Permanent link">&para;</a></h2>
-<p>All redundant with the DatetimeIndex; none is read by the plugin.</p>
+<p>All redundant with the time index; none is read by the plugin.</p>
 <table>
 <thead>
 <tr>
@@ -1922,8 +1936,8 @@ output</strong> — their scaling is not recorded anywhere in the plugin or the 
 </thead>
 <tbody>
 <tr>
-<td>A <code>DatetimeIndex</code></td>
-<td>The metadata panel's Time row.</td>
+<td>A timestamp index</td>
+<td>The metadata panel's Time row. Write it as a normal Parquet timestamp; the plugin converts it on load (see the note at the top).</td>
 </tr>
 <tr>
 <td><code>Imagename</code></td>
