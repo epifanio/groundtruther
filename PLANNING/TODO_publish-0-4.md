@@ -11,8 +11,9 @@ paths that put `config/config.yaml` — the GRASS/FastGIS API key — inside the
 Verified on a throwaway tag: 2.7 MB, 237 files, the five forbidden paths absent, `qtui/icons/`
 present, and no API-key value anywhere in the unpacked tree (the guard was proved by planting a fake
 key, which it refused to ship). **#50 is in `master`; it is the owner's review that is still owed, not the merge.** Three sessions are
-**2026-10-24, `seq-P1-release-metadata`: WP-2 built — PR [#56](https://github.com/epifanio/groundtruther/pull/56),
-CI green, left open for the owner (§6.3).** `metadata.txt` now parses with no junk key, declares an
+**2026-10-24, `seq-P1-release-metadata`: WP-2 is in `master`** — PR
+[#56](https://github.com/epifanio/groundtruther/pull/56), merged by the owner at `4f4d6b5` on their
+word (*"Go ahead and merge #56"*), after being opened and left for their review (§6.3). `metadata.txt` now parses with no junk key, declares an
 icon that exists (`qtui/icons/epi.gif`; the old `qtui/icons/qgis/epi.gif` never did, which would have
 failed the upload), carries 13 discovery tags, points `homepage` at the docs site and has a real 0.4
 changelog. `version=0.4` and `experimental=True` are untouched (§6 Q2, Q4).
@@ -138,7 +139,7 @@ None of these bind work outside this plan, so none was promoted to a decision re
 | Package | Scope | Depends on | Lane | Size | State |
 |---|---|---|---|---|---|
 | `publish-0-4 WP-1` | `scripts/make-release-zip.sh`; delete `make_zip.sh`; fix or delete the Makefile release targets; gitignore the release artifact | — | P | M | **built** `seq-P2-release-zip` 2026-10-24, PR #50 open for the owner |
-| `publish-0-4 WP-2` | `metadata.txt` and the `__init__.py` docstring typo | — | P | S | **built** `seq-P1-release-metadata` 2026-10-24, PR #56 open for the owner |
+| `publish-0-4 WP-2` | `metadata.txt` and the `__init__.py` docstring typo | — | P | S | ✅ `seq-P1-release-metadata` 2026-10-24, PR #56 merged (`master` 4f4d6b5) |
 | `publish-0-4 WP-3` | `gt/deps_check.py` + unit tests: which required modules are importable | — | C | M | queued `seq-C1-deps-check` |
 | `publish-0-4 WP-4` | `__init__.py` + one dialog and a log line when deps are missing; disable what cannot work | WP-3 | U | M | queued `seq-U1-deps-message` |
 | `publish-0-4 WP-5` | the install page on the docs site: what the Plugin Manager gives you and what it does not | WP-4 | D | S | queued `seq-D1-install-docs` |
