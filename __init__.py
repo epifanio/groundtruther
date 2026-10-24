@@ -21,23 +21,60 @@
  *                                                                         *
  ***************************************************************************/
  This script initializes the plugin, making it known to QGIS.
+
+Honest failure when the dependencies are absent
+-----------------------------------------------
+Installed through the QGIS Plugin Manager, the plugin gets no virtualenv:
+:func:`_bootstrap_venv` has nothing to add, and QGIS 4 runs on a system Python
+where PEP-668 forbids ``pip install``.  Every one of the 20 packages in
+``dependencies/requirements.txt`` is then unimportable, and because
+``groundtruther.py`` imports the dock at module level, :func:`classFactory`
+dies on the *first* of them — measured on a real QGIS 4.2.1 as
+``ModuleNotFoundError: No module named 'pyqtgraph'``, with **nothing** in the
+GroundTruther log and QGIS's generic Python traceback as the only explanation.
+
+So :func:`classFactory` probes first (``gt/deps_check.py``) and, when something
+it needs is missing, logs every missing package, hands QGIS
+:class:`_MissingDependenciesPlugin` instead of raising, and lets that object say
+once what is missing and where the install instructions are.  Which packages are
+missing is always *computed* — it is platform-specific: macOS QGIS ships
+``pandas`` and not ``pyqtgraph``.
+
+This file does not make the heavy dependencies optional; that is its own plan.
 """
+
+#: The one name of the plugin's self-contained virtualenv, used by both halves
+#: of the convention: ``setup_wsl.sh --venv`` creates it under this name beside
+#: the plugin source, and :func:`_bootstrap_venv` looks for this name and no
+#: other.  The two used to disagree — the script made ``gtenv`` while the
+#: bootstrap looked for ``.venv`` — so the documented fallback install produced
+#: a virtualenv the plugin never loaded.  ``.venv`` won: it is the name
+#: ``CLAUDE.md``, the test suite and the install docs already use.
+VENV_DIRNAME = ".venv"
+
+#: Where a user is sent to find out how to get the dependencies.  A section
+#: URL, not a page, so it survives the install docs being split up.
+INSTALL_DOCS_URL = "https://epifanio.github.io/groundtruther/installation/"
 
 
 def _bootstrap_venv():
     """Add the plugin's self-contained virtualenv to sys.path.
 
     GroundTruther's Python dependencies (pandas, opencv, pyqtgraph, numba, ...)
-    are installed into a ``.venv`` created alongside the plugin source with
-    ``--system-site-packages`` against the same Python QGIS uses.  This makes
-    them importable inside QGIS regardless of how QGIS was launched, without
-    relying on a profile ``startup.py``.  No-op if the venv is absent.
+    are installed into a :data:`VENV_DIRNAME` virtualenv created alongside the
+    plugin source with ``--system-site-packages`` against the same Python QGIS
+    uses.  This makes them importable inside QGIS regardless of how QGIS was
+    launched, without relying on a profile ``startup.py``.
+
+    No-op if the venv is absent — which is what a QGIS Plugin Manager install
+    looks like.  Returns the directory added, or ``None``, so
+    :func:`classFactory` can say which of the two it is looking at.
     """
     import sys
     from pathlib import Path
 
     plugin_dir = Path(__file__).resolve().parent
-    site = (plugin_dir / ".venv" / "lib"
+    site = (plugin_dir / VENV_DIRNAME / "lib"
             / f"python{sys.version_info.major}.{sys.version_info.minor}"
             / "site-packages")
     if site.is_dir():
@@ -45,18 +82,186 @@ def _bootstrap_venv():
         if p not in sys.path:
             # Append so QGIS/system packages keep priority over venv copies.
             sys.path.append(p)
+        return p
+    return None
 
 
-_bootstrap_venv()
+_VENV_SITE = _bootstrap_venv()
+
+
+def _log(message, level="Info"):
+    """Log one line to the GroundTruther panel (D-003).
+
+    ``qgis.core`` is imported here rather than at module level so that this
+    file stays importable outside QGIS — the test suite imports it to check the
+    wording below without a QGIS at all.  Outside QGIS there is no log to write
+    to, and silence is the right answer.
+    """
+    try:
+        from qgis.core import Qgis, QgsMessageLog
+    except ImportError:
+        return
+    QgsMessageLog.logMessage(message, "GroundTruther", getattr(Qgis, level))
+
+
+def _missing_dependency_message(report):
+    """What to tell the user about *report*, as ``(html, details)``.
+
+    Split out from the dialog so the wording can be unit-tested without Qt.
+    *html* is the body of the one dialog; *details* is the plain-text
+    package-by-package breakdown behind its "Show Details" button.
+
+    The two groups are kept apart on purpose.  Only ``blocks_load``
+    requirements are the reason the plugin will not start — on macOS 10 of the
+    20 are missing but just 6 of those block — so leading with the whole count
+    would overstate the cause and bury what the user has to fix.
+    """
+    total = len(report.present) + len(report.missing)
+    blocking = report.blocking_missing
+    optional = tuple(r for r in report.missing if not r.blocks_load)
+    html = [
+        f"<b>GroundTruther cannot start: {len(blocking)} of the {total} "
+        f"Python packages it needs are not installed.</b>",
+        f"<p>The QGIS Plugin Manager does not install a plugin's Python "
+        f"dependencies, and QGIS 4 runs on a system Python that normally "
+        f"refuses <tt>pip install</tt>. Until these are present, GroundTruther "
+        f"cannot open its panel at all:</p>",
+        f"<p><tt>{', '.join(r.package for r in blocking)}</tt></p>",
+    ]
+    if optional:
+        html.append(
+            f"<p>{len(optional)} more are missing. They do not stop the plugin "
+            f"loading, but each one disables a feature:</p>"
+            f"<p><tt>{', '.join(r.package for r in optional)}</tt></p>")
+    html.append(
+        f'<p>How to install them: <a href="{INSTALL_DOCS_URL}">'
+        f"{INSTALL_DOCS_URL}</a></p>"
+        f"<p>The same list is in <i>View &rarr; Panels &rarr; Log Messages</i>, "
+        f"under <i>GroundTruther</i>.</p>")
+    details = "\n".join(
+        f"{'REQUIRED' if req.blocks_load else 'optional'}  {req.package} "
+        f"(import {req.module}) — {req.feature}"
+        for req in report.missing)
+    return "".join(html), details
+
+
+def _log_report(report, venv_site):
+    """Write the whole of *report* to the GroundTruther panel.
+
+    One headline, then one line per missing package naming what it costs: at the
+    point this runs the import that would have explained the failure has not
+    happened yet, so this log is the only durable record of it.
+    """
+    if report.ok:
+        _log(report.summary())
+        return
+    level = "Critical" if not report.can_load else "Warning"
+    _log(report.summary(), level)
+    for req in report.missing:
+        _log(f"  missing: {req.package} (import {req.module}) — {req.feature}",
+             level)
+    if venv_site is None:
+        _log(f"  no {VENV_DIRNAME} beside the plugin, so no dependencies were "
+             f"added to sys.path — this is what a Plugin Manager install looks "
+             f"like", level)
+    else:
+        _log(f"  {venv_site} was added to sys.path", "Info")
+    _log(f"  how to install them: {INSTALL_DOCS_URL}", level)
+
+
+class _MissingDependenciesPlugin:
+    """The plugin object QGIS gets when what the dock needs is not installed.
+
+    Returning this instead of letting the ``ImportError`` out of
+    :func:`classFactory` is the whole point: a raise gives the user QGIS's
+    generic Python traceback, names only the *first* missing module, and leaves
+    nothing behind in the plugin's own log.  This object loads cleanly, says
+    once what is missing and where to read about it, and offers no action that
+    could fail later — there is deliberately no toolbar and no dock, because
+    neither could be constructed.
+    """
+
+    def __init__(self, iface, report):
+        self.iface = iface
+        self.report = report
+        self.action = None
+        self._explained = False
+
+    def initGui(self):
+        """Add one menu entry, and explain once the main window is up.
+
+        The dialog is deferred with a zero-length timer because ``initGui`` runs
+        while QGIS is still starting: shown from here it would block startup and
+        can appear behind the main window.
+        """
+        from qgis.PyQt.QtCore import QTimer
+        from qgis.PyQt.QtWidgets import QAction
+
+        if self.iface is not None:
+            self.action = QAction(
+                "GroundTruther (dependencies missing)",
+                self.iface.mainWindow())
+            self.action.setToolTip(
+                "GroundTruther could not start: "
+                + ", ".join(self.report.missing_packages))
+            self.action.triggered.connect(self.explain)
+            self.iface.addPluginToMenu("&GroundTruther", self.action)
+        QTimer.singleShot(0, self.explain_once)
+
+    def explain_once(self):
+        """Show the dialog the first time only — one dialog, not one per import."""
+        if self._explained:
+            return
+        self._explained = True
+        self.explain()
+
+    def explain(self):
+        """Show the single dialog naming the missing packages."""
+        from qgis.PyQt.QtCore import Qt
+        from qgis.PyQt.QtWidgets import QMessageBox
+
+        html, details = _missing_dependency_message(self.report)
+        parent = self.iface.mainWindow() if self.iface is not None else None
+        box = QMessageBox(parent)
+        box.setWindowTitle("GroundTruther — dependencies missing")
+        box.setIcon(QMessageBox.Icon.Warning)
+        box.setTextFormat(Qt.TextFormat.RichText)  # for the link
+        box.setText(html)
+        if details:
+            box.setDetailedText(details)
+        box.exec()
+
+    def unload(self):
+        """Remove the menu entry.  Nothing else was ever created."""
+        if self.action is not None and self.iface is not None:
+            self.iface.removePluginMenu("&GroundTruther", self.action)
+        self.action = None
 
 
 # noinspection PyPep8Naming
 def classFactory(iface):  # pylint: disable=invalid-name
     """Load GroundTruther class from file GroundTruther.
 
+    Probes the runtime dependencies first and, when one the dock needs is
+    missing, returns a :class:`_MissingDependenciesPlugin` that explains itself
+    rather than importing a dock that cannot be built.
+
     :param iface: A QGIS interface instance.
     :type iface: QgsInterface
     """
+    try:
+        from .gt.deps_check import check_dependencies
+        report = check_dependencies()
+    except Exception as exc:  # the check must never become the failure
+        _log(f"the dependency check could not run ({exc!r}); "
+             f"loading the plugin anyway", "Warning")
+        report = None
+
+    if report is not None:
+        _log_report(report, _VENV_SITE)
+        if not report.can_load:
+            return _MissingDependenciesPlugin(iface, report)
+
     #
     from .groundtruther import GroundTruther
     return GroundTruther(iface)
