@@ -145,6 +145,19 @@ def test_mosaic_register_warning_low():
     assert q == "low" and "low texture" in t
 
 
+def test_mosaic_register_warning_none_does_not_blame_the_seabed():
+    """quality == "none" means the matcher failed, NOT that the seabed is bare.
+
+    Measured: at row 34941 the service registers 0/16 and reports a featureless
+    seabed, while the ribbon's tuned matcher links 10/15 pairs on the same
+    frames. Our appended hint must not assert the cause.
+    """
+    t, _ = ri.mosaic_register_warning({"register": {"quality": "none", "warning": ""}})
+    assert "featureless" not in t.lower()
+    assert "nav-placed" in t.lower()
+    assert "matcher" in t.lower()
+
+
 def test_mosaic_register_warning_none_adds_hint():
     t, q = ri.mosaic_register_warning({"register": {"quality": "none", "warning": ""}})
     assert q == "none" and "single frames" in t
