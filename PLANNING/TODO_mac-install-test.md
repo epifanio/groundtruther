@@ -99,8 +99,15 @@ Team ID. Measured with `codesign -d --entitlements`:
 | `python3.12` (the helper) | yes | no |
 | `qgis_process`, `crssync` | yes | no |
 
-So **the app can load pip wheels and the bundled `python3.12` cannot.** The headless recipe in
-`CLAUDE.md` runs `python3.12`, and under it *every* compiled dependency fails with
+So **the app can load pip wheels and the bundled `python3.12` cannot.**
+
+*(Corrected 2026-10-24 by `seq-C2-parquet-no-pandas`: this first said `CLAUDE.md`'s headless recipe
+runs `python3.12`. It does not — that recipe is Linux-only, `.venv/bin/python` with
+`/usr/share/qgis/python` and `python3.14` (`CLAUDE.md` Testing). The hazard is real but the gap is
+different: **there is no macOS recipe at all**, so a session improvising one reaches for
+`Contents/MacOS/python3.12`, which is the obvious choice and the wrong one.)*
+
+Under that interpreter *every* compiled dependency fails with
 
 ```text
 ImportError: dlopen(.../cv2/cv2.abi3.so): ... (code signature in <...> not valid for use in
@@ -421,8 +428,12 @@ python3 -c 'import json,sys; d=json.loads(open(sys.argv[1]).read().split("\n",1)
 ```
 
 **Headless, without the window.** For anything that does not need the GUI, the harness in §3 is
-faster and gives a real traceback. Do not use the `python3.12` recipe in `CLAUDE.md` on macOS: it
-runs an unentitled interpreter and makes every working compiled dependency look broken (§3).
+faster and gives a real traceback. `CLAUDE.md`'s recipe under Testing is **Linux-only** and there is
+no macOS one, so do not improvise: reaching for `Contents/MacOS/python3.12` is the obvious move and
+makes every working compiled dependency look broken (§3). Two things `seq-C2` learned using the
+harness, worth repeating: run probes with **`-u`**, or a segfault swallows the output and the run
+looks like a success; and never pass **`-I`**, which discards `PYTHONHOME` so the interpreter will
+not boot at all.
 
 **Rule of thumb from this session.** A result too sweeping to be true — "every compiled dependency
 fails", "pandas is entirely broken" — is usually the instrument, not the subject. Both times here,
@@ -439,8 +450,8 @@ checking the harness first would have saved the detour.
 ## 8. Lane split
 
 WP-2 is lane C (`gt/`) and WP-3 is lane U + D; they share no file. Both must wait for
-`seq-U1-deps-message`, which owns `__init__.py` — WP-3 rewrites the headless recipe in `CLAUDE.md`
-that describes it, and `publish-0-4` WP-4 may change what `_bootstrap_venv` does. A session may
+`seq-U1-deps-message`, which owns `__init__.py` — WP-3 **adds** a macOS headless recipe to
+`CLAUDE.md` beside the Linux one (there is none today) and documents `_bootstrap_venv`'s behaviour, and `publish-0-4` WP-4 may change what `_bootstrap_venv` does. A session may
 decide its own PR split and test shape; it may not re-decide whether to prepend the venv (§5 shows
 prepending does not work) or widen `requirements.txt` pins without the owner.
 
