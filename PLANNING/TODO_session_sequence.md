@@ -45,7 +45,7 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
-| ⏭ | `seq-U1-deps-message` | — | `publish-0-4` WP-4: load and say what is missing instead of dying, when the venv is absent | §2.4 | its wait is over: `gt/deps_check.py` is in `master` (#61, `6e22c32`). Read it before starting: 16 of the 20 deps stop the dock being constructed at all |
+| ▶ | `seq-U1-deps-message` | epifanio | `publish-0-4` WP-4: load and say what is missing instead of dying, when the venv is absent | §2.4 | started 2026-10-24 · its wait is over: `gt/deps_check.py` is in `master` (#61, `6e22c32`). Read it before starting: 16 of the 20 deps stop the dock being constructed at all |
 | ⏸ | `seq-U2-macos-profile-docs` | — | `mac-install-test` WP-3: the macOS profile path and a headless harness that is faithful to the app's signing, in `CLAUDE.md` and the install page | §2.7 | **Waits on** `seq-U1-deps-message` (it may change what `_bootstrap_venv` does, which the recipe describes) |
 
 ### Slot 2 — C (core & config), D (docs), P (packaging & install)
