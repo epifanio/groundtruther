@@ -75,7 +75,7 @@ Sessions that run without a queued row (urgent fixes, follow-ups) register here 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
 | ◐ | `mac-install-test` | epifanio | install GroundTruther on macOS QGIS 4.2.1 and exercise it against the Zenodo test dataset | — | 2026-10-24 · #54 (claim), this PR · verified: installed from a `make-release-zip.sh` artifact into two fresh profiles (`gt-mac-test` with a `.venv`, `gt-mac-novenv` without). Found two blockers: `gt.image_manager.load_metadata` **SIGSEGVs QGIS 4.2.1** and no `sys.path` fix exists, and `CLAUDE.md`'s headless recipe makes good wheels look broken. 23 of 24 deps work; `pydantic` fails in *stock* QGIS. Full measurements, and the owner's GUI checklist, in `PLANNING/TODO_mac-install-test.md` · memory note: 2026-10-24_mac-install-test.md |
-| ◐ | `sip-shim-d004` | epifanio | answer the D-004 `sip` question and remove the last `PyQt6` import | — | 2026-10-24 · #88, #91 · verified: in the signed macOS harness on QGIS 4.2.1: from qgis.PyQt import sip resolves, isdeleted is False for a live layer and True after sip.delete, and the real _track_layer_valid imported from the real module returns True alive / False after deletion with the attribute reset / False when None. grep for 'from PyQt6'/'import PyQt6' over the plugin: none left. check_planning 0/0; py_compile clean. Suite not run: no .venv on this Mac and nothing under tests/ imports mixins/ · memory note: 2026-10-24_sip-shim-d004.md |
+| ◐ | `sip-shim-d004` | epifanio | answer the D-004 `sip` question and remove the last `PyQt6` import | — | 2026-10-24 · #88, #91 (**merged by the owner 2026-10-24**, `master` `9d01eb1`; they said *"Go ahead and merge #91"*) · verified: in the signed macOS harness on QGIS 4.2.1: from qgis.PyQt import sip resolves, isdeleted is False for a live layer and True after sip.delete, and the real _track_layer_valid imported from the real module returns True alive / False after deletion with the attribute reset / False when None. grep for 'from PyQt6'/'import PyQt6' over the plugin: none left. check_planning 0/0; py_compile clean. Suite not run: no .venv on this Mac and nothing under tests/ imports mixins/ · memory note: 2026-10-24_sip-shim-d004.md |
 
 ### The owner's list (not sessions)
 
@@ -247,7 +247,7 @@ session it came from and the date.
   `sip-shim-d004`, and no longer the owner's:** it is. `from qgis.PyQt import sip` resolves in QGIS
   4.2.1 and `isdeleted` behaves, measured in the signed macOS harness — the item said this needed a
   running QGIS that only the owner has, which stopped being true once that harness existed.
-  `mixins/video_browser_mixin.py` now goes through the shim (**PR #91, open for the owner**) and no
+  `mixins/video_browser_mixin.py` now goes through the shim (PR #91, merged 2026-10-24, `master` `9d01eb1`) and no
   `from PyQt6` / `import PyQt6` statement is left in the plugin. What remains is the follow-up
   record adding `enforce: PyQt6 in mixins/` to D-004 — an open end on `sip-shim-d004`, not a check.
 
