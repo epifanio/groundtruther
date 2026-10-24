@@ -32,12 +32,22 @@ profile plugins folder:
    Python). The interpreter lives inside the bundle, e.g.:
 
     ```bash
-    QGIS_PY="/Applications/QGIS.app/Contents/MacOS/bin/python3"
+    QGIS_PY="/Applications/QGIS.app/Contents/MacOS/python3.12"
     "$QGIS_PY" -m pip install --user -r dependencies/requirements.txt
     ```
 
-    Adjust the path to match your QGIS version. Do **not** install `qgis`,
-    `gdal`, or `PyQt` via pip — they ship with the app.
+    Adjust the path and the version to match your QGIS — in the 4.2.1 bundle the
+    interpreter is `Contents/MacOS/python3.12` and there is no `MacOS/bin/`
+    directory. Do **not** install `qgis`, `gdal`, or `PyQt` via pip — they ship
+    with the app.
+
+    !!! warning "Running that interpreter directly is not a way to test your install"
+        `Contents/MacOS/python3.12` is signed with the hardened runtime and, unlike
+        the QGIS app itself, is **not** allowed to load libraries signed by anyone
+        else. Run it by hand and every pip-installed package with compiled code
+        fails with *"different Team IDs"* — even though the same packages load
+        perfectly inside QGIS. Check your dependencies from the QGIS **Python
+        Console** instead.
 
 3. Symlink/copy the plugin into the profile plugins folder shown above and enable
    it in the Plugin Manager.
