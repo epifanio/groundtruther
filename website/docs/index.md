@@ -82,4 +82,4 @@ GroundTruther is described in a peer-reviewed article in *Environmental Modellin
 | **Stereo backend** | GPU stereo-roughness service, reached through FastGIS or directly |
 | **Configuration** | One YAML file per install — [27 settings](configuration/settings-reference.md) |
 | **Sample data** | [Zenodo 7995674](https://zenodo.org/records/7995674) (CC-BY-4.0) |
-| **License** | GPL-2.0-or-later |
+| **License** | GPL-3.0-or-later |
