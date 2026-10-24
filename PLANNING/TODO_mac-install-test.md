@@ -368,13 +368,28 @@ in both profiles — `qgis.utils.findPlugins` returns `['groundtruther']` with v
    install is sound.
 9. In the dock's Settings, point `HabCam.imagepath` at
    `~/dev/groundtruther_test_dataset/image_subset` and `HabCam.imagemetadata` at
-   `~/dev/groundtruther_test_dataset/test_imagemetadata.pq`, and save.
-10. **The one that matters.** Browse an image. **Expect QGIS to vanish** — no dialog, no plugin
-    error, the whole application gone. That is §5 reached through the UI. If QGIS *survives* and
-    shows a HabCam image, §5 is wrong about the GUI and `seq-C2-parquet-no-pandas` needs re-scoping;
-    please say so.
+   `~/dev/groundtruther_test_dataset/test_imagemetadata.pq`, and save. **Already done** if you are
+   in `gt-mac-test`: `mac-ondevice-test` wrote that config into the profile on 2026-10-24, pointing
+   at the whole dataset (images, metadata, the detector CSV, the soundings and the reference
+   surface), with an empty `grass_api_key`. Open Settings to look at it, then go on to 10.
+10. **The one that matters.** Browse an image. **Expect it to work**: the image draws, with its
+    annotation boxes, and QGIS stays up.
 
-Please don't delete the two profiles afterwards; `seq-C2` will want them.
+    **This expectation was reversed on 2026-10-24, and that is the point of the step.** It used to
+    read *"Expect QGIS to vanish — no dialog, no plugin error, the whole application gone"*, because
+    §5 had measured every pandas datetime conversion as a SIGSEGV. `seq-C2-parquet-no-pandas` (#73)
+    and its follow-up (#81) routed every Parquet read through `gt/pandas_safe.py`, and
+    `mac-ondevice-test` then ran the underlying calls in QGIS 4.2.1's own interpreter against this
+    dataset: the timestamp-indexed metadata (5 900 images) and 20 581 319 MBES soundings both read
+    in-process without taking the interpreter down, and `ioutils.parse_annotation` +
+    `attach_annotations` mapped 3 538 annotated images onto it. So the crash is fixed **below** the
+    UI; this step is what confirms it **through** the UI.
+
+    **If QGIS still vanishes**, the fix does not reach the path the dock actually uses: say so, and
+    name what you clicked. That is a new blocker and it blocks the 0.4 upload — not a re-scoping of
+    `seq-C2`, whose own call sites are measured and fixed.
+
+Please don't delete the two profiles afterwards, or the config in `gt-mac-test`: this list is the standing on-device check, and WP-6 of `TODO_publish-0-4.md` is gated on it.
 
 ### 6.2 How to debug it when something goes wrong
 
