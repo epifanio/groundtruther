@@ -69,6 +69,10 @@ FORBIDDEN=(
 
 # Must exist in the artifact. qtui/icons/ is the 81-icon set the old make_zip.sh silently dropped.
 REQUIRED=(
+  # plugins.qgis.org REJECTS an upload without it: "Cannot find LICENSE in the
+  # plugin package. This file is required". Learnt the hard way on the 0.4
+  # upload, after every other check passed.
+  "$PLUGINNAME/LICENSE"
   "$PLUGINNAME/scripts/build_ribbon.py"
   "$PLUGINNAME/metadata.txt"
   "$PLUGINNAME/__init__.py"
