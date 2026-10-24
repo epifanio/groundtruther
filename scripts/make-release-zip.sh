@@ -24,7 +24,7 @@ PLUGINNAME=groundtruther
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Repo furniture: present in git, no business inside a QGIS plugin install.
-STRIP=(website tests PLANNING docs .claude .github)
+STRIP=(website tests PLANNING docs .claude .github .githooks help tmp)
 
 # Individual files to drop, for a directory that is MOSTLY furniture but not
 # entirely. scripts/ holds the session machinery (session.sh, hooks/, ci-wait,
@@ -38,6 +38,15 @@ STRIP=(website tests PLANNING docs .claude .github)
 # from every install, which is why this is a file list and not another entry in
 # STRIP above.
 STRIP_FILES=(
+  # Developer tooling, meaningless inside a user's plugin folder. CLAUDE.md is
+  # agent instructions; the rest build, lint, test or package the repository.
+  CLAUDE.md
+  Makefile
+  pb_tool.cfg
+  pylintrc
+  pytest.ini
+  compile_ui.sh
+  resources.qrc
   # The upload tool itself. It is for the maintainer, never for someone who
   # installed the plugin — and `import xmlrpc.client` in it is Bandit B411 at
   # HIGH severity, one of the three findings that blocked the 0.4 upload.
@@ -71,10 +80,24 @@ FORBIDDEN=(
   "$PLUGINNAME/scripts/make-release-zip.sh"
   "$PLUGINNAME/scripts/mac-profile-install.sh"
   "$PLUGINNAME/plugin_upload.py"
+  "$PLUGINNAME/CLAUDE.md"
+  "$PLUGINNAME/help"
+  "$PLUGINNAME/.githooks"
 )
 
 # Must exist in the artifact. qtui/icons/ is the 81-icon set the old make_zip.sh silently dropped.
 REQUIRED=(
+  # `epsg` is 888 KB of PROJ definitions and looks exactly like the repo
+  # furniture stripped above — but episg.py, search_epsg.py and pygui/epsg.py
+  # all build a path to it beside their own module and read it at runtime.
+  # It is asserted here so nobody "tidies away" the single biggest file in the
+  # artifact and breaks CRS lookup.
+  "$PLUGINNAME/epsg"
+  # dependencies/requirements.txt is read by gt/deps_check.py's
+  # parse_requirements, and every install page tells users to pip install from
+  # it. environment.yml is read by setup_wsl.sh, which also ships.
+  "$PLUGINNAME/dependencies/requirements.txt"
+  "$PLUGINNAME/environment.yml"
   # plugins.qgis.org REJECTS an upload without it: "Cannot find LICENSE in the
   # plugin package. This file is required". Learnt the hard way on the 0.4
   # upload, after every other check passed.
