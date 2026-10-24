@@ -833,7 +833,9 @@ class RoughnessMixin:
             self._georef_status.setText("no frame loaded")
             return
         cfg = self._roughness_config()
-        if not cfg["direct_url"] and not (cfg["endpoint"] and cfg["api_key"]):
+        # An endpoint is enough: the key is optional, because the gateway may be
+        # keyless (the client sends no auth header when none is configured).
+        if not cfg["direct_url"] and not cfg["endpoint"]:
             self._georef_status.setText("roughness service not configured")
             return
         # The mosaic is a sibling route; derive its direct URL from the roughness
@@ -1312,10 +1314,12 @@ class RoughnessMixin:
             self._show_roughness_result(frame_key, cached)
             return
 
-        if not cfg["direct_url"] and not (cfg["endpoint"] and cfg["api_key"]):
+        # The key is optional (a keyless gateway sends no auth header); only a
+        # base URL is needed, from Roughness.base_url or the GRASS endpoint.
+        if not cfg["direct_url"] and not cfg["endpoint"]:
             self._rough_status.setText(
-                "roughness service not configured (set Roughness.base_url / "
-                "direct_url or the GRASS API key)")
+                "roughness service not configured (set Roughness.base_url, "
+                "Roughness.direct_url or Processing.grass_api_endpoint)")
             return
 
         self._set_roughness_busy(True)

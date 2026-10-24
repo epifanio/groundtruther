@@ -93,22 +93,38 @@ class RoughnessSettings(BaseModel):
     """Per-frame seafloor-roughness service settings (all optional).
 
     Roughness is computed server-side from HabCam stereo pairs.  GroundTruther
-    reaches it through the FastGIS roughness route (reusing the GRASS
-    ``grass_api_endpoint`` + ``grass_api_key`` credentials), or — when running
-    *on* the GPU host — directly via ``direct_url`` to skip the tunnel.
+    reaches it three ways, and the key is what tells the keyed deployment from
+    the keyless one — there is no "keyless" switch to set (D-011):
+
+    1. **keyed** — ``base_url`` + ``route`` with an API key (empty ``base_url``
+       reuses the GRASS ``grass_api_endpoint`` + ``grass_api_key``): the FastGIS
+       deployment at ``https://api.fastgis.eu``.
+    2. **keyless** — ``base_url`` + ``route`` with **no** key configured: the
+       ``seafloor-gateway`` deployment at ``https://seafloor.fastgis.eu``, which
+       is unauthenticated by design.  The client then sends no ``X-API-Key``
+       header at all, rather than an empty one.
+    3. **on-host** — ``direct_url``, when QGIS runs *on* the GPU host, to skip
+       the tunnel.  One full URL per route, so sibling routes (the mosaic) are
+       derived from it by path; prefer 1 or 2 for a remote service.
 
     Named ``RoughnessSettings`` (not ``Roughness``) to avoid the pydantic
     field-name-equals-class-name pitfall noted on ``VideoSettings`` /
     ``SessionSettings``.
 
     Attributes:
-        base_url: FastGIS base URL for the roughness route.  Leave empty to
-            fall back to ``Processing.grass_api_endpoint``.
+        base_url: Base URL of the seafloor API — the keyed FastGIS deployment
+            or the keyless gateway.  Leave empty to fall back to
+            ``Processing.grass_api_endpoint``.  Authentication follows the key:
+            ``Processing.grass_api_key`` set means ``X-API-Key`` is sent, unset
+            means the request goes out unauthenticated.
         route: Roughness route path appended to the base URL
-            (default ``/roughness`` when empty).
+            (default ``/seafloor/roughness`` when empty).  Both deployments
+            serve it under the same path.
         direct_url: Optional on-host GPU service URL
             (e.g. ``http://127.0.0.1:7871/roughness``).  Default OFF (empty) —
-            when set, GT POSTs here directly with no auth, skipping FastGIS.
+            when set, GT POSTs here directly with no auth, skipping both the
+            tunnel and the ``base_url``+``route`` composition.  Not the way to
+            reach a keyless *remote* gateway: that is ``base_url`` with no key.
         res_mm: Optional default DEM resolution (mm) passed to the service.
         n_water: Optional default refractive index of water.
     """

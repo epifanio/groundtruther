@@ -96,9 +96,9 @@ def test_missing_endpoint_raises():
         rc.roughness_for_frame(FRAME, endpoint="", api_key=KEY)
 
 
-def test_missing_key_raises():
-    with pytest.raises(RoughnessError, match="key"):
-        rc.roughness_for_frame(FRAME, endpoint=EP, api_key="")
+def test_mosaic_missing_endpoint_raises():
+    with pytest.raises(RoughnessError, match="mosaic endpoint"):
+        rc.mosaic_by_reference(FRAME, endpoint="", api_key=KEY)
 
 
 # --- request building -------------------------------------------------------
@@ -179,6 +179,143 @@ def test_direct_url_needs_no_endpoint(capture):
     # No endpoint/api_key supplied — direct_url alone must work.
     out = rc.roughness_for_frame(FRAME, direct_url="http://127.0.0.1:7871/roughness")
     assert out["quality"] == "ok"
+
+
+# --- keyless gateway (base_url + route, no API key) -------------------------
+#
+# The seafloor-gateway deployment (https://seafloor.fastgis.eu) is
+# unauthenticated by design (D-011), so a missing key is a supported shape of
+# the composed route, not an error.  What must hold: no X-API-Key header AT ALL
+# (not an empty one), on both transports, for every route.
+
+KEYLESS = "https://seafloor.example.test"
+
+
+@pytest.mark.parametrize("api_key", [None, "", "   "])
+def test_keyless_route_sends_no_api_key_header(capture, api_key):
+    """No key configured -> the header is absent, never present-but-empty."""
+    out = rc.roughness_for_frame(FRAME, endpoint=KEYLESS, api_key=api_key)
+    call = capture["calls"][-1]
+    assert call["url"] == f"{KEYLESS}/seafloor/roughness"
+    assert "X-API-Key" not in call["headers"]
+    assert not any(h.lower() == "x-api-key" for h in call["headers"])
+    assert out["quality"] == "ok"
+
+
+def test_keyless_route_needs_no_key_at_all(capture):
+    """api_key not passed at all (not even as None) is the same shape."""
+    rc.roughness_for_frame(FRAME, endpoint=KEYLESS)
+    assert "X-API-Key" not in capture["calls"][-1]["headers"]
+
+
+@pytest.mark.parametrize("api_key", [None, ""])
+def test_keyless_mosaic_sends_no_api_key_header(capture, api_key):
+    capture["response"] = FakeResponse(json_data={"mosaic_png_b64": "x"})
+    rc.mosaic_by_reference(FRAME, endpoint=KEYLESS, api_key=api_key)
+    call = capture["calls"][-1]
+    assert call["url"] == f"{KEYLESS}/seafloor/mosaic"
+    assert "X-API-Key" not in call["headers"]
+
+
+def test_keyless_health_sends_no_api_key_header(capture_get):
+    rc.health(KEYLESS)
+    call = capture_get["calls"][-1]
+    assert call["url"] == f"{KEYLESS}/seafloor/health"
+    assert "X-API-Key" not in call["headers"]
+
+
+def test_keyed_route_still_sends_the_key(capture):
+    """The keyed FastGIS path is unchanged: a configured key is still sent."""
+    rc.roughness_for_frame(FRAME, endpoint=EP, api_key=KEY)
+    assert capture["calls"][-1]["headers"]["X-API-Key"] == KEY
+
+
+def test_api_key_is_stripped_before_sending(capture):
+    rc.roughness_for_frame(FRAME, endpoint=EP, api_key=f"  {KEY}\n")
+    assert capture["calls"][-1]["headers"]["X-API-Key"] == KEY
+
+
+def test_keyless_endpoint_is_still_required(capture):
+    """Dropping the key guard must not drop the endpoint guard."""
+    with pytest.raises(RoughnessError, match="endpoint"):
+        rc.roughness_for_frame(FRAME, endpoint="", api_key=None)
+
+
+def test_keyless_401_says_the_key_is_missing(capture):
+    """A keyed service answering a keyless request must be diagnosable."""
+    capture["response"] = FakeResponse(status=401, json_data={"detail": "Unauthorized"})
+    with pytest.raises(RoughnessError) as exc:
+        rc.roughness_for_frame(FRAME, endpoint=EP, api_key=None)
+    assert exc.value.status == 401
+    assert "requires an API key and none is configured" in str(exc.value)
+
+
+def test_keyless_401_names_the_service_not_the_function(capture):
+    """The message says "roughness service", not the internal function label.
+    Measured against the live keyed deployment, 2026-10-25: FastGIS answers
+    401 "authentication required (provide X-API-Key or sign in)"."""
+    capture["response"] = FakeResponse(
+        status=401,
+        json_data={"detail": "authentication required (provide X-API-Key or sign in)"})
+    with pytest.raises(RoughnessError) as exc:
+        rc.roughness_for_frame(FRAME, endpoint=EP, api_key=None)
+    assert "this roughness service requires an API key" in str(exc.value)
+    assert "roughness_for_frame" not in str(exc.value)
+
+
+def test_keyless_mosaic_401_names_the_mosaic(capture):
+    capture["response"] = FakeResponse(status=401, json_data={"detail": "nope"})
+    with pytest.raises(RoughnessError, match="this mosaic service requires"):
+        rc.mosaic_by_reference(FRAME, endpoint=EP, api_key=None)
+
+
+def test_keyless_health_401_names_the_service(capture_get):
+    capture_get["response"] = FakeResponse(status=403, json_data={"detail": "nope"})
+    with pytest.raises(RoughnessError, match="this roughness service requires"):
+        rc.health(EP)
+
+
+def test_keyed_401_does_not_blame_the_key(capture):
+    """With a key sent, a 401 is a bad key — do not tell the user to set one."""
+    capture["response"] = FakeResponse(status=403, json_data={"detail": "Forbidden"})
+    with pytest.raises(RoughnessError) as exc:
+        rc.roughness_for_frame(FRAME, endpoint=EP, api_key=KEY)
+    assert "none is configured" not in str(exc.value)
+    assert "Forbidden" in str(exc.value)
+
+
+def test_keyless_502_passes_the_detail_through(capture):
+    """The live gateway's own answer while the GPU box is down (502, measured
+    2026-10-25) must surface as the service's detail, not as an auth problem."""
+    capture["response"] = FakeResponse(
+        status=502, json_data={"detail": "roughness service unreachable"})
+    with pytest.raises(RoughnessError) as exc:
+        rc.roughness_for_frame(FRAME, endpoint=KEYLESS, api_key=None)
+    assert exc.value.status == 502
+    assert str(exc.value) == "[502] roughness service unreachable"
+
+
+# --- direct_url keeps working, including the derived mosaic URL -------------
+
+def test_direct_url_ignores_a_configured_key(capture):
+    """direct_url is keyless whatever the key says (the on-host fast path)."""
+    rc.roughness_for_frame(FRAME, endpoint=EP, api_key=KEY,
+                           direct_url="http://127.0.0.1:7871/roughness")
+    call = capture["calls"][-1]
+    assert call["url"] == "http://127.0.0.1:7871/roughness"
+    assert "X-API-Key" not in call["headers"]
+
+
+def test_direct_mosaic_url_derived_by_sibling_path(capture):
+    """The mixin derives the mosaic URL from direct_url by sibling path
+    (mixins/roughness_mixin.py); the client must POST exactly that, keyless."""
+    direct = "http://127.0.0.1:7871/roughness"
+    mosaic_direct = direct.rsplit("/", 1)[0] + "/mosaic"
+    capture["response"] = FakeResponse(json_data={"mosaic_png_b64": "x"})
+    rc.mosaic_by_reference(FRAME, direct_url=mosaic_direct)
+    call = capture["calls"][-1]
+    assert call["url"] == "http://127.0.0.1:7871/mosaic"
+    assert "X-API-Key" not in call["headers"]
 
 
 # --- response handling ------------------------------------------------------

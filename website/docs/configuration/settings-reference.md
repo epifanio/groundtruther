@@ -58,13 +58,14 @@ settings.**
 ## `Processing`
 
 The FastGIS credentials. These are shared: the roughness service reuses them
-unless you override them under `Roughness`.
+unless you override them under `Roughness` — and roughness can run without the
+key altogether when it points at a keyless gateway.
 
 | Key | Type | Default | Required | What it does | When unset or wrong |
 |---|---|---|---|---|---|
 | `Processing.gpu_avaibility` | bool | `false` | no | Declares that a CUDA-capable GPU (`cudf`/`cuspatial`) is available to accelerate point-in-polygon selection. *(The dialog's control is currently disabled — automatic RAPIDS detection is not implemented, so this is effectively a YAML-only switch.)* | Spatial selection uses the CPU `numba` path. Slower on large soundings files, identical results. |
 | `Processing.grass_api_endpoint` | url | *(none)* | no | Base URL of the FastGIS GRASS API, e.g. `https://api.fastgis.eu`. | The whole [GRASS / FastGIS toolbox](../tools/grass-fastgis.md) is unavailable — and so is [Seafloor Roughness](../tools/seafloor-roughness.md), unless you set `Roughness.base_url` or `Roughness.direct_url`. |
-| `Processing.grass_api_key` | str | *(none)* | no | Your API key, sent as the `X-API-Key` header on every request. **This is a secret** — see [Configuration](index.md#it-contains-a-secret). | Same as above: no GRASS, no roughness. The key is not validated locally, so a *wrong* key shows up as a 401/403 from the server, not as a config warning. |
+| `Processing.grass_api_key` | str | *(none)* | no | Your API key, sent as the `X-API-Key` header on every keyed request. **This is a secret** — see [Configuration](index.md#it-contains-a-secret). | No GRASS. Roughness still works against a keyless gateway — see [`Roughness`](#roughness) — but every `/grass/*` route needs the key. It is not validated locally, so a *wrong* key shows up as a 401/403 from the server, not as a config warning. |
 
 !!! note "Note the spelling"
     `gpu_avaibility` is misspelled in the schema. It is kept as-is for backward
@@ -99,9 +100,32 @@ service. All optional; all have working defaults.
 
 | Key | Type | Default | Required | What it does | When unset or wrong |
 |---|---|---|---|---|---|
-| `Roughness.base_url` | url | *(none)* | no | FastGIS base URL for the roughness route. | **Empty is the normal setting** — it falls back to `Processing.grass_api_endpoint` and reuses the same API key. |
-| `Roughness.route` | str | *(none)* | no | Route path appended to the base URL. | Empty means `/seafloor/roughness`, which is correct for the current FastGIS deployment. |
-| `Roughness.direct_url` | url | *(none)* | no | On-host GPU service URL, e.g. `http://127.0.0.1:7871/roughness`. When set, GroundTruther POSTs here **directly with no auth header**, skipping FastGIS entirely. | Empty means "go through FastGIS" — the right choice unless you are running QGIS on the GPU host itself. |
+| `Roughness.base_url` | url | *(none)* | no | Base URL of the seafloor API: the keyed FastGIS deployment (`https://api.fastgis.eu`) or a keyless gateway (`https://seafloor.fastgis.eu`). | **Empty is the normal setting** — it falls back to `Processing.grass_api_endpoint` and reuses the same API key. |
+| `Roughness.route` | str | *(none)* | no | Route path appended to the base URL. | Empty means `/seafloor/roughness`, which is correct for both deployments — they serve it under the same path. |
+| `Roughness.direct_url` | url | *(none)* | no | On-host GPU service URL, e.g. `http://127.0.0.1:7871/roughness`. When set, GroundTruther POSTs here **directly with no auth header**, skipping both the API and the `base_url`+`route` composition. | Empty means "compose the URL from `base_url` + `route`" — the right choice unless you are running QGIS on the GPU host itself. **This is not how you reach a keyless remote gateway**: see the admonition below. |
+
+!!! info "Keyless is inferred from the key, not declared"
+    There is no separate "keyless" switch to set, and no key under `Roughness`
+    holds one. Whether `X-API-Key` is sent follows from whether a key is
+    configured:
+
+    | `Processing.grass_api_key` | What goes on the wire |
+    |---|---|
+    | set | `X-API-Key: <your key>` — the keyed FastGIS deployment |
+    | unset / blank | **no `X-API-Key` header at all** (not an empty one) — the keyless `seafloor-gateway` deployment, which is unauthenticated by design |
+
+    So pointing `Roughness.base_url` at `https://seafloor.fastgis.eu` and leaving
+    the key unset is a supported configuration, and the only one you need for a
+    keyless *remote* gateway. `Roughness.direct_url` is also keyless, but it is
+    the on-host fast path: it takes one full URL per route, so the mosaic URL has
+    to be derived from it by path, and it is not meant for a remote service.
+
+    `Processing.grass_api_key` is still **required for every `/grass/*` route** —
+    the GRASS toolbox is keyed and unaffected by any of this.
+
+    If the service does want a key and none is configured, it answers 401/403 and
+    the panel says so in as many words, naming the missing key — the mistake is
+    caught by the server rather than by a local guard, one HTTP round trip later.
 
 ### Computation
 
