@@ -112,8 +112,26 @@ for f in "${STRIP_FILES[@]}" "${STRIP_DIRS_IN_FILES[@]}"; do
   if [[ -e "$tmp/$PLUGINNAME/$f" ]]; then rm -rf "$tmp/$PLUGINNAME/$f"; echo ">> stripped $f"; fi
 done
 
+# Byte-reproducibility. Every FILE already carries the tag's commit time, which
+# `git archive` stamps into the tar. The top-level directory entry did not: `tar
+# -x` creates it and then writes into it, so its mtime was the moment of
+# extraction and two builds of the same tag produced two different sha256 for
+# byte-identical contents. Stamp it, and the only clock the artifact depends on
+# is the one in the commit.
+#
+# `touch -t` rather than `-d`: BSD touch (macOS) rejects the ISO-8601 string git
+# prints, so the epoch is converted with whichever `date` this machine has —
+# `-r` on BSD, `-d @` on GNU.
+commit_epoch="$(git -C "$REPO" log -1 --format=%ct "$tag")"
+stamp="$(date -r "$commit_epoch" +%Y%m%d%H%M.%S 2>/dev/null \
+        || date -d "@$commit_epoch" +%Y%m%d%H%M.%S)"
+[[ -n "$stamp" ]] || die "could not convert the commit date to a touch timestamp"
+find "$tmp/$PLUGINNAME" -type d -exec touch -t "$stamp" {} +
+
 zip_tmp="$tmp/$PLUGINNAME.zip"
-( cd "$tmp" && zip -9qr "$zip_tmp" "$PLUGINNAME" )
+# -X drops uid/gid and the extra-field timestamps, which carry a finer-grained
+# clock than the DOS time zip records in the entry itself.
+( cd "$tmp" && zip -9qrX "$zip_tmp" "$PLUGINNAME" )
 
 echo ">> verifying"
 listing="$(unzip -Z1 "$zip_tmp")"
