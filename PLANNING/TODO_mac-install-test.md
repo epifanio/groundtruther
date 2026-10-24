@@ -372,9 +372,10 @@ in both profiles — `qgis.utils.findPlugins` returns `['groundtruther']` with v
    in `gt-mac-test`: `mac-ondevice-test` wrote that config into the profile on 2026-10-24, pointing
    at the whole dataset (images, metadata, the detector CSV, the soundings and the reference
    surface), with an empty `grass_api_key`. Open Settings to look at it, then go on to 10.
-10. **The one that matters.** Browse an image. **2026-10-24: the owner ran this and QGIS vanished.**
-    See §6.2 — the crash is real, its cause is known, and it blocks the 0.4 upload. Expect it to
-    work only once that is fixed: the image draws, with its annotation boxes, and QGIS stays up.
+10. **The one that matters.** Browse an image. **Expect it to work**: the image draws, with its
+    annotation boxes, and QGIS stays up. **2026-10-24: ran twice.** First it took QGIS down (§6.2);
+    after PR #100 the owner re-ran it and reported *"The image drew and QGIS stayed up"*. If it
+    vanishes again, read §6.2 first — and check the profile is not holding a stale copy.
 
     **This expectation was reversed on 2026-10-24, and that is the point of the step.** It used to
     read *"Expect QGIS to vanish — no dialog, no plugin error, the whole application gone"*, because
@@ -448,7 +449,13 @@ straight into `maybe_convert_objects`.
 `scripts/build_ribbon.py:306` builds from dicts, and `gt/video_manager.py:141` and
 `gt/roughness_join.py:112` pass an explicit dtype.
 
-**This blocks `TODO_publish-0-4.md` WP-6.** It is lane U code (`mixins/`), one line, and it is the
+**Resolved 2026-10-24 by PR #100** (`master` `0155844`): the summary builds from `row.to_dict()`,
+which drops the name, and a source-level test pins the shape because the crash does not reproduce on
+Linux. The owner re-ran step 10 and the image drew. One trap on the way: **both test profiles hold
+copies of the plugin and were stale after the merge**, so they were refreshed from `master` first —
+a retest against a stale copy would have reproduced the crash and looked like the fix failing.
+
+It *was* a blocker on `TODO_publish-0-4.md` WP-6. It is lane U code (`mixins/`), one line, and it is the
 difference between a working plugin and one that kills QGIS the first time a user browses an image —
 the plugin's primary action.
 
