@@ -1386,11 +1386,22 @@ profile plugins folder:</p>
 <li>
 <p>Install the dependencies into the <strong>QGIS app's own Python</strong> (not your system
    Python). The interpreter lives inside the bundle, e.g.:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">QGIS_PY</span><span class="o">=</span><span class="s2">"/Applications/QGIS.app/Contents/MacOS/bin/python3"</span>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">QGIS_PY</span><span class="o">=</span><span class="s2">"/Applications/QGIS.app/Contents/MacOS/python3.12"</span>
 <a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="s2">"</span><span class="nv">$QGIS_PY</span><span class="s2">"</span><span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>-r<span class="w"> </span>dependencies/requirements.txt
 </code></pre></div>
-<p>Adjust the path to match your QGIS version. Do <strong>not</strong> install <code>qgis</code>,
-<code>gdal</code>, or <code>PyQt</code> via pip — they ship with the app.</p>
+<p>Adjust the path and the version to match your QGIS — in the 4.2.1 bundle the
+interpreter is <code>Contents/MacOS/python3.12</code> and there is no <code>MacOS/bin/</code>
+directory. Do <strong>not</strong> install <code>qgis</code>, <code>gdal</code>, or <code>PyQt</code> via pip — they ship
+with the app.</p>
+<div class="admonition warning">
+<p class="admonition-title">Running that interpreter directly is not a way to test your install</p>
+<p><code>Contents/MacOS/python3.12</code> is signed with the hardened runtime and, unlike
+the QGIS app itself, is <strong>not</strong> allowed to load libraries signed by anyone
+else. Run it by hand and every pip-installed package with compiled code
+fails with <em>"different Team IDs"</em> — even though the same packages load
+perfectly inside QGIS. Check your dependencies from the QGIS <strong>Python
+Console</strong> instead.</p>
+</div>
 </li>
 <li>
 <p>Symlink/copy the plugin into the profile plugins folder shown above and enable
