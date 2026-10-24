@@ -52,8 +52,8 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
 | ◐ | `seq-P2-release-zip` | claude | `publish-0-4` WP-1: one safe release zip from a tag; delete the two paths that ship the API key | §2.1 | 2026-10-24 · #50 · verified: built from a throwaway tag: 2.7 MB / 237 files; config/config.yaml, .venv, PLANNING/, website/, tests/, docs/, .claude/, .github/, grassdata/ absent; qtui/icons/ present (82 entries); no API-key value in the unpacked tree, and a planted fake key was refused; git status --short clean after a successful AND a failed build · memory note: 2026-10-24_seq-P2-release-zip.md |
-| ⏭ | `seq-P1-release-metadata` | — | `publish-0-4` WP-2: `metadata.txt` typos, tags, homepage, icon path, 0.4 changelog | §2.2 |  |
-| ⬜ | `seq-C1-deps-check` | — | `publish-0-4` WP-3: `gt/deps_check.py` — which required modules are importable, Qt-free | §2.3 | unblocks `seq-U1-deps-message` in slot 1 |
+| ▶ | `seq-P1-release-metadata` | epifanio | `publish-0-4` WP-2: `metadata.txt` typos, tags, homepage, icon path, 0.4 changelog | §2.2 | started 2026-10-24 |
+| ⏭ | `seq-C1-deps-check` | — | `publish-0-4` WP-3: `gt/deps_check.py` — which required modules are importable, Qt-free | §2.3 | unblocks `seq-U1-deps-message` in slot 1 |
 | ⏸ | `seq-D1-install-docs` | — | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | **Waits on** `seq-U1-deps-message` (the page describes its real behaviour) |
 
 **Order rules** (only about open rows; a closing session deletes the ones about itself):
