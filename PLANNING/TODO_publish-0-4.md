@@ -41,6 +41,36 @@ on macOS, and checked:
 | D-004 | **no `PyQt6` import in any shipped `.py`** — the `sip` fix (#91) ships as `from qgis.PyQt import sip` |
 | it loads | unpacked into a clean profile with **no `.venv`**: `startPlugin` True, 13 messages tagged `GroundTruther`, WP-4's dialog path working from the artifact itself |
 
+**2026-10-24: 0.4.1 IS UPLOADED, and awaiting approval. WP-6 is done; the repository's part is not.**
+
+0.4 was uploaded (plugin 2982, version 36365) and **blocked by the repository's automated scan**:
+*"critical security issues were found during validation"*. A blocked version cannot be unblocked,
+only superseded, so the release became **0.4.1** (#112, `master` `555131c`, tag `v0.4.1`).
+
+| | |
+|---|---|
+| uploaded | plugin 2982, **version 36366**, 2026-10-24 |
+| blocked? | **no** — the banner that marks 0.4 is absent from the 0.4.1 page |
+| download | HTTP 200, and the served file's sha256 is **identical** to `dist/groundtruther-v0.4.1.zip` (`679bfacd…`) |
+| listed for QGIS 4 clients | **not yet** — absent from `plugins.xml?qgis=4.0` (1600 plugins, 189 experimental, none of them this one) |
+| why | `<trusted>False</trusted>` on the author in the feed, so a version needs the repository's approval before it is listed. The plugin page still advertises 0.3 as the latest experimental version |
+
+So the bytes are in place and correct; what remains is approval, which is the repository's to give.
+
+**What the two rejections cost, and what now prevents them**
+
+1. *No LICENSE.* Nothing in the repo had one — `git ls-files` matched nothing, GitHub said "none
+   detected" — and no local check looked for it. Fixed in #111 (GPLv3, plus a notice on all 124
+   source files); `$PLUGINNAME/LICENSE` is now in the release script's `REQUIRED`.
+2. *Three HIGH Bandit findings.* `os.system` on a joined ogr2ogr command line, an MD5 cache key,
+   and `xmlrpc.client` in `plugin_upload.py` — which had no business shipping at all. Fixed in
+   #112, and `checks.yml` now runs the same scan and **fails on HIGH severity**, measured both
+   ways: exit 0 after the fix, exit 1 on the commit that was blocked.
+
+The lesson in one line: every check this project had asked "is the artifact what we meant to
+build?"; neither rejection was about that. The gates that matter are the ones the *receiving* system
+applies, and both are now run locally before an upload rather than discovered by it.
+
 **2026-10-24: the tag exists and the artifact is built. Only the upload is left.**
 
 The owner asked for the three open PRs to go in and the release retagged (*"fix it sand retag"*).
