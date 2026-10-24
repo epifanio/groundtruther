@@ -59,6 +59,7 @@ from qgis.core import Qgis, QgsMapLayerType, QgsMessageLog
 # Import the code for the DockWidget
 from .groundtruther_dockwidget import GroundTrutherDockWidget
 import os.path
+from groundtruther.configure import log_exception
 from groundtruther.maptools.qgsmaptools import GRQueryTool, QueryTool, GCRTool
 
 
@@ -461,8 +462,10 @@ class GroundTruther:
             # Persist dock positions before any teardown alters them.
             try:
                 self.dockwidget._save_layout()
-            except Exception:
-                pass
+            except Exception as exc:
+                # Logged, not swallowed — see the same call in
+                # groundtruther_dockwidget.closeEvent (D-003).
+                log_exception("saving the dock layout", exc, warn=True)
 
             # Close pyqtgraph ImageView before C++ widget destruction so that
             # ViewBox.AllViews is cleaned up while the scene is still valid.

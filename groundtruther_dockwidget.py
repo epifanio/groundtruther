@@ -33,7 +33,8 @@ from qgis.PyQt.QtCore import Qt
 
 import pyqtgraph as pg
 
-from groundtruther.configure import get_settings_checked, error_message
+from groundtruther.configure import (
+    get_settings_checked, error_message, log_exception)
 from groundtruther.gt import config_check
 from groundtruther.pygui.Ui_groundtruther_dockwidget_base import Ui_GroundTrutherDockWidgetBase
 from groundtruther.pygui.hbc_browser_gui import HBCBrowserGui
@@ -372,8 +373,11 @@ class GroundTrutherDockWidget(
         # Persist dock positions before any widget is torn down.
         try:
             self._save_layout()
-        except Exception:
-            pass
+        except Exception as exc:
+            # Logged, not swallowed: a TypeError in here meant the layout was
+            # never saved at all, and `except: pass` hid it for as long as the
+            # bug lived (D-003).
+            log_exception("saving the dock layout", exc, warn=True)
 
         # Persist session state (if a session file is configured) and drop the
         # project-save hook before teardown.
