@@ -5,9 +5,10 @@ the 2023 QGIS-3 build."* A release, planned; nothing is uploaded by a session.
 
 ## Status
 
-**2026-10-24, `seq-U1-deps-message`: WP-4 is built and open for review** — PR
-[#67](https://github.com/epifanio/groundtruther/pull/67), **left unmerged for the owner** because it
-changes code (§6.3, `WORKFLOW.md` §12 Q3). `classFactory` now probes `gt/deps_check.py` before it
+**2026-10-24, `seq-U1-deps-message`: WP-4 is in `master`** — PR
+[#67](https://github.com/epifanio/groundtruther/pull/67), merged by the owner at `ab010ed` on their
+word (*"Go ahead and merge #67"*), after being opened and left for their review (§6.3,
+`WORKFLOW.md` §12 Q3). What is still owed is the **GUI check** in the queue's §3, not the merge. `classFactory` now probes `gt/deps_check.py` before it
 imports anything, and when something the dock needs is missing it logs every missing package with
 what that package costs and hands QGIS a `_MissingDependenciesPlugin` **instead of raising**: that
 object loads cleanly, adds one menu entry that re-opens the explanation, shows **one** dialog naming
@@ -21,7 +22,7 @@ not among them and `pyqtgraph` is, so no wording may name a package. And **the h
 only what blocks**: 10 are missing there but just 6 carry `blocks_load`, so the dialog says 6 and
 names the other 4 as feature losses, which is the number the user actually has to fix.
 
-The second mismatch in §2 is fixed in the same PR: **`.venv` won**, being the name `CLAUDE.md`, the
+The second mismatch in §2 is fixed in the same PR (#67): **`.venv` won**, being the name `CLAUDE.md`, the
 test suite and the install docs already use, and `setup_wsl.sh --venv` now creates it *beside the
 plugin source* rather than `gtenv` in whatever directory it was run from — two bugs in that one
 line, not one. `_bootstrap_venv()` also returns the directory it added, so the log can say which of
@@ -115,7 +116,7 @@ work.** This is issue [#1](https://github.com/epifanio/groundtruther/issues/1) i
 
 A second, smaller mismatch: `setup_wsl.sh --venv` creates **`gtenv`**, while `_bootstrap_venv()`
 looks for **`.venv`**. The documented fallback install produces a venv the plugin never loads.
-**Fixed in PR #67** (`seq-U1-deps-message`, 2026-10-24): `.venv` won, and the script was also
+**Fixed in PR #67** (`seq-U1-deps-message`, 2026-10-24, `master` `ab010ed`): `.venv` won, and the script was also
 creating it in the current directory rather than beside the plugin, so it was two bugs.
 
 ### Metadata defects
@@ -183,8 +184,8 @@ None of these bind work outside this plan, so none was promoted to a decision re
 | `publish-0-4 WP-1` | `scripts/make-release-zip.sh`; delete `make_zip.sh`; fix or delete the Makefile release targets; gitignore the release artifact | — | P | M | **built** `seq-P2-release-zip` 2026-10-24, PR #50 open for the owner |
 | `publish-0-4 WP-2` | `metadata.txt` and the `__init__.py` docstring typo | — | P | S | ✅ `seq-P1-release-metadata` 2026-10-24, PR #56 merged (`master` 4f4d6b5) |
 | `publish-0-4 WP-3` | `gt/deps_check.py` + unit tests: which required modules are importable | — | C | M | ✅ `seq-C1-deps-check` 2026-10-24, PR #61 merged (`master` 6e22c32) |
-| `publish-0-4 WP-4` | `__init__.py` + one dialog and a log line when deps are missing; disable what cannot work | WP-3 | U | M | ◐ `seq-U1-deps-message` 2026-10-24, PR #67 open for the owner |
-| `publish-0-4 WP-5` | the install page on the docs site: what the Plugin Manager gives you and what it does not | WP-4, **and #67 merged** | D | S | queued `seq-D1-install-docs` |
+| `publish-0-4 WP-4` | `__init__.py` + one dialog and a log line when deps are missing; disable what cannot work | WP-3 | U | M | ◐ `seq-U1-deps-message` 2026-10-24, #67 in `master` `ab010ed`; GUI check owed |
+| `publish-0-4 WP-5` | the install page on the docs site: what the Plugin Manager gives you and what it does not | WP-4 (done, `ab010ed`) | D | S | queued `seq-D1-install-docs` |
 | `publish-0-4 WP-6` | **the owner's**: tag `v0.4`, build the zip, verify its contents, upload | WP-1…WP-5 | — | — | queue §3 |
 
 WP-1 and WP-2 are both lane P and run in that order (the zip script is what removes the key-leak
