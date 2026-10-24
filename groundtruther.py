@@ -64,6 +64,34 @@ from groundtruther.maptools.qgsmaptools import GRQueryTool, QueryTool, GCRTool
 
 
 
+def user_locale(settings=None):
+    """The two-letter UI language QGIS is set to, or ``""`` when it has none.
+
+    ``QSettings().value('locale/userLocale')`` returns **None** whenever that key
+    has never been written: a profile QGIS has not yet saved settings for, and
+    every headless ``QgsApplication``, which sets no organisation name and so
+    reads an empty store.  The Plugin Builder boilerplate sliced that value
+    directly, so an absent key raised ``TypeError: 'NoneType' object is not
+    subscriptable`` and took the whole plugin down in ``__init__`` — before it
+    had done anything.
+
+    It was invisible for as long as the dependencies were missing, because
+    ``classFactory`` then hands back ``_MissingDependenciesPlugin`` and never
+    reaches this line.  Fixing it does **not** make a complete install verifiable
+    headlessly -- measured, the next line to fail is
+    ``self.iface.addToolBar(...)``, and ``qgis.utils.iface`` is None without a
+    GUI, which no change here can help.  This is one unguarded slice, no more.
+
+    :param settings: a ``QSettings``-like object, for tests; the real one when
+        omitted.
+    :returns: e.g. ``"en"``, or ``""`` when nothing is recorded — which simply
+        finds no translation file, exactly as an unknown language would.
+    """
+    value = (settings if settings is not None else QSettings()).value(
+        'locale/userLocale')
+    return (value or '')[0:2]
+
+
 class GroundTruther:
     """QGIS Plugin Implementation."""
 
@@ -101,7 +129,7 @@ class GroundTruther:
         self.plugin_dir = os.path.dirname(__file__)
 
         # initialize locale
-        locale = QSettings().value('locale/userLocale')[0:2]
+        locale = user_locale()
         locale_path = os.path.join(
             self.plugin_dir,
             'i18n',
