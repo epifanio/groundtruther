@@ -322,6 +322,13 @@ the core set plus `db_manager_community`.
 
 All three live under `~/Library/Application Support/QGIS/QGIS4/profiles/` (**QGIS4**, not QGIS3).
 
+**Put a profile back into a known state with `scripts/mac-profile-install.sh <profile>`**, rather
+than copying files by hand as this plan's prose originally described. It overlays the plugin from a
+git ref, keeps `config/config.yaml`, installs whatever `gt/deps_check.py` reports missing, and is a
+no-op on a second run. It refuses `--venv` for `gt-mac-novenv`, because a venv there would destroy
+the only thing that profile tests. The profiles are shared state that git does not isolate — who
+may write to them is `PLANNING/WORKFLOW.md` §3.1.
+
 Launch straight into one, rather than clicking through *Settings → User Profiles*:
 
 ```bash
