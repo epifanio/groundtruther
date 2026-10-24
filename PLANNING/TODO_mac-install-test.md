@@ -251,6 +251,24 @@ Avoiding `to_pandas()` is **not sufficient**: any code that builds or parses a d
 > The helpers and the full measurement table now live in **`gt/pandas_safe.py`** (PR #73), which is
 > where a decision record on this would point.
 
+> **The record exists, and the fault is one bundle's — `plan-pandas-datetime-record`, 2026-10-24.**
+> The constraint is now [D-009](decisions/D-009_no-pandas-datetime-dtypes.md) (accepted on merge),
+> which binds `gt/`, `pygui/`, `mixins/`, `scripts/` and the root-level modules and carries an
+> `enforce` regex for the checker.
+>
+> Everything above this box was measured on QGIS **4.2.1** and remains true of it. **4.2.1 is no
+> longer installed on this Mac** (`/Applications` holds only `QGIS-final-4_2_3.app`), so it cannot
+> be re-measured here; the statements above are quoted, not re-confirmed. Against QGIS **4.2.3**
+> (pandas 3.0.5, numpy 2.5.2, pyarrow 25.0.1, Python 3.12.11) in the signed harness of
+> `CLAUDE.md`, each case its own process with `-u` and its exit status read un-piped, **all nine
+> cases returned cleanly (exit 0)**: the empty `datetime64[us]` Series, `pd.to_datetime`,
+> `pd.to_timedelta`, `Table.to_pandas()` and `pd.read_parquet` on `test_imagemetadata.pq` (5900 x
+> 38, `DatetimeIndex`), `pd.ArrowDtype` with an element read back, `set_index` on an object
+> datetime column, and `pd.DataFrame([row])` on a row named by object datetime labels (the §6.2
+> crash). So the fault is a property of **4.2.1's build**, not of pandas 3, macOS or the plugin —
+> and nothing in the plugin can tell which bundle it is in, which is why D-009 stays unconditional.
+> The per-case table is in D-009.
+
 ### Why the `.venv` cannot rescue it
 
 Prepending instead of appending gets the venv's working pandas, and the real file then reads fine —

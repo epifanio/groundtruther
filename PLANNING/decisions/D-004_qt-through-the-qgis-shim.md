@@ -1,7 +1,7 @@
 ---
 id: D-004
 date: 2026-10-23
-status: accepted
+status: superseded by D-010
 decided-by: epifanio (standing choice in CLAUDE.md; recorded by plan-adopt-groundtruther, 2026-10-23)
 lanes: U, C
 ---
