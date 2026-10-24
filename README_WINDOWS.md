@@ -52,13 +52,13 @@ mamba env create --file environment.yml
 Create a symbolic link so the repo **is** the installed plugin (run this in an **Administrator** command prompt):
 
 ```bat
-mklink /D "%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\groundtruther" "C:\path\to\repo\groundtruther"
+mklink /D "%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins\groundtruther" "C:\path\to\repo\groundtruther"
 ```
 
 Or simply copy the `groundtruther` folder to:
 
 ```
-C:\Users\<you>\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\
+C:\Users\<you>\AppData\Roaming\QGIS\QGIS4\profiles\default\python\plugins\
 ```
 
 ### 4 – Launch QGIS
@@ -96,13 +96,13 @@ The LTR (Long Term Release) version is recommended.
 Create a symbolic link (run as **Administrator** in cmd):
 
 ```bat
-mklink /D "%APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\groundtruther" "C:\path\to\repo\groundtruther"
+mklink /D "%APPDATA%\QGIS\QGIS4\profiles\default\python\plugins\groundtruther" "C:\path\to\repo\groundtruther"
 ```
 
 Or copy the `groundtruther` folder to:
 
 ```
-C:\Users\<you>\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\
+C:\Users\<you>\AppData\Roaming\QGIS\QGIS4\profiles\default\python\plugins\
 ```
 
 ### 3 – Install Python dependencies
