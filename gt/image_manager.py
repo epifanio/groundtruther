@@ -11,7 +11,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pyarrow.parquet as pq
 from scipy import spatial
+
+from groundtruther.gt import pandas_safe
 
 
 # --- on-disk image-file resolution -----------------------------------------
@@ -60,14 +63,29 @@ def image_path_or_default(dirname, imagename, default_ext: str = ".jpg") -> str:
     return os.path.join(str(dirname), str(imagename) + default_ext)
 
 
+# --- Parquet reading -------------------------------------------------------
+# Read through pyarrow, never ``pd.read_parquet``: on QGIS 4.2.1 on macOS the
+# pandas conversion of a timestamp column segfaults the whole application, and
+# ``HabCam.imagemetadata`` is one of the two config keys that are *errors*, so
+# before this the plugin could not start there at all.  ``gt/pandas_safe.py``
+# carries the measurements and the reasoning.
+
+
 def load_metadata(parquet_path: str | Path) -> pd.DataFrame:
     """Read the HabCam image-metadata Parquet file and return a DataFrame.
 
     Raises ``FileNotFoundError`` if the file does not exist, and
     ``Exception`` (from pyarrow) if the file is malformed — callers are
     expected to catch and handle these.
+
+    The acquisition-time index comes back as object dtype holding
+    ``datetime.datetime`` rather than as a ``DatetimeIndex``; see
+    :mod:`groundtruther.gt.pandas_safe` for why that is not negotiable.
     """
-    return pd.read_parquet(parquet_path)
+    path = Path(parquet_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"No such Parquet file: {path}")
+    return pandas_safe.arrow_table_to_dataframe(pq.read_table(path))
 
 
 def build_kdtree(df: pd.DataFrame,
