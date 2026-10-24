@@ -17,6 +17,7 @@ row here and that every link resolves.
 | Added | Plan | What | State |
 |---|---|---|---|
 | 2026-10-23 | [TODO_publish-0-4.md](TODO_publish-0-4.md) | Publish 0.4 to plugins.qgis.org: a safe release zip, honest failure when dependencies are missing, the install documented | 5 sessions queued; the upload is the owner's |
+| 2026-10-24 | [TODO_mac-install-test.md](TODO_mac-install-test.md) | What GroundTruther 0.4 actually does on macOS QGIS 4.2.1: the no-`.venv` blocker confirmed, every dependency measured, and a parquet read that segfaults QGIS | ◐ measured; 2 sessions queued; the GUI check is the owner's (§6) |
 
 ## Completed
 

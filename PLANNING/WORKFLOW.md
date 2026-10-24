@@ -129,14 +129,18 @@ is a queue the owner pastes from.
 
 | Lane | Touches | Slot |
 |---|---|---|
-| **U** UI & plugin shell | `__init__.py`, `pygui/`, `qtui/`, `mixins/`, `groundtruther.py`, `groundtruther_dockwidget.py`, `configure.py`, `resources.qrc`, `resources_rc.py`, `resources/`, `compile_ui.sh`; **and the live QGIS install on the Linux machine** | slot 1 |
+| **U** UI & plugin shell | `__init__.py`, `pygui/`, `qtui/`, `mixins/`, `groundtruther.py`, `groundtruther_dockwidget.py`, `configure.py`, `resources.qrc`, `resources_rc.py`, `resources/`, `compile_ui.sh`; **and the live QGIS install on the Linux machine, and the QGIS 4.2.1 install on the Mac** | slot 1 |
 | **C** core & config | `gt/`, `config_model.py`, `config/`, `ioutils.py`, `episg.py`, `epsg_list.py`, `search_epsg.py`, `epsg/`, `ellipse.py`, `rectangle.py`, `qtpandas.py`, `grassconfig.py`, `tests/` | slot 2 |
 | **D** docs | `website/`, `docs/`, `help/` | slot 2 |
 | **P** packaging & install | `Makefile`, `setup_windows.*`, `setup_mamba.bat`, `setup_wsl.sh`, `scripts/`, `dependencies/`, `pip_cpu.py`, `pip_cuda.py`, `plugin_upload.py`, `make_zip.sh`, `metadata.txt`, `pb_tool.cfg`, `environment.yml`, `.github/workflows/` | slot 2 |
 
 Lane **U** owns the live QGIS install because only one session at a time may ask the owner to
 reload the plugin and look at it: the QGIS profile symlink points at the main checkout
-(`/home/epinux/dev/groundtruther`), so a GUI check is a shared, serialised resource. Agents never
+(`/home/epinux/dev/groundtruther`), so a GUI check is a shared, serialised resource. Since 2026-10-24 there
+is a **second** such machine: the Mac carries QGIS 4.2.1 with the profiles `gt-mac-test` and
+`gt-mac-novenv` under `~/Library/Application Support/QGIS/QGIS4/profiles/`, installed from a release
+zip rather than symlinked (`mac-install-test`). They are a different serialised resource from the
+Linux one and a GUI check on either is still the owner's, so a session names the machine it means. Agents never
 launch the GUI themselves (§5.2 rule 3's neighbours in `CLAUDE.md`); they verify headless and name
 the check the owner must do.
 

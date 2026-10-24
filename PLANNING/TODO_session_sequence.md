@@ -46,6 +46,7 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
 | ⏸ | `seq-U1-deps-message` | — | `publish-0-4` WP-4: load and say what is missing instead of dying, when the venv is absent | §2.4 | **Waits on** `seq-C1-deps-check` (it provides `gt/deps_check.py`) |
+| ⏸ | `seq-U2-macos-profile-docs` | — | `mac-install-test` WP-3: the macOS profile path and a headless harness that is faithful to the app's signing, in `CLAUDE.md` and the install page | §2.7 | **Waits on** `seq-U1-deps-message` (it may change what `_bootstrap_venv` does, which the recipe describes) |
 
 ### Slot 2 — C (core & config), D (docs), P (packaging & install)
 
@@ -55,10 +56,15 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | ◐ | `seq-P1-release-metadata` | epifanio | `publish-0-4` WP-2: `metadata.txt` typos, tags, homepage, icon path, 0.4 changelog | §2.2 | 2026-10-24 · #56 **merged by the owner 2026-10-24** (`master` 4f4d6b5; they said *"Go ahead and merge #56"*) · verified: configparser on metadata.txt: one [general] section, no key containing a space (origin/master had the junk key "category of the plugin"); icon=qtui/icons/epi.gif exists on disk and is tracked by git (the declared qtui/icons/qgis/epi.gif did not exist); and inside a real artifact built with scripts/make-release-zip.sh from a throwaway tag at the PR head: the zips metadata.txt parses with no junk key, description/tags/homepage as intended, version=0.4 experimental=True qgisMinimumVersion=4.0 unchanged, and groundtruther/qtui/icons/epi.gif present (2439 bytes). git status --short clean after the build; tag and zip deleted. py_compile __init__.py passes; check_planning 0/0. No website/ or docs/ page references any changed value (grep), so no docs claim to re-verify; mkdocs is not installed on the Mac, CI docs.yml is the run that counts · memory note: 2026-10-24_seq-P1-release-metadata.md |
 | ▶ | `seq-C1-deps-check` | epifanio | `publish-0-4` WP-3: `gt/deps_check.py` — which required modules are importable, Qt-free | §2.3 | started 2026-10-24 · unblocks `seq-U1-deps-message` in slot 1 |
 | ⏸ | `seq-D1-install-docs` | — | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | **Waits on** `seq-U1-deps-message` (the page describes its real behaviour) |
+| ⏭ | `seq-C2-parquet-no-pandas` | — | `mac-install-test` WP-2: read parquet without `pandas.to_pandas()` on timestamp columns — it segfaults QGIS 4.2.1 on macOS | §2.6 | From `mac-install-test` 2026-10-24. Blocks the plugin's mandatory startup path on macOS |
 
 **Order rules** (only about open rows; a closing session deletes the ones about itself):
 
-- none yet
+- `seq-C2-parquet-no-pandas` and `seq-C1-deps-check` are both lane C, but touch different files
+  (`gt/image_manager.py` vs a new `gt/deps_check.py`); slot 2 still runs one at a time unless the
+  owner starts a second (`WORKFLOW.md` §3.1).
+- `seq-U1-deps-message` before `seq-U2-macos-profile-docs`: U1 owns `__init__.py`, and U2 documents
+  the headless recipe that describes `_bootstrap_venv`.
 - `seq-C1-deps-check` before `seq-U1-deps-message`: C1 provides `gt/deps_check.py`, which U1 calls.
 - `seq-U1-deps-message` before `seq-D1-install-docs`: the page describes the behaviour U1 builds.
 - The P strand (P2, P1) and the C/U/D strand share no file, so they may run side by side **if the
@@ -144,10 +150,24 @@ features that cannot work rather than letting them raise later. One dialog, not 
 Also fix the second mismatch while you are in here: setup_wsl.sh --venv creates `gtenv` but
 _bootstrap_venv() looks for `.venv`, so the documented fallback install produces a venv the plugin
 never loads — make them agree and say which name won.
+`mac-install-test` (2026-10-24) measured that state on a real QGIS 4.2.1 — read
+PLANNING/TODO_mac-install-test.md §2 before you design the message, because three of its findings
+change the design: (1) the FIRST missing module is pyqtgraph, reached through
+groundtruther_dockwidget.py:34, not numpy or pandas — macOS QGIS ships pandas and not pyqtgraph, so
+the set of missing packages is platform-specific and must be computed, never hard-coded; (2)
+qgis.utils.loadPlugin() returns True even with no .venv, because it only does __import__ — the
+failure is in startPlugin() → classFactory(), so a message hung off loadPlugin's failure path will
+never fire; (3) today there are ZERO log messages tagged GroundTruther in that state, which is the
+bug you are fixing. On macOS, note that `import qgis.core` imports pandas and pyarrow itself before
+any plugin code runs, so a venv cannot give the plugin a different copy of either (that plan's §5);
+do not try to fix that here.
 Verify on the real thing: unpack the release zip into a CLEAN QGIS 4 profile with NO .venv and
 confirm the plugin loads, logs, and shows the dialog once. You cannot drive the QGIS GUI: do the
 headless import/load checks in CLAUDE.md, then write the GUI check into the queue's §3 for the
-owner, naming exactly what they should see. Do not claim it verified until they confirm.
+owner, naming exactly what they should see. Do not claim it verified until they confirm. On macOS
+the CLAUDE.md recipe is misleading — it runs an unentitled interpreter under which every compiled
+dependency looks broken; the faithful harness is PLANNING/TODO_mac-install-test.md §3, and the
+profile gt-mac-novenv is already built and is exactly this case.
 Touch only __init__.py, the dock/startup path, and setup_wsl.sh. Do not touch gt/deps_check.py
 (seq-C1-deps-check owns it) or metadata.txt. Needs a yes: anything that changes plugin behaviour
 beyond failing gracefully. Decisions that bind this work: D-003 (QgsMessageLog with the
@@ -179,6 +199,66 @@ MkDocs site is the user docs; help/ is retired and takes no new pages), D-007. M
 read: MEMORY.md, 2026-10-23_adopt-groundtruther.md. Docs check: the build above IS the check.
 ```
 
+### 2.6 `seq-C2-parquet-no-pandas`
+
+```text
+/build-session seq-C2-parquet-no-pandas
+Plan: PLANNING/TODO_mac-install-test.md WP-2 (parquet without pandas.to_pandas on timestamp
+columns), slot 2, lane C. Read that plan's §5 first: it carries the measurements and the one-line
+repro. Scope: gt/image_manager.load_metadata() is pd.read_parquet, and on QGIS 4.2.1 on macOS that
+kills the whole application with SIGSEGV — no exception, no log line — because QGIS bundles
+pandas 3.0.3 against pyarrow 23.0.1 and that pair cannot convert a timestamp[us] column to pandas.
+The plugin's own test file test_imagemetadata.pq has such a column (`index`). A sys.path fix is NOT
+available: `import qgis.core` imports pandas and pyarrow itself, before any plugin code runs, so
+neither appending nor prepending the venv can displace them (§5 measures this). Read the parquet
+through pyarrow and build the DataFrame without converting the timestamp column with to_pandas() —
+convert it yourself, or leave it as the index, or drop it when the caller does not need it. Keep
+load_metadata's signature and its return type: every caller in mixins/ depends on it. Check whether
+any other gt/ reader converts a timestamp column the same way and fix those too.
+Verify on the real thing: inside QGIS's own interpreter, read ~/dev/groundtruther_test_dataset/
+test_imagemetadata.pq INCLUDING its `index` column without crashing. The faithful harness is in
+PLANNING/TODO_mac-install-test.md §3 — the recipe in CLAUDE.md under Testing runs the unentitled
+python3.12 and will make every compiled dependency look broken, which is an artifact, not a bug.
+The two profiles gt-mac-test (with .venv) and gt-mac-novenv are already built under
+~/Library/Application Support/QGIS/QGIS4/profiles/. On Linux the stock pandas path works, so the
+unit suite must stay green there too: .venv/bin/pytest tests/unit/.
+Touch only gt/ and tests/. Do not edit dependencies/requirements.txt and do not change
+_bootstrap_venv (that is lane U's). Needs a yes: a new runtime dependency; pinning pandas or pyarrow.
+Decisions that bind this work: D-008 (gt/ stays importable without QGIS), D-003 (no print()),
+D-001 (absolute `from groundtruther...` imports), D-007. If you conclude this constraint binds every
+future gt/ reader, say so in your report and leave it for a planning session to promote to a record
+— a build session writes no record (WORKFLOW.md §6.2). Memory notes to read: MEMORY.md,
+2026-10-24_mac-install-test.md. Docs check: mkdocs build --strict -f website/mkdocs.yml.
+```
+
+### 2.7 `seq-U2-macos-profile-docs`
+
+```text
+/build-session seq-U2-macos-profile-docs
+Plan: PLANNING/TODO_mac-install-test.md WP-3 (the macOS profile path and a faithful headless
+harness), slot 1, lane U + D. Read that plan's §1 and §3 first. Scope: two documentation gaps that
+cost this project a session's worth of wrong conclusions.
+(a) CLAUDE.md documents only the Linux profile path. Add the macOS one —
+`~/Library/Application Support/QGIS/QGIS4/profiles/<profile>/python/plugins/groundtruther` (QGIS4,
+not QGIS3) — beside it, in Run / develop.
+(b) CLAUDE.md's headless recipe under Testing runs the app's bundled python3.12, which carries the
+hardened runtime with NO entitlements. Every pip-installed .so then fails to dlopen with "different
+Team IDs", because the app binary — and only the app binary — carries
+com.apple.security.cs.disable-library-validation. A session that trusts that recipe on macOS will
+report working dependencies as broken. Add the warning and the harness recipe from the plan's §3,
+and say plainly that `qgis --code` does not work (QGIS starts offscreen and populates the profile
+but never reaches the script). Also record in Testing that `import qgis.core` imports pandas and
+pyarrow, so a plugin cannot choose its own copy of either.
+Verify on the real thing: run the recipe you document, as written, on this Mac, and paste what it
+prints. If the install page in website/ gained macOS content from seq-D1-install-docs, keep the two
+consistent and do not duplicate the harness — the site is for users, CLAUDE.md is for agents.
+Touch only CLAUDE.md and website/. Do not touch __init__.py or gt/. Needs a yes: nothing here,
+unless you would change a convention.
+Decisions that bind this work: D-006 (user-facing docs are the MkDocs site), D-007. Note that
+merging a website/ change publishes it (WORKFLOW.md §8). Memory notes to read: MEMORY.md,
+2026-10-24_mac-install-test.md. Docs check: mkdocs build --strict -f website/mkdocs.yml.
+```
+
 ## 3. Checks owed by the owner
 
 Things only the owner can do (try it on a device, look at it in a browser, decide), each with the
@@ -193,6 +273,15 @@ session it came from and the date.
   `data-model-facts`, `documentation`, `project-overview`, `april-2026-refactor`, `install-and-run`)
   exists **only** on that machine. From `plan-adopt-groundtruther`, 2026-10-23. Also worth running
   `scripts/adopt-inventory.sh --repo /home/epinux/dev/groundtruther` there and pasting the output.
+- **Look at GroundTruther in QGIS on the Mac** — the GUI half of `mac-install-test`, and the only
+  part of it no agent could do. Two profiles are already built, so it is launch-and-look:
+  `gt-mac-novenv` is a Plugin Manager install (no `.venv`) and `gt-mac-test` is the same plugin with
+  a working one, both under `~/Library/Application Support/QGIS/QGIS4/profiles/`. The ordered
+  checklist — what to click, what should appear, and what the `GroundTruther` log panel should say —
+  is `PLANNING/TODO_mac-install-test.md` §6. Step 9 is the one that matters: browsing an image is
+  expected to **take QGIS down with it**, and if it does not, `seq-C2-parquet-no-pandas` needs
+  re-scoping. Please don't delete the two profiles; `seq-C2` will want them. From
+  `mac-install-test`, 2026-10-24.
 - **Tag, build, verify and upload 0.4** (`publish-0-4` WP-6), after `seq-P2`…`seq-D1` have landed.
   The build is one command — `git tag -a v0.4 && scripts/make-release-zip.sh v0.4` → `dist/groundtruther-v0.4.zip`
   (`seq-P2-release-zip`, 2026-10-24: it refuses to write the zip unless `config/config.yaml`, `.venv`
@@ -202,7 +291,8 @@ session it came from and the date.
   credentials, which no session holds (plan §6 Q5). From `plan-publish-0-4`, 2026-10-23.
 - **Record the project's working state on `master`.** No file says whether the test suite passes
   today, or whether the plugin loads under QGIS 4 — only what is *deployed*. From the Linux machine
-  (this Mac has no QGIS and no `.venv`): run `.venv/bin/pytest` and the offscreen load check in
+  (`mac-install-test`, 2026-10-24: the Mac now **does** have QGIS 4.2.1 and a working `.venv`, but
+  its results are not Linux's — see `PLANNING/TODO_mac-install-test.md`): run `.venv/bin/pytest` and the offscreen load check in
   `CLAUDE.md` → Testing on `master`, and put the date and result in the State table as a
   "Test suite on `master`" row. From `plan-adopt-groundtruther-gaps`, 2026-10-23.
 - **Is `sip` reachable through the QGIS shim in QGIS 4?** `mixins/video_browser_mixin.py:693` does
