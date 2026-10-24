@@ -26,6 +26,29 @@ REPO="$(cd "$(dirname "$0")/.." && pwd)"
 # Repo furniture: present in git, no business inside a QGIS plugin install.
 STRIP=(website tests PLANNING docs .claude .github)
 
+# Individual files to drop, for a directory that is MOSTLY furniture but not
+# entirely. scripts/ holds the session machinery (session.sh, hooks/, ci-wait,
+# memory-repo, this script, mac-profile-install) — none of which means anything
+# to someone who installed the plugin from the Plugin Manager.
+#
+# scripts/build_ribbon.py is the exception and MUST ship: it is a user-facing
+# tool, documented command by command at website/docs/tools/seabed-ribbon.md
+# ("It is scripts/build_ribbon.py in the plugin folder"), and gt/ribbon.py
+# points at it. Stripping scripts/ wholesale would delete a documented feature
+# from every install, which is why this is a file list and not another entry in
+# STRIP above.
+STRIP_FILES=(
+  scripts/adopt-inventory.sh
+  scripts/ci-wait.sh
+  scripts/import-memory-inbox.sh
+  scripts/mac-profile-install.sh
+  scripts/make-release-zip.sh
+  scripts/memory-repo.sh
+  scripts/session.sh
+  scripts/smoke_mosaic.py
+)
+STRIP_DIRS_IN_FILES=(scripts/hooks)
+
 # Must NOT exist in the artifact. config/config.yaml is the API key; the rest is bulk or private.
 FORBIDDEN=(
   "$PLUGINNAME/config/config.yaml"
@@ -38,10 +61,15 @@ FORBIDDEN=(
   "$PLUGINNAME/.github"
   "$PLUGINNAME/grassdata"
   "$PLUGINNAME/ribbon_work"
+  "$PLUGINNAME/scripts/session.sh"
+  "$PLUGINNAME/scripts/hooks"
+  "$PLUGINNAME/scripts/make-release-zip.sh"
+  "$PLUGINNAME/scripts/mac-profile-install.sh"
 )
 
 # Must exist in the artifact. qtui/icons/ is the 81-icon set the old make_zip.sh silently dropped.
 REQUIRED=(
+  "$PLUGINNAME/scripts/build_ribbon.py"
   "$PLUGINNAME/metadata.txt"
   "$PLUGINNAME/__init__.py"
   "$PLUGINNAME/groundtruther.py"
@@ -68,6 +96,10 @@ git -C "$REPO" archive --format=tar --prefix="$PLUGINNAME/" "$tag" | tar -x -C "
 
 for d in "${STRIP[@]}"; do
   if [[ -e "$tmp/$PLUGINNAME/$d" ]]; then rm -rf "$tmp/$PLUGINNAME/$d"; echo ">> stripped $d/"; fi
+done
+
+for f in "${STRIP_FILES[@]}" "${STRIP_DIRS_IN_FILES[@]}"; do
+  if [[ -e "$tmp/$PLUGINNAME/$f" ]]; then rm -rf "$tmp/$PLUGINNAME/$f"; echo ">> stripped $f"; fi
 done
 
 zip_tmp="$tmp/$PLUGINNAME.zip"
