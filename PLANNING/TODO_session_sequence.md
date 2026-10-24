@@ -70,6 +70,7 @@ Sessions that run without a queued row (urgent fixes, follow-ups) register here 
 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
+| ▶ | `mac-install-test` | epifanio | install GroundTruther on macOS QGIS 4.2.1 and exercise it against the Zenodo test dataset | — | started 2026-10-24 |
 
 ### The owner's list (not sessions)
 
