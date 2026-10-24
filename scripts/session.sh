@@ -27,18 +27,26 @@
 #   scripts/session.sh next [--slot N]
 #       what each slot runs next, and the prompt of the first free slot, to paste.
 #
+# Under MERGE_POLICY=owner-code, claim and close never merge a PR that is not docs-only: before
+# merging they ask GitHub what the PR touches and refuse if anything falls outside DOCS_PATHS. A
+# session that reuses one branch for its code and its close puts both in one PR, and --no-merge is
+# then a flag it has to remember; this does not depend on remembering.
+#
 # The queue edits are PLANNING/queue.py (it uses the checker's parser). The CI wait is
 # scripts/ci-wait.sh. What stays the session's own: the State table, later prompts, the next prompt
 # when the slot runs dry, the plan's banner and work-package row, the docs check, the memory note.
 set -euo pipefail
 
-REPO="$(cd "$(dirname "$0")/.." && pwd)"
+# BASH_SOURCE, not $0: $0 is the calling shell when this file is sourced (the kit's tests source it).
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/.." && pwd)"
 PY="${PYTHON:-python3}"
 PROJECT="groundtruther"
 DEFAULT_BRANCH="master"
 IDENTITY_CONFIG=""   # the identity module's git config for a new worktree, or empty
 PLANNING_CLONE=""   # the planning repo's clone when PLANNING_HOME=separate, else empty
 QUEUE_FILE="PLANNING/TODO_session_sequence.md"
+MERGE_POLICY="owner-code"   # session, or owner-code: only docs-only PRs are the session's to merge
+DOCS_PATHS="PLANNING/ website/ docs/"   # the docs-only lane (§6.3): path prefixes a session may merge itself
 
 main_checkout() {   # the main checkout, also when run from a linked worktree
   local c
@@ -52,6 +60,31 @@ in_session_worktree() {   # the current checkout must be the session's own workt
   local want="claude/$1" have
   have="$(git -C "$REPO" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
   [[ "$have" == "$want" ]] || die "run this from the session's worktree (branch $want; this is ${have:-no branch})"
+}
+
+outside_docs_lane() {   # paths on stdin; prints those outside DOCS_PATHS, one per line
+  local path prefix inside
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    inside=no
+    for prefix in $DOCS_PATHS; do
+      prefix="${prefix%/}"
+      if [[ "$path" == "$prefix" || "$path" == "$prefix"/* ]]; then inside=yes; break; fi
+    done
+    [[ "$inside" == yes ]] || printf '%s\n' "$path"
+  done
+}
+
+pr_files() { (cd "$REPO" && gh pr view "$1" --json files -q '.files[].path'); }
+
+docs_only_pr() {   # $1 PR number: 0 if every file it touches is in the docs lane, else 1 and the
+                   # stray paths on stdout. §6.3: only such a PR is the session's own to merge.
+  local files stray
+  files="$(pr_files "$1")" || return 2
+  stray="$(printf '%s\n' "$files" | outside_docs_lane | sort -u | tr '\n' ' ')"
+  stray="${stray% }"
+  [[ -z "$stray" ]] && return 0
+  printf '%s\n' "$stray"; return 1
 }
 
 land_planning_repo() {   # PLANNING/ is a link into the planning clone: commit there, pull --rebase, push to its main
@@ -83,6 +116,21 @@ land() {   # $1 session, $2 title, $3 yes|no (merge): commit the queue and what 
     echo ">> PR #$n (already open) updated"
   fi
   "$REPO/scripts/ci-wait.sh" "$n" || die "CI is red on PR #$n: fix it, push, then: gh pr merge $n --merge"
+  if [[ "$merge" == yes && "$MERGE_POLICY" == owner-code ]]; then
+    # §6.3: only a docs-only PR is the session's to merge. The close commit rides whatever branch the
+    # session used, so a reused branch puts code in this PR — ask GitHub what is in it, never assume.
+    local stray rc=0
+    stray="$(docs_only_pr "$n")" || rc=$?
+    [[ $rc != 2 ]] || die "could not list PR #$n's files: gh pr view $n --json files"
+    if [[ $rc == 1 ]]; then
+      merge=no
+      echo "!! PR #$n is NOT docs-only — it changes: $stray" >&2
+      echo "!! not merging it: a PR that changes code is the owner's to review and merge (§6.3, §12 Q3)." >&2
+      echo "!! close this row ◐, with that review and merge as its open end." >&2
+      echo "!! to land the close on its own docs-only PR instead, put it on a fresh branch:" >&2
+      echo "!!   git switch -c claude/$s-close origin/$DEFAULT_BRANCH && git cherry-pick claude/$s" >&2
+    fi
+  fi
   if [[ "$merge" == yes ]]; then
     (cd "$REPO" && gh pr merge "$n" --merge) || die "merge of PR #$n failed. If $QUEUE_FILE conflicted, another session edited it: git fetch origin && git merge origin/$DEFAULT_BRANCH, take its side of the file, redo the edit (§6.3)"
     echo ">> PR #$n merged"
@@ -90,6 +138,9 @@ land() {   # $1 session, $2 title, $3 yes|no (merge): commit the queue and what 
     echo ">> PR #$n left open (--no-merge)"
   fi
 }
+
+# sourced (by the kit's tests) rather than run: define the functions and stop.
+if [[ "${BASH_SOURCE[0]:-}" != "${0}" ]]; then return 0; fi
 
 cmd="${1:-}"; shift || true
 case "$cmd" in
