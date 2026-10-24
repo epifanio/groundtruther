@@ -52,7 +52,7 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
 | ◐ | `seq-P2-release-zip` | claude | `publish-0-4` WP-1: one safe release zip from a tag; delete the two paths that ship the API key | §2.1 | 2026-10-24 · #50 · verified: built from a throwaway tag: 2.7 MB / 237 files; config/config.yaml, .venv, PLANNING/, website/, tests/, docs/, .claude/, .github/, grassdata/ absent; qtui/icons/ present (82 entries); no API-key value in the unpacked tree, and a planted fake key was refused; git status --short clean after a successful AND a failed build · memory note: 2026-10-24_seq-P2-release-zip.md |
-| ▶ | `seq-P1-release-metadata` | epifanio | `publish-0-4` WP-2: `metadata.txt` typos, tags, homepage, icon path, 0.4 changelog | §2.2 | started 2026-10-24 |
+| ◐ | `seq-P1-release-metadata` | epifanio | `publish-0-4` WP-2: `metadata.txt` typos, tags, homepage, icon path, 0.4 changelog | §2.2 | 2026-10-24 · #56 · verified: configparser on metadata.txt: one [general] section, no key containing a space (origin/master had the junk key "category of the plugin"); icon=qtui/icons/epi.gif exists on disk and is tracked by git (the declared qtui/icons/qgis/epi.gif did not exist); and inside a real artifact built with scripts/make-release-zip.sh from a throwaway tag at the PR head: the zips metadata.txt parses with no junk key, description/tags/homepage as intended, version=0.4 experimental=True qgisMinimumVersion=4.0 unchanged, and groundtruther/qtui/icons/epi.gif present (2439 bytes). git status --short clean after the build; tag and zip deleted. py_compile __init__.py passes; check_planning 0/0. No website/ or docs/ page references any changed value (grep), so no docs claim to re-verify; mkdocs is not installed on the Mac, CI docs.yml is the run that counts · memory note: 2026-10-24_seq-P1-release-metadata.md |
 | ⏭ | `seq-C1-deps-check` | — | `publish-0-4` WP-3: `gt/deps_check.py` — which required modules are importable, Qt-free | §2.3 | unblocks `seq-U1-deps-message` in slot 1 |
 | ⏸ | `seq-D1-install-docs` | — | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | **Waits on** `seq-U1-deps-message` (the page describes its real behaviour) |
 
@@ -94,6 +94,8 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 |---|---|---|---|
 | **the owner's review, after the fact** | PR #50 is a code PR and should have been left for the owner (§6.3), but `scripts/session.sh close` was run without `--no-merge` and merged it into `master` at `63b9082` on 2026-10-24. Asked whether to revert, the owner said *"Leave #50 in master — I'll review it on master myself"* (2026-10-24), so **it stays in `master` and is not reverted**. What is owed is the review, not the merge | `seq-P2-release-zip` | the owner has reviewed `scripts/make-release-zip.sh` and the Makefile on `master` |
 | the owner's yes or no | the artifact still carries ~1 MB of repo furniture beyond the six stripped dirs (.githooks/, scripts/, help/, epsg, CLAUDE.md, pytest.ini, pylintrc, pb_tool.cfg, compile_ui.sh, tmp/) — asked in #50 | `seq-P2-release-zip` | they answer; if yes, the strip list grows in seq-P1-release-metadata |
+| the owner's review and merge | PR #56 is a code PR (§6.3) and is left open: metadata.txt and the __init__.py docstring, CI green, mergeable. The icon fix is an upload blocker for WP-6 | `seq-P1-release-metadata` | the owner has merged #56 |
+| before the next session that closes a code PR | scripts/session.sh close reuses whatever PR is open on claude/<session> and merges it, so closing on the code branch would have merged #56 — exactly how #50 went in by mistake. Branch claude/close-guard adds a path guard and is NOT in master. Until it lands, close a code session on a second branch cut from origin/master, with PLANNING/queue.py close plus the PR by hand (done here) | `seq-P1-release-metadata` | claude/close-guard is merged, or the rulebook names the two-branch order |
 
 ## 2. Prompts
 
@@ -103,28 +105,7 @@ as `WORKFLOW.md` §4.1. When a session closes, it removes its block and leaves t
 
 ### 2.1 `seq-P2-release-zip` (closed 2026-10-24; its prompt is in git history)
 
-### 2.2 `seq-P1-release-metadata`
-
-```text
-/build-session seq-P1-release-metadata
-Plan: PLANNING/TODO_publish-0-4.md WP-2 (metadata), slot 2, lane P. Scope: in metadata.txt fix the
-two "Caracterization" typos (description, about) to "Characterization"; replace tags=python with
-real discovery tags (seafloor, bathymetry, multibeam, backscatter, habitat, GRASS, and whatever
-else fits); point homepage at https://epifanio.github.io/groundtruther/; correct
-icon=qtui/icons/qgis/epi.gif to qtui/icons/epi.gif (the stray qgis/ — the file does exist at the
-corrected path); write a real changelog entry for 0.4 describing the QGIS 4 / Qt6 work, replacing
-the current run-on line about settings and GRASS widgets; and delete the bare line "Category of
-the plugin: Raster, Vector, Database or Web", which configparser parses as a junk key because of
-the colon. Also fix "Serafloor Caracterization" in the __init__.py module docstring — docstring
-text only, do not touch _bootstrap_venv or classFactory (seq-U1-deps-message owns that file's
-code). Leave version=0.4 and experimental=True exactly as they are (plan §6 Q2, Q4).
-Verify on the real thing: python3 -c "import configparser; c=configparser.ConfigParser();
-c.read('metadata.txt'); print(dict(c['general']))" parses with no junk key, and the path in `icon`
-resolves to a file that exists and is tracked by git.
-Touch only metadata.txt and the __init__.py docstring. Needs a yes: any change to version or the
-experimental flag. Decisions that bind this work: D-007. Memory notes to read: MEMORY.md,
-2026-10-23_adopt-groundtruther.md. Docs check: mkdocs build --strict -f website/mkdocs.yml.
-```
+### 2.2 `seq-P1-release-metadata` (closed 2026-10-24; its prompt is in git history)
 
 ### 2.3 `seq-C1-deps-check`
 
