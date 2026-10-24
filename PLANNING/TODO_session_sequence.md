@@ -75,6 +75,7 @@ Sessions that run without a queued row (urgent fixes, follow-ups) register here 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
 | ◐ | `mac-install-test` | epifanio | install GroundTruther on macOS QGIS 4.2.1 and exercise it against the Zenodo test dataset | — | 2026-10-24 · #54 (claim), this PR · verified: installed from a `make-release-zip.sh` artifact into two fresh profiles (`gt-mac-test` with a `.venv`, `gt-mac-novenv` without). Found two blockers: `gt.image_manager.load_metadata` **SIGSEGVs QGIS 4.2.1** and no `sys.path` fix exists, and `CLAUDE.md`'s headless recipe makes good wheels look broken. 23 of 24 deps work; `pydantic` fails in *stock* QGIS. Full measurements, and the owner's GUI checklist, in `PLANNING/TODO_mac-install-test.md` · memory note: 2026-10-24_mac-install-test.md |
+| ▶ | `sip-shim-d004` | epifanio | answer the D-004 `sip` question and remove the last `PyQt6` import | — | started 2026-10-24 |
 
 ### The owner's list (not sessions)
 
