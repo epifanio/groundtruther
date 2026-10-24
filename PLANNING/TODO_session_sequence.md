@@ -91,7 +91,7 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 
 | Due | What | From | Closes when |
 |---|---|---|---|
-| **the owner's review, after the fact** | PR #50 is a code PR and should have been left for the owner (§6.3), but `scripts/session.sh close` was run without `--no-merge` and merged it into `master` at `63b9082` on 2026-10-24. The code is unreviewed, not unmerged. Revert it (`git revert -m 1 63b9082`) or review it on `master` | `seq-P2-release-zip` | the owner has read #50, or reverted it |
+| **the owner's review, after the fact** | PR #50 is a code PR and should have been left for the owner (§6.3), but `scripts/session.sh close` was run without `--no-merge` and merged it into `master` at `63b9082` on 2026-10-24. Asked whether to revert, the owner said *"Leave #50 in master — I'll review it on master myself"* (2026-10-24), so **it stays in `master` and is not reverted**. What is owed is the review, not the merge | `seq-P2-release-zip` | the owner has reviewed `scripts/make-release-zip.sh` and the Makefile on `master` |
 | the owner's yes or no | the artifact still carries ~1 MB of repo furniture beyond the six stripped dirs (.githooks/, scripts/, help/, epsg, CLAUDE.md, pytest.ini, pylintrc, pb_tool.cfg, compile_ui.sh, tmp/) — asked in #50 | `seq-P2-release-zip` | they answer; if yes, the strip list grows in seq-P1-release-metadata |
 
 ## 2. Prompts
