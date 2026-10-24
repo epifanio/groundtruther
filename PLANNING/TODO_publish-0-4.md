@@ -43,6 +43,27 @@ on macOS, and checked:
 
 **2026-10-24: 0.4.1 IS UPLOADED, and awaiting approval. WP-6 is done; the repository's part is not.**
 
+**Carried to the next release, by the owner's decision (2026-10-24: _"Leave 0.4.1 as it is; these go
+in the next release"_).** Everything merged after the `v0.4.1` tag (`555131c`) is on `master` and
+**not** in the published artifact:
+
+| merged after the tag | what it fixes |
+|---|---|
+| #110 | the zip is byte-reproducible (two builds of a tag now agree) |
+| #115 | the macOS `fwd`/`rwd` hide removed; the nav-dock comment corrected; the Image Index button documented |
+| #116, #117 | 28 KB of dev tooling stripped, and **`epsg` protected in REQUIRED** — 888 KB read at runtime |
+| #118, #119 | `setup_mamba.bat`, `setup_windows.ps1` and `README_WINDOWS.md` printed a **QGIS3** profile path QGIS 4 never reads |
+| #120 (open) | the docs still described the fixed Windows scripts as stale |
+
+The Windows path defect is the one with a user-visible cost: anyone installing **0.4.1** on Windows
+gets the wrong directory from the script and the right one from the site. It was left because 0.4.1
+is **not yet listed** for QGIS 4 clients — awaiting approval, absent from `plugins.xml?qgis=4.0` —
+so nobody reaches it through the Plugin Manager, and the fix ships with the next version.
+
+**When the next release happens**, the routine is unchanged and both earlier failure modes are
+gated: `LICENSE` is in the script's `REQUIRED` (#111) and `bandit -lll` runs in CI (#112).
+
+
 0.4 was uploaded (plugin 2982, version 36365) and **blocked by the repository's automated scan**:
 *"critical security issues were found during validation"*. A blocked version cannot be unblocked,
 only superseded, so the release became **0.4.1** (#112, `master` `555131c`, tag `v0.4.1`).
