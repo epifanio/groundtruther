@@ -53,8 +53,39 @@ This file does not make the heavy dependencies optional; that is its own plan.
 VENV_DIRNAME = ".venv"
 
 #: Where a user is sent to find out how to get the dependencies.  A section
-#: URL, not a page, so it survives the install docs being split up.
+#: URL, not a page, so it survives the install docs being split up, and the
+#: fallback for a platform not listed below.
 INSTALL_DOCS_URL = "https://epifanio.github.io/groundtruther/installation/"
+
+#: One page per operating system, because the route genuinely differs: conda on
+#: one, OSGeo4W on another, the app bundle's own interpreter on a third.  A user
+#: reading the dialog is on exactly one of them, so sending everyone to the index
+#: makes each of them find their own page first.  Keyed by ``sys.platform``
+#: prefix — ``linux2`` from older builds matches ``linux``, and anything else
+#: (``freebsd``, ``cygwin``) falls back to the index above.
+_INSTALL_DOCS_BY_PLATFORM = (
+    ("darwin", INSTALL_DOCS_URL + "macos/"),
+    ("win32", INSTALL_DOCS_URL + "windows/"),
+    ("linux", INSTALL_DOCS_URL + "linux/"),
+)
+
+
+def install_docs_url(platform=None):
+    """The install page for *platform*, defaulting to the one we are running on.
+
+    :param platform: a ``sys.platform`` string; the real one when omitted.
+    :returns: a URL on the published docs site — the per-OS page where there is
+        one, else :data:`INSTALL_DOCS_URL`.
+    """
+    # Imported here, not at module scope: this file deliberately has no
+    # module-level imports, so loading the plugin package costs nothing.
+    import sys
+
+    name = sys.platform if platform is None else platform
+    for prefix, url in _INSTALL_DOCS_BY_PLATFORM:
+        if name.startswith(prefix):
+            return url
+    return INSTALL_DOCS_URL
 
 
 def _bootstrap_venv():
@@ -133,9 +164,10 @@ def _missing_dependency_message(report):
             f"<p>{len(optional)} more are missing. They do not stop the plugin "
             f"loading, but each one disables a feature:</p>"
             f"<p><tt>{', '.join(r.package for r in optional)}</tt></p>")
+    docs_url = install_docs_url()
     html.append(
-        f'<p>How to install them: <a href="{INSTALL_DOCS_URL}">'
-        f"{INSTALL_DOCS_URL}</a></p>"
+        f'<p>How to install them: <a href="{docs_url}">'
+        f"{docs_url}</a></p>"
         f"<p>The same list is in <i>View &rarr; Panels &rarr; Log Messages</i>, "
         f"under <i>GroundTruther</i>.</p>")
     details = "\n".join(
@@ -166,7 +198,7 @@ def _log_report(report, venv_site):
              f"like", level)
     else:
         _log(f"  {venv_site} was added to sys.path", "Info")
-    _log(f"  how to install them: {INSTALL_DOCS_URL}", level)
+    _log(f"  how to install them: {install_docs_url()}", level)
 
 
 class _MissingDependenciesPlugin:

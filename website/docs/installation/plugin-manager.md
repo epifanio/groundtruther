@@ -62,9 +62,14 @@ machine with none of the packages installed reads:
 >
 > `opencv-python-headless, av, PyOpenGL, pydantic, starlette`
 >
-> How to install them: <https://epifanio.github.io/groundtruther/installation/>
+> How to install them: <https://epifanio.github.io/groundtruther/installation/linux/>
 >
 > The same list is in *View → Panels → Log Messages*, under *GroundTruther*.
+
+That link is chosen from the operating system you are on — `installation/linux/`,
+`installation/macos/` or `installation/windows/` — because the route genuinely
+differs between them. On a platform with no page of its own it falls back to the
+[installation index](index.md).
 
 The counts and the names are **computed on your machine**, not fixed text, so what
 you see depends on what you already have. They differ by platform: the macOS QGIS
