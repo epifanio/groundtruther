@@ -237,7 +237,58 @@ def valid_faces(valid) -> np.ndarray:
     return faces
 
 
-def colors_from_rgb(rgb, valid=None, *, trim_border: int = 0):
+def percentile_levels(rgb, low: float = 2.0, high: float = 98.0, *, valid=None):
+    """``(lo, hi)`` display levels from the *low*/*high* percentiles of *rgb*.
+
+    Channels are pooled into one pair of levels — the same convention the image
+    browser's auto-stretch uses — so the stretch lifts contrast without shifting
+    the colour balance.  Big frames are subsampled so the estimate stays cheap.
+
+    *valid* (an optional ``(rows, cols)`` boolean mask, matching the DEM's
+    validity) restricts the statistics to cells that carry real data; no-data
+    cells in the orthophoto are typically black and would otherwise drag the low
+    percentile to zero and flatten the stretch.
+
+    Returns ``(None, None)`` when there is nothing to measure.
+    """
+    a = np.asarray(rgb)
+    if a.ndim >= 3:
+        a = a[..., :3]
+    if valid is not None:
+        m = np.asarray(valid, dtype=bool)
+        if a.ndim == 3 and m.shape == a.shape[:2]:
+            a = a[m]                      # -> (n_valid, 3)
+        elif m.shape == a.shape:
+            a = a[m]
+    flat = np.asarray(a).reshape(-1)
+    flat = flat[np.isfinite(flat)]
+    if flat.size == 0:
+        return None, None
+    step = max(1, flat.size // 100_000)   # ~100k-sample estimate is plenty
+    flat = flat[::step]
+    lo, hi = np.percentile(flat, (low, high))
+    return float(lo), float(hi)
+
+
+def stretch_rgb(rgb, low: float = 2.0, high: float = 98.0, *, valid=None):
+    """Percentile contrast stretch of *rgb*, returned as ``float`` in 0–255.
+
+    A pure display transform: it rescales ``[lo, hi]`` to the full range and
+    clips outside it.  Heights are untouched — this only changes how the
+    orthophoto draped on the mesh looks.
+
+    Falls back to the input unchanged (as float) when the levels are degenerate,
+    so a flat or empty frame can never produce NaNs or a divide-by-zero.
+    """
+    a = np.asarray(rgb, dtype=float)
+    lo, hi = percentile_levels(a, low, high, valid=valid)
+    if lo is None or hi is None or not np.isfinite([lo, hi]).all() or hi <= lo:
+        return a
+    out = (a.astype(float) - lo) * (255.0 / (hi - lo))
+    return np.clip(out, 0.0, 255.0)
+
+
+def colors_from_rgb(rgb, valid=None, *, trim_border: int = 0, stretch: bool = False):
     """Per-vertex RGBA colours (0–1) for a textured GL surface.
 
     *rgb* is the orthophoto ``(rows, cols, 3+)``; it is co-registered
@@ -248,6 +299,12 @@ def colors_from_rgb(rgb, valid=None, *, trim_border: int = 0):
 
     *trim_border* must match the value passed to :func:`mesh_from_micro_dem` so
     the texture stays cell-aligned with the (border-trimmed) mesh.
+
+    *stretch* applies :func:`stretch_rgb` (2–98 % percentile) to the texture.
+    The seabed under a strobe is dark and low-contrast, so the raw photo drapes
+    as a muddy grey; the stretch is cosmetic only and never touches the heights.
+    Levels are measured over the **valid** cells alone, after trimming, so the
+    black no-data border does not eat the low percentile.
     """
     a = np.asarray(rgb)
     if a.ndim != 3 or a.shape[2] < 3:
@@ -255,6 +312,16 @@ def colors_from_rgb(rgb, valid=None, *, trim_border: int = 0):
     t = int(trim_border)
     if t > 0 and a.shape[0] > 2 * t and a.shape[1] > 2 * t:
         a = a[t:-t, t:-t]
+    if stretch:
+        # `valid` comes from mesh_from_micro_dem as (cols, rows) — transposed
+        # relative to the photo's (rows, cols) — and is already border-trimmed,
+        # so transposing it lines it up with the trimmed photo cell-for-cell.
+        v = None
+        if valid is not None:
+            vt = np.asarray(valid).T
+            if vt.shape == a.shape[:2]:
+                v = vt                    # gate the levels on real-data cells
+        a = stretch_rgb(a, valid=v)
     rgb3 = np.transpose(a[..., :3].astype(float) / 255.0, (1, 0, 2))  # (cols,rows,3)
     h, w = rgb3.shape[0], rgb3.shape[1]
     out = np.ones((h, w, 4), dtype=float)
