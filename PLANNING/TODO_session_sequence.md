@@ -45,8 +45,8 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
-| ▶ | `seq-U1-deps-message` | epifanio | `publish-0-4` WP-4: load and say what is missing instead of dying, when the venv is absent | §2.4 | started 2026-10-24 · its wait is over: `gt/deps_check.py` is in `master` (#61, `6e22c32`). Read it before starting: 16 of the 20 deps stop the dock being constructed at all |
-| ⏸ | `seq-U2-macos-profile-docs` | — | `mac-install-test` WP-3: the macOS profile path and a headless harness that is faithful to the app's signing, in `CLAUDE.md` and the install page | §2.7 | **Waits on** `seq-U1-deps-message` (it may change what `_bootstrap_venv` does, which the recipe describes) |
+| ◐ | `seq-U1-deps-message` | epifanio | `publish-0-4` WP-4: load and say what is missing instead of dying, when the venv is absent | §2.4 | 2026-10-24 · #67 · verified: QGIS 4.2.1 (macOS, arm64) in the signed harness of TODO_mac-install-test.md §3: with no .venv, startPlugin True (was False), 13 messages tagged GroundTruther (were 0), the stub is what QGIS holds; with a full .venv grafted on, the bootstrap finds it and the real plugin module imports. tests/unit 432 passed, 5 pre-existing pyarrow/GDAL failures. The log PANEL and the dialog's appearance are NOT verified — headless QgsApplication never delivers messageReceived, so the lines were captured at the call site. · memory note: 2026-10-24_seq-U1-deps-message.md |
+| ⏭ | `seq-U2-macos-profile-docs` | — | `mac-install-test` WP-3: the macOS profile path and a headless harness that is faithful to the app's signing, in `CLAUDE.md` and the install page | §2.7 | wait met by `seq-U1-deps-message` 2026-10-24: `_bootstrap_venv()` keeps the `.venv` name and now **returns** the directory it added (or `None`), and `setup_wsl.sh` creates `.venv` beside the plugin instead of `gtenv` in the cwd — all in **PR #67, which must be merged first** |
 
 ### Slot 2 — C (core & config), D (docs), P (packaging & install)
 
@@ -55,14 +55,14 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | ◐ | `seq-P2-release-zip` | claude | `publish-0-4` WP-1: one safe release zip from a tag; delete the two paths that ship the API key | §2.1 | 2026-10-24 · #50 · verified: built from a throwaway tag: 2.7 MB / 237 files; config/config.yaml, .venv, PLANNING/, website/, tests/, docs/, .claude/, .github/, grassdata/ absent; qtui/icons/ present (82 entries); no API-key value in the unpacked tree, and a planted fake key was refused; git status --short clean after a successful AND a failed build · memory note: 2026-10-24_seq-P2-release-zip.md |
 | ◐ | `seq-P1-release-metadata` | epifanio | `publish-0-4` WP-2: `metadata.txt` typos, tags, homepage, icon path, 0.4 changelog | §2.2 | 2026-10-24 · #56 **merged by the owner 2026-10-24** (`master` 4f4d6b5; they said *"Go ahead and merge #56"*) · verified: configparser on metadata.txt: one [general] section, no key containing a space (origin/master had the junk key "category of the plugin"); icon=qtui/icons/epi.gif exists on disk and is tracked by git (the declared qtui/icons/qgis/epi.gif did not exist); and inside a real artifact built with scripts/make-release-zip.sh from a throwaway tag at the PR head: the zips metadata.txt parses with no junk key, description/tags/homepage as intended, version=0.4 experimental=True qgisMinimumVersion=4.0 unchanged, and groundtruther/qtui/icons/epi.gif present (2439 bytes). git status --short clean after the build; tag and zip deleted. py_compile __init__.py passes; check_planning 0/0. No website/ or docs/ page references any changed value (grep), so no docs claim to re-verify; mkdocs is not installed on the Mac, CI docs.yml is the run that counts · memory note: 2026-10-24_seq-P1-release-metadata.md |
 | ✅ | `seq-C1-deps-check` | epifanio | `publish-0-4` WP-3: `gt/deps_check.py` — which required modules are importable, Qt-free | §2.3 | 2026-10-24 · #61 **merged by the owner 2026-10-24** (`master` 6e22c32; they said *"Go ahead and merge #61"*) · verified: throwaway venv in the scratchpad (Python 3.15.0, pytest 9.1.1; this Mac has no .venv): pytest tests/unit/test_deps_check.py -> 24 passed. Whole unit suite, after installing numpy pandas pydantic requests PyYAML scipy (needed to collect at all): 421 passed, 3 skipped, 5 pre-existing failures wanting pyarrow and osgeo/GDAL in files this PR does not touch. check_planning 0/0; py_compile clean; no print() (D-003) and a test asserts no qgis/Qt in sys.modules after import (D-008). Finding: a static module-level import-graph walk from groundtruther.py shows 16 of the 20 deps are reached unguarded (mostly via pygui/querybuilder_gui.py, imported eagerly by the dock), so their absence stops the dock being constructed at all; only av, cv2, PyOpenGL are guarded and pydantic/starlette are off the chain. starlette is in requirements.txt and no module imports it. · memory note: 2026-10-24_seq-C1-deps-check.md |
-| ⏸ | `seq-D1-install-docs` | — | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | **Waits on** `seq-U1-deps-message` (the page describes its real behaviour) |
+| ⬜ | `seq-D1-install-docs` | — | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | wait met by `seq-U1-deps-message` 2026-10-24: the behaviour the page describes is in **PR #67, which must be merged first** — read it, not this row. ⬜ and not ⏭ because `seq-C2-parquet-no-pandas` already holds slot 2's one ⏭ |
 | ⏭ | `seq-C2-parquet-no-pandas` | — | `mac-install-test` WP-2: read parquet without `pandas.to_pandas()` on timestamp columns — it segfaults QGIS 4.2.1 on macOS | §2.6 | From `mac-install-test` 2026-10-24. Blocks the plugin's mandatory startup path on macOS. `gt/deps_check.py` is in `master` (#61); this row touches `gt/image_manager.py`, so no file collides |
 
 **Order rules** (only about open rows; a closing session deletes the ones about itself):
 
-- `seq-U1-deps-message` before `seq-U2-macos-profile-docs`: U1 owns `__init__.py`, and U2 documents
+- none yet
   the headless recipe that describes `_bootstrap_venv`.
-- `seq-U1-deps-message` before `seq-D1-install-docs`: the page describes the behaviour U1 builds.
+- **PR #67 merged before `seq-D1-install-docs`**: the page quotes the dialog U1 built, word for word, and that wording is only in `master` once #67 lands.
 - The P strand (P2, P1) and the C/U/D strand share no file, so they may run side by side **if the
   owner starts a second slot-2 session** (`WORKFLOW.md` §3.1). Slot 2 runs one at a time by default.
 
@@ -98,6 +98,7 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 | the owner's yes or no | the artifact still carries ~1 MB of repo furniture beyond the six stripped dirs (.githooks/, scripts/, help/, epsg, CLAUDE.md, pytest.ini, pylintrc, pb_tool.cfg, compile_ui.sh, tmp/) — asked in #50 | `seq-P2-release-zip` | they answer; if yes, the strip list grows in seq-P1-release-metadata |
 | before the next session that closes a code PR | scripts/session.sh close reuses whatever PR is open on claude/<session> and merges it, so closing on the code branch would have merged #56 — exactly how #50 went in by mistake. Branch claude/close-guard adds a path guard and is NOT in master. Until it lands, close a code session on a second branch cut from origin/master, with PLANNING/queue.py close plus the PR by hand (done here, and again by `seq-C1-deps-check` on 2026-10-24) | `seq-P1-release-metadata` | claude/close-guard is merged, or the rulebook names the two-branch order |
 | — | The GUI check in QGIS on the Mac is the owner's: queue §3 -> PLANNING/TODO_mac-install-test.md §6, both profiles already built | `mac-install-test` | closes when the owner reports what they saw |
+| owner | review and merge PR #67 (it changes code, so §12 Q3 leaves it to the owner), then run the GUI check in §3 | `seq-U1-deps-message` | PR #67 merged and the owner confirms the log panel shows the 13 lines and the dialog appears once |
 
 ## 2. Prompts
 
@@ -111,55 +112,7 @@ as `WORKFLOW.md` §4.1. When a session closes, it removes its block and leaves t
 
 ### 2.3 `seq-C1-deps-check` (closed 2026-10-24; its prompt is in git history)
 
-### 2.4 `seq-U1-deps-message`
-
-```text
-/build-session seq-U1-deps-message
-Plan: PLANNING/TODO_publish-0-4.md WP-4 (honest failure), slot 1, lane U. Scope: make the plugin
-load and explain itself when its dependencies are absent, instead of dying. Today
-__init__.py's _bootstrap_venv() is a no-op when there is no .venv — which is exactly what a QGIS
-Plugin Manager install produces — so every one of the 20 runtime dependencies fails to import.
-Call gt/deps_check.py (from seq-C1-deps-check) during startup; log the missing packages to the
-GroundTruther panel; show ONE dialog naming them and linking the install page; and disable the
-features that cannot work rather than letting them raise later. One dialog, not one per import.
-gt/deps_check.py is in master (PR #61, merged 2026-10-24 at 6e22c32) — read it first. Its API is
-check_dependencies() -> DependencyReport with .ok, .missing (Requirement: package, module, feature,
-blocks_load), .missing_packages, .disabled_features, .blocking_missing, .can_load, .summary().
-C1's finding limits what "disable" can mean: 16 of the 20 deps are reached by an UNGUARDED
-module-level import from groundtruther_dockwidget.py, mostly via pygui/querybuilder_gui.py which
-the dock imports eagerly, so with any of them missing the dock cannot be constructed and the only
-honest behaviour is to log, say so once, and not load. Only av, cv2 and PyOpenGL are guarded; that
-is the blocks_load field. Making the heavy deps genuinely optional is the separate dependency plan
-(§6 Q1), NOT yours: do not restructure those imports here.
-Also fix the second mismatch while you are in here: setup_wsl.sh --venv creates `gtenv` but
-_bootstrap_venv() looks for `.venv`, so the documented fallback install produces a venv the plugin
-never loads — make them agree and say which name won.
-`mac-install-test` (2026-10-24) measured that state on a real QGIS 4.2.1 — read
-PLANNING/TODO_mac-install-test.md §2 before you design the message, because three of its findings
-change the design: (1) the FIRST missing module is pyqtgraph, reached through
-groundtruther_dockwidget.py:34, not numpy or pandas — macOS QGIS ships pandas and not pyqtgraph, so
-the set of missing packages is platform-specific and must be computed, never hard-coded; (2)
-qgis.utils.loadPlugin() returns True even with no .venv, because it only does __import__ — the
-failure is in startPlugin() → classFactory(), so a message hung off loadPlugin's failure path will
-never fire; (3) today there are ZERO log messages tagged GroundTruther in that state, which is the
-bug you are fixing. On macOS, note that `import qgis.core` imports pandas and pyarrow itself before
-any plugin code runs, so a venv cannot give the plugin a different copy of either (that plan's §5);
-do not try to fix that here.
-Verify on the real thing: unpack the release zip into a CLEAN QGIS 4 profile with NO .venv and
-confirm the plugin loads, logs, and shows the dialog once. You cannot drive the QGIS GUI: do the
-headless import/load checks in CLAUDE.md, then write the GUI check into the queue's §3 for the
-owner, naming exactly what they should see. Do not claim it verified until they confirm. On macOS
-the CLAUDE.md recipe is misleading — it runs an unentitled interpreter under which every compiled
-dependency looks broken; the faithful harness is PLANNING/TODO_mac-install-test.md §3, and the
-profile gt-mac-novenv is already built and is exactly this case.
-Touch only __init__.py, the dock/startup path, and setup_wsl.sh. Do not touch gt/deps_check.py
-(seq-C1-deps-check owns it) or metadata.txt. Needs a yes: anything that changes plugin behaviour
-beyond failing gracefully. Decisions that bind this work: D-003 (QgsMessageLog with the
-GroundTruther tag, never print()), D-004 (the qgis.PyQt shim, never PyQt6), D-001, D-008, D-007.
-Your PR changes code, so open it and LEAVE IT for the owner (§12 Q3): close your row ◐ with their
-review and merge as the open end. Memory notes to read: MEMORY.md,
-2026-10-23_adopt-groundtruther.md. Docs check: mkdocs build --strict -f website/mkdocs.yml.
-```
+### 2.4 `seq-U1-deps-message` (closed 2026-10-24; its prompt is in git history)
 
 ### 2.5 `seq-D1-install-docs`
 
@@ -268,6 +221,36 @@ session it came from and the date.
   expected to **take QGIS down with it**, and if it does not, `seq-C2-parquet-no-pandas` needs
   re-scoping. Please don't delete the two profiles; `seq-C2` will want them. From
   `mac-install-test`, 2026-10-24.
+- **Look at the missing-dependency message in QGIS** — the GUI half of `seq-U1-deps-message`
+  (`publish-0-4` WP-4), and the part no agent can do: the `messageReceived` signal is never
+  delivered in a headless `QgsApplication`, so the log lines were captured at the call site, which
+  does not prove the **panel** shows them. PR #67 must be merged first. The profile is already
+  built: `gt-mac-novenv` (`~/Library/Application Support/QGIS/QGIS4/profiles/`) is a Plugin Manager
+  install, no `.venv`. Launch QGIS on it with the plugin enabled and check, in order:
+    1. QGIS does **not** show its generic Python-error traceback dialog. That dialog was the old
+       behaviour and its absence is the fix.
+    2. **One** dialog appears, titled *GroundTruther — dependencies missing*, after the main window
+       is up — not behind it, and not one per missing package. It should say *"cannot start: 6 of
+       the 20 Python packages it needs are not installed"* (the count is computed per machine, so a
+       different number is fine; **10** would be the bug, since only 6 of the 10 actually block),
+       then list `scikit-image, pyqtgraph, plotnine, simplekml, geojson, numba`, then say 4 more are
+       missing and only disable features.
+    3. The install link in it is clickable and goes to
+       <https://epifanio.github.io/groundtruther/installation/>.
+    4. **Show Details** opens the per-package breakdown, each line marked `REQUIRED` or `optional`.
+    5. *View → Panels → Log Messages → GroundTruther* holds **13** lines: one headline, ten
+       `missing:` lines, one saying there is no `.venv`, one with the install URL. **This is the
+       step that matters** — it is the one thing the headless probe could not prove, and before
+       this change the tab held nothing at all.
+    6. Dismiss the dialog. *Plugins → GroundTruther* has one entry,
+       *GroundTruther (dependencies missing)*, and clicking it brings the same dialog back. There
+       is deliberately **no** toolbar button and no dock.
+    7. Disable and re-enable the plugin in the Plugin Manager: no traceback, and the dialog returns
+       once.
+  Then the opposite case in `gt-mac-test` (which has a full `.venv`): the plugin loads as it always
+  did, with **no** missing-dependency dialog. Expect step 9 of
+  `PLANNING/TODO_mac-install-test.md` §6 to still take QGIS down when browsing an image — that is
+  `seq-C2-parquet-no-pandas`, not this change. From `seq-U1-deps-message`, 2026-10-24.
 - **Tag, build, verify and upload 0.4** (`publish-0-4` WP-6), after `seq-P2`…`seq-D1` have landed.
   The build is one command — `git tag -a v0.4 && scripts/make-release-zip.sh v0.4` → `dist/groundtruther-v0.4.zip`
   (`seq-P2-release-zip`, 2026-10-24: it refuses to write the zip unless `config/config.yaml`, `.venv`
