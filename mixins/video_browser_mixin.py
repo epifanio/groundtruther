@@ -688,11 +688,8 @@ class VideoBrowserMixin:
         if self._video_track_layer is None:
             return False
         try:
-            # PyQt6 (QGIS 4) ships sip under PyQt6.sip; fall back to bare sip for PyQt5.
-            try:
-                from PyQt6 import sip
-            except ImportError:
-                import sip
+            # D-004: the QGIS shim re-exports sip for whichever Qt binding is in use.
+            from qgis.PyQt import sip
             if sip.isdeleted(self._video_track_layer):
                 self._video_track_layer = None
                 return False
