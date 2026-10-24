@@ -8,7 +8,8 @@ Generic Video Metadata CSV schema (normalised output)
 frame_index : int
     Sequence number from the source file (``Videoseqence`` column).
 timestamp : datetime
-    Combined Date + Time parsed to a ``pandas.Timestamp``.
+    Combined Date + Time, as a plain ``datetime.datetime`` in an
+    object-dtype column (never a ``datetime64``; see ``gt/pandas_safe.py``).
 latitude, longitude : float
     WGS-84 decimal degrees (converted from DDM on load).
 depth : float
@@ -60,6 +61,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy import spatial
+
+from groundtruther.gt import pandas_safe
 
 
 # ---------------------------------------------------------------------------
@@ -165,17 +168,19 @@ def load_video_metadata_survey(csv_path: str | Path) -> pd.DataFrame:
     ]
 
     # --- Timestamp ---
+    # Not ``pd.to_datetime``: it segfaults the whole application on QGIS 4.2.1
+    # on macOS, so the parsing is done with ``datetime.strptime`` and the column
+    # is object dtype holding plain datetimes.  See ``gt/pandas_safe.py``.
     date_col = _col("Date")
     time_col = _col("Time")
-    timestamps = pd.to_datetime(
-        date_col.astype(str) + " " + time_col.astype(str),
-        format="%d.%m.%Y %H:%M:%S",
-        errors="coerce",
+    timestamps = pandas_safe.parse_datetimes(
+        (date_col.astype(str) + " " + time_col.astype(str)),
+        "%d.%m.%Y %H:%M:%S",
     )
 
     out = pd.DataFrame({
         "frame_index":  _col("Videoseqence").astype(int),
-        "timestamp":    timestamps,
+        "timestamp":    pandas_safe.object_series(timestamps),
         "latitude":     latitude,
         "longitude":    longitude,
         "depth":        pd.to_numeric(_col("Depth"), errors="coerce"),
@@ -214,9 +219,11 @@ def compute_frame_indices(df: pd.DataFrame, fps: float) -> pd.DataFrame:
     The same DataFrame with a new ``video_frame`` column (int).
     """
     df = df.copy()
-    t0 = df["timestamp"].iloc[0]
-    elapsed = (df["timestamp"] - t0).dt.total_seconds()
-    df["video_frame"] = (elapsed * fps).round().astype(int)
+    # Not ``(series - t0).dt.total_seconds()``: ``.dt`` needs a datetime64
+    # column, and building one segfaults QGIS on macOS.  See
+    # ``gt/pandas_safe.py``.
+    elapsed = pandas_safe.elapsed_seconds(df["timestamp"])
+    df["video_frame"] = np.nan_to_num(elapsed * fps).round().astype(int)
     return df
 
 

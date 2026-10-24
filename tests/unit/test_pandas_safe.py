@@ -1,4 +1,4 @@
-"""Regression tests for the Parquet reader in gt/image_manager.py.
+"""Regression tests for gt/pandas_safe.py and its two callers.
 
 **Why these tests look paranoid.** On QGIS 4.2.1 on macOS (pandas 3.0.3 against
 numpy 2.5.0) letting pandas build a ``datetime64`` from Arrow data does not
@@ -34,6 +34,8 @@ import pyarrow.parquet as pq
 import pytest
 
 from groundtruther.gt import image_manager as im
+from groundtruther.gt import pandas_safe
+from groundtruther.gt import video_manager as vm
 
 
 def _write(tmp_path, table, name="meta.parquet"):
@@ -104,13 +106,13 @@ def test_no_datetime64_for_duration_columns(tmp_path):
 
 def test_unsafe_type_classification():
     for unit in ("s", "ms", "us", "ns"):
-        assert im.is_unsafe_arrow_type(pa.timestamp(unit))
-    assert im.is_unsafe_arrow_type(pa.timestamp("us", tz="UTC"))
-    assert im.is_unsafe_arrow_type(pa.duration("us"))
+        assert pandas_safe.is_unsafe_arrow_type(pa.timestamp(unit))
+    assert pandas_safe.is_unsafe_arrow_type(pa.timestamp("us", tz="UTC"))
+    assert pandas_safe.is_unsafe_arrow_type(pa.duration("us"))
     # Measured safe on the broken build, so they may go through the bridge.
     for safe in (pa.float64(), pa.int64(), pa.string(),
                  pa.date32(), pa.date64(), pa.time64("us")):
-        assert not im.is_unsafe_arrow_type(safe)
+        assert not pandas_safe.is_unsafe_arrow_type(safe)
 
 
 # --- the implementation must not go through pandas -------------------------
@@ -132,13 +134,13 @@ def test_temporal_columns_take_the_safe_converter(tmp_path, monkeypatch):
     Arrow->pandas bridge. If someone reverts the reader, the spy never fires.
     """
     seen = []
-    original = im._temporal_objects
+    original = pandas_safe.temporal_objects
 
     def spy(column):
         seen.append(str(column.type))
         return original(column)
 
-    monkeypatch.setattr(im, "_temporal_objects", spy)
+    monkeypatch.setattr(pandas_safe, "temporal_objects", spy)
     im.load_metadata(_write(tmp_path, _timestamp_table()))
     assert seen == ["timestamp[us]"], (
         "the timestamp column did not go through the safe converter"
@@ -233,7 +235,7 @@ def test_missing_file_still_raises_filenotfound(tmp_path):
 def test_arrow_table_to_dataframe_is_reusable_for_other_readers():
     """It is the documented entry point for any gt/ reader of Arrow data."""
     table = _timestamp_table()
-    df = im.arrow_table_to_dataframe(table)
+    df = pandas_safe.arrow_table_to_dataframe(table)
     assert _temporal_dtypes(df) == []
     assert isinstance(df, pd.DataFrame)
     assert isinstance(df.index[0], datetime.datetime)
@@ -243,7 +245,120 @@ def test_temporal_objects_returns_an_object_array():
     column = pa.chunked_array([pa.array(
         [datetime.datetime(2015, 1, 1), datetime.datetime(2015, 1, 2)],
         type=pa.timestamp("us"))])
-    out = im._temporal_objects(column)
+    out = pandas_safe.temporal_objects(column)
     assert isinstance(out, np.ndarray)
     assert out.dtype == object          # not datetime64 — that is the crash
     assert out[0] == datetime.datetime(2015, 1, 1)
+
+
+# --- the second call site: gt/video_manager.py ------------------------------
+# `pd.to_datetime` on *strings* segfaults the same way, so the survey-CSV reader
+# was a live crash on macOS too — in a feature path, and one the mixin's
+# try/except cannot catch, because a SIGSEGV is not an exception.
+
+_SURVEY_CSV = (
+    "Videoseqence,Date,Time,LatDeg,LatMin,NorthSouth,LonDeg,LonMin,EastWest,"
+    "Depth,Bottom,Biology,Comments,Cruise,Superstation,Station,"
+    "CP_LatDeg,CP_LatMin,CP_NorthSouth,CP_LonDeg,CP_LonMin,CP_EastWest,"
+    "CP_Altitude,CP_Depth,CP_MeanAlt\n"
+    "1,19.06.2015,18:11:42,41,3.9,N,68,52.1,W,120.5,sand,none,,C1,S1,St1,"
+    "41,3.9,N,68,52.1,W,2.0,120.0,2.1\n"
+    "2,19.06.2015,18:11:52,41,4.0,N,68,52.2,W,121.0,mud,none,,C1,S1,St1,"
+    "41,4.0,N,68,52.2,W,2.1,121.0,2.2\n"
+    "3,19.06.2015,18:12:02,41,4.1,N,68,52.3,W,121.5,mud,none,,C1,S1,St1,"
+    "41,4.1,N,68,52.3,W,2.2,121.5,2.3\n"
+)
+
+
+def _survey(tmp_path):
+    path = tmp_path / "survey.csv"
+    path.write_text(_SURVEY_CSV)
+    return path
+
+
+def test_survey_timestamps_are_object_datetimes(tmp_path):
+    df = vm.load_video_metadata_survey(_survey(tmp_path))
+    assert df["timestamp"].dtype == object
+    assert _temporal_dtypes(df) == [], (
+        "load_video_metadata_survey produced a datetime64; that is the "
+        "representation that segfaults QGIS on macOS"
+    )
+    assert df["timestamp"].iloc[0] == datetime.datetime(2015, 6, 19, 18, 11, 42)
+    assert df["timestamp"].iloc[2] == datetime.datetime(2015, 6, 19, 18, 12, 2)
+
+
+def test_survey_reader_does_not_use_pd_to_datetime(tmp_path, monkeypatch):
+    def poisoned(*args, **kwargs):
+        raise AssertionError(
+            "pd.to_datetime segfaults QGIS on macOS; parse with "
+            "pandas_safe.parse_datetimes instead"
+        )
+    monkeypatch.setattr(pd, "to_datetime", poisoned)
+    df = vm.load_video_metadata_survey(_survey(tmp_path))
+    assert len(df) == 3
+
+
+def test_compute_frame_indices_without_dt_accessor(tmp_path):
+    df = vm.compute_frame_indices(vm.load_video_metadata_survey(_survey(tmp_path)), fps=25.0)
+    # rows are 10 s apart -> 0, 250, 500 frames at 25 fps
+    assert df["video_frame"].tolist() == [0, 250, 500]
+    assert _temporal_dtypes(df) == []
+
+
+def test_compute_frame_indices_does_not_use_the_dt_accessor(tmp_path, monkeypatch):
+    """``.dt`` needs a datetime64 column, which is the crash."""
+    def poisoned(self):
+        raise AssertionError(".dt requires a datetime64 column; that segfaults QGIS")
+    monkeypatch.setattr(pd.Series, "dt", property(poisoned))
+    df = vm.compute_frame_indices(vm.load_video_metadata_survey(_survey(tmp_path)), fps=25.0)
+    assert df["video_frame"].tolist() == [0, 250, 500]
+
+
+def test_unparseable_timestamps_become_none_not_nat(tmp_path):
+    """``None`` is this module's ``coerce``: same meaning, and inert."""
+    path = tmp_path / "bad.csv"
+    path.write_text(_SURVEY_CSV.replace("19.06.2015,18:11:52", "not-a-date,nonsense"))
+    df = vm.load_video_metadata_survey(path)
+    assert df["timestamp"].iloc[1] is None
+    assert _temporal_dtypes(df) == []
+
+
+# --- the helpers in isolation ----------------------------------------------
+
+def test_parse_datetimes():
+    out = pandas_safe.parse_datetimes(["19.06.2015 18:11:42", "junk", None],
+                                      "%d.%m.%Y %H:%M:%S")
+    assert out.dtype == object
+    assert out[0] == datetime.datetime(2015, 6, 19, 18, 11, 42)
+    assert out[1] is None and out[2] is None
+
+
+def test_parse_datetimes_tolerates_nan():
+    out = pandas_safe.parse_datetimes([float("nan")], "%d.%m.%Y %H:%M:%S")
+    assert out[0] is None
+
+
+def test_elapsed_seconds():
+    stamps = [datetime.datetime(2015, 1, 1, 0, 0, 0),
+              datetime.datetime(2015, 1, 1, 0, 0, 10),
+              None,
+              datetime.datetime(2015, 1, 1, 0, 1, 0)]
+    out = pandas_safe.elapsed_seconds(stamps)
+    assert out[0] == 0.0 and out[1] == 10.0 and out[3] == 60.0
+    assert np.isnan(out[2])
+
+
+def test_elapsed_seconds_skips_leading_nulls_for_the_origin():
+    out = pandas_safe.elapsed_seconds([None, datetime.datetime(2015, 1, 1, 0, 0, 5),
+                                       datetime.datetime(2015, 1, 1, 0, 0, 7)])
+    assert np.isnan(out[0]) and out[1] == 0.0 and out[2] == 2.0
+
+
+def test_elapsed_seconds_all_null():
+    out = pandas_safe.elapsed_seconds([None, None])
+    assert np.isnan(out).all()
+
+
+def test_object_array_never_coerces_to_datetime64():
+    out = pandas_safe.object_array([datetime.datetime(2015, 1, 1)])
+    assert out.dtype == object      # np.array() alone would give datetime64

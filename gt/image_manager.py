@@ -11,9 +11,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import pyarrow as pa
 import pyarrow.parquet as pq
 from scipy import spatial
+
+from groundtruther.gt import pandas_safe
 
 
 # --- on-disk image-file resolution -----------------------------------------
@@ -63,143 +64,11 @@ def image_path_or_default(dirname, imagename, default_ext: str = ".jpg") -> str:
 
 
 # --- Parquet reading -------------------------------------------------------
-# NEVER let pandas build a datetime64 value from Arrow data in this plugin.
-#
-# QGIS 4.2.1 on macOS bundles pandas 3.0.3 against numpy 2.5.0, and that pair's
-# datetime64 support is an ABI mismatch that *segfaults the whole process*.
-# There is no exception and no traceback: QGIS dies with SIGSEGV (exit 139).
-# Measured, one process per case, on QGIS's own pandas 3.0.3 / pyarrow 23.0.1 /
-# numpy 2.5.0:
-#
-#     table.to_pandas() on timestamp (s/ms/us/ns, tz or not)   SIGSEGV
-#     table.to_pandas() on duration                            SIGSEGV
-#     pd.to_datetime(int64 array, unit=...)                    SIGSEGV
-#     pd.Series(np.array([], dtype="datetime64[us]"))          SIGSEGV  (empty!)
-#     pd.Series(arrow_array, dtype=pd.ArrowDtype(timestamp))   SIGSEGV
-#     date32, date64, time64, double, int64, string            fine
-#     object-dtype datetime.datetime in a Series or an Index   fine
-#
-# An empty datetime64 array is enough to kill it, so the fault is in pandas'
-# dtype machinery, not in the data — which also means it cannot be probed for
-# safely at runtime, because the probe is the crash.  pandas is the only
-# variable (the same pyarrow is fine under pandas 2.x), so pinning pyarrow would
-# not help; and no ``sys.path`` strategy can help either, because
-# ``import qgis.core`` imports pandas itself before any plugin code runs, so the
-# venv's working pandas can never displace the bundled one.
-#
-# So temporal Arrow columns are converted here, to **object dtype holding plain
-# ``datetime.datetime`` / ``datetime.timedelta``**, on every platform.  That is
-# deliberately uniform rather than branched: object dtype is correct everywhere
-# and is the one path both Linux CI and macOS actually exercise, whereas a
-# platform branch would leave the macOS path untested by CI — the last thing you
-# want for a crash that takes the application down silently.  The cost is that
-# the returned index/column is object dtype rather than ``datetime64``, so
-# ``.dt`` accessors and time-based slicing are not available on it; no caller in
-# the plugin uses either.
-#
-# One sharp edge survives, and it is pandas', not ours: object-dtype datetimes
-# are inert in a *column*, but pandas re-infers them when they move out of an
-# *index*, and that inference is the crash.  Measured on the same build,
-# ``df.reset_index()`` and ``pd.concat([df, df])`` on the returned frame are
-# SIGSEGV, while ``copy``, ``sort_index``, ``iloc``, ``at``, ``to_csv``,
-# assigning a column and reading ``df.index[i]`` are all fine.  Nothing in the
-# plugin calls either (checked across ``mixins/``, ``gt/`` and ``pygui/``), and
-# the index has to stay an index because the metadata panel's Time row reads
-# ``record.name``.  Do not add a ``reset_index()`` or a ``concat()`` on this
-# frame without converting the index to strings first.
-#
-# ``HabCam.imagemetadata`` is one of the two config keys that are *errors*, and
-# its own test file carries a ``timestamp[us]`` index, so before this change the
-# crash blocked plugin startup outright on macOS.  See
-# ``PLANNING/TODO_mac-install-test.md`` §5.
-_UNSAFE_ARROW_PREDICATES = (pa.types.is_timestamp, pa.types.is_duration)
-
-
-def is_unsafe_arrow_type(arrow_type) -> bool:
-    """Would letting pandas convert a column of *arrow_type* risk the segfault?
-
-    True for the Arrow types pandas maps onto ``datetime64`` / ``timedelta64``
-    (timestamp and duration), which is the machinery that is broken.
-    """
-    return any(pred(arrow_type) for pred in _UNSAFE_ARROW_PREDICATES)
-
-
-def _temporal_objects(column) -> np.ndarray:
-    """A temporal Arrow column as an object-dtype array of Python datetimes.
-
-    ``Arrow -> Python -> object array`` stays clear of every pandas code path
-    that constructs a ``datetime64``.  Nulls arrive as ``None``.  Built element
-    by element because ``np.array(list_of_datetimes)`` would coerce to
-    ``datetime64`` on its own.
-    """
-    values = column.to_pylist()
-    out = np.empty(len(values), dtype=object)
-    for i, value in enumerate(values):
-        out[i] = value
-    return out
-
-
-def _pandas_index_fields(schema) -> list[tuple[str, str | None]]:
-    """The ``(column name, index label)`` pairs a Parquet file's pandas metadata
-    marks as the index, in order.  Empty when there is none, or when the index
-    was stored as a RangeIndex descriptor rather than as a column.
-    """
-    metadata = schema.pandas_metadata or {}
-    names = set(schema.names)
-    labels = {
-        col.get("field_name"): col.get("name")
-        for col in metadata.get("columns", [])
-        if isinstance(col, dict)
-    }
-    return [(entry, labels.get(entry))
-            for entry in metadata.get("index_columns", [])
-            if isinstance(entry, str) and entry in names]
-
-
-def arrow_table_to_dataframe(table) -> pd.DataFrame:
-    """Convert a ``pyarrow.Table`` to a DataFrame without crashing pandas 3.
-
-    Does what ``table.to_pandas()`` does — the same columns in the same order,
-    with the index restored from the file's pandas metadata — except that
-    timestamp and duration data is converted by :func:`_temporal_objects` and
-    lands as object dtype.  Use this, never ``to_pandas()``, anywhere in ``gt/``
-    that turns Arrow data into a DataFrame.
-    """
-    names = list(table.schema.names)
-    unsafe = {name for name, arrow_type in zip(names, table.schema.types)
-              if is_unsafe_arrow_type(arrow_type)}
-    index_fields = _pandas_index_fields(table.schema)
-    index_names = [name for name, _ in index_fields]
-
-    # Everything the bridge can safely convert goes over in one call; the
-    # temporal columns are rebuilt here and put back in their original place.
-    safe = table.select([n for n in names if n not in unsafe])
-    if safe.num_columns:
-        df = safe.to_pandas(ignore_metadata=True)
-    else:
-        # Every column was temporal: nothing for the bridge to do, but the frame
-        # still has to carry the file's row count.
-        df = pd.DataFrame(index=pd.RangeIndex(table.num_rows))
-    for name in unsafe:
-        df[name] = pd.Series(_temporal_objects(table.column(name)),
-                             index=df.index, dtype=object)
-    df = df[names]
-
-    if index_names:
-        # Not ``set_index``: it infers a dtype for the new index, and for
-        # datetimes that inference is the segfault.  Build each level by hand,
-        # forcing object dtype for the temporal ones.
-        levels = [
-            pd.Index(df[name].to_numpy(), dtype=object, name=label)
-            if name in unsafe else pd.Index(df[name], name=label)
-            for name, label in index_fields
-        ]
-        index = (levels[0] if len(levels) == 1
-                 else pd.MultiIndex.from_arrays(levels,
-                                                names=[lvl.name for lvl in levels]))
-        df = df.drop(columns=index_names)
-        df.index = index
-    return df
+# Read through pyarrow, never ``pd.read_parquet``: on QGIS 4.2.1 on macOS the
+# pandas conversion of a timestamp column segfaults the whole application, and
+# ``HabCam.imagemetadata`` is one of the two config keys that are *errors*, so
+# before this the plugin could not start there at all.  ``gt/pandas_safe.py``
+# carries the measurements and the reasoning.
 
 
 def load_metadata(parquet_path: str | Path) -> pd.DataFrame:
@@ -209,13 +78,14 @@ def load_metadata(parquet_path: str | Path) -> pd.DataFrame:
     ``Exception`` (from pyarrow) if the file is malformed — callers are
     expected to catch and handle these.
 
-    Reads through pyarrow rather than :func:`pandas.read_parquet` because that
-    call segfaults QGIS on macOS; see :func:`arrow_table_to_dataframe`.
+    The acquisition-time index comes back as object dtype holding
+    ``datetime.datetime`` rather than as a ``DatetimeIndex``; see
+    :mod:`groundtruther.gt.pandas_safe` for why that is not negotiable.
     """
     path = Path(parquet_path)
     if not path.is_file():
         raise FileNotFoundError(f"No such Parquet file: {path}")
-    return arrow_table_to_dataframe(pq.read_table(path))
+    return pandas_safe.arrow_table_to_dataframe(pq.read_table(path))
 
 
 def build_kdtree(df: pd.DataFrame,
