@@ -6,14 +6,23 @@ session: it produces knowledge, not a feature.
 
 ## Status
 
-**2026-10-24 — ◐ done, and it found two blockers nobody knew about.** The 0.4 code does load on a
-real QGIS 4 on macOS, and almost every dependency works. But the plugin's *mandatory* startup path
-— reading `HabCam.imagemetadata` — **segfaults QGIS 4.2.1 on macOS**, and the `.venv` strategy
-cannot fix it, because `import qgis.core` has already imported QGIS's own broken `pandas`/`pyarrow`
-before any plugin code runs. Two follow-up rows are queued (`seq-C2-parquet-no-pandas`,
-`seq-U2-macos-profile-docs`); `publish-0-4` WP-3/WP-4 gain facts they were going to guess at. The
-GUI half is the owner's: §6 below is a launch-and-look checklist, with both profiles already built.
-Nothing in this session touched plugin code.
+**2026-10-24 — ◐ done, and it found two blockers nobody knew about. §5 and §6 were corrected later
+the same day.** The 0.4 code does load on a real QGIS 4 on macOS, and almost every dependency works.
+But **every pandas datetime operation segfaults QGIS 4.2.1 on macOS** — `pd.to_datetime(["..."])` is
+enough — which kills the plugin's *mandatory* startup path, reading `HabCam.imagemetadata`. The
+`.venv` cannot fix it: `import qgis.core` imports pandas and pyarrow before any plugin code runs.
+
+Two corrections, both made after the owner tried it in the GUI:
+
+- §5 first blamed a pandas/pyarrow pair and a `timestamp[us]` column. The macOS crash report shows
+  the fault is inside **pandas' own datetime C extension**; pyarrow is only the caller. The row was
+  re-scoped and renamed `seq-C2-pandas-datetime`, and it now covers `gt/video_manager.py:170` as
+  well as `gt/image_manager.py:70`.
+- §6 assumed the reader would switch profile. The owner opened QGIS, got `default`, and saw no
+  GroundTruther at all. §6.0 now leads with the launch command, and §6.2 is a debugging guide.
+
+The other follow-up is `seq-U2-macos-profile-docs`; `publish-0-4` WP-3/WP-4 gained facts they were
+going to guess at. The GUI half is the owner's: §6. Nothing in this session touched plugin code.
 
 Conventions: `PLANNING/WORKFLOW.md` §5.2 (rules 0–6).
 
@@ -161,45 +170,74 @@ Three things in that table are worth someone's attention:
   still imports (its v1→v2 fallback holds), and `gt/config_check.py` is pydantic-free and works — so
   per-key validation survives and only the pydantic schema is lost.
 
-## 5. The blocker nobody knew about: reading the image metadata segfaults QGIS
+## 5. The blocker: **every pandas datetime operation** segfaults QGIS
 
-`gt/image_manager.load_metadata()` is `pd.read_parquet`, and `HabCam.imagemetadata` is one of the
-only two config keys that are *errors* — the plugin cannot start without it. On this QGIS it does not
-raise. **It kills the process with SIGSEGV** (exit 139), no exception, no log line.
+**Corrected 2026-10-24, after the owner found the plugin did not appear in the Plugin Manager.**
+This section first said the fault was a pandas/pyarrow pair that could not convert a `timestamp[us]`
+column. That was too narrow, and it would have sent `seq-C2` after the wrong fix. Reading the
+macOS crash report named the real frame, and pyarrow turns out to be **innocent**.
 
-Bisected to one line, with no GroundTruther and no venv involved:
+`pandas`' datetime C extension is broken in QGIS 4.2.1 on macOS. Every one of these SIGSEGVs
+(exit 139, no exception, no log line), with no GroundTruther, no venv and **no pyarrow**:
 
 ```python
-import pyarrow as pa, datetime
-pa.table({"t": pa.array([datetime.datetime(2015, 1, 1)], type=pa.timestamp("us"))}).to_pandas()
+import pandas as pd, numpy as np
+pd.to_datetime(["2015-01-01"])                                   # SIGSEGV
+pd.Series(np.array(["2015-01-01"], dtype="datetime64[ns]"))      # SIGSEGV
+pd.Series(np.array(["2015-01-01"], dtype="datetime64[us]"))      # SIGSEGV
+from pandas._libs.tslibs import np_datetime
+np_datetime.get_supported_dtype(np.dtype("datetime64[ns]"))      # SIGSEGV
 ```
 
-| Where | Result |
+The crash report (`~/Library/Logs/DiagnosticReports/*.ips`) gives the frame:
+
+```text
+EXC_BAD_ACCESS (SIGSEGV), KERN_INVALID_ADDRESS at 0x0000000000000020
+  pandas_datetime.cpython-312-darwin.so   get_datetime_metadata_from_dtype
+  np_datetime.cpython-312-darwin.so       pandas._libs.tslibs.np_datetime.get_supported_dtype
+  …
+  lib.cpython-312-darwin.so               pyarrow.lib._PandasAPIShim.series
+  lib.cpython-312-darwin.so               pyarrow.lib.ChunkedArray._to_pandas
+```
+
+pyarrow appears only as the *caller* in the parquet case. The null-dereference is inside pandas'
+own `get_datetime_metadata_from_dtype`, reading a dtype it cannot interpret — the signature of a
+**pandas ↔ numpy C-API ABI mismatch** in QGIS's bundle (it ships pandas 3.0.3 and numpy 2.5.0).
+homebrew 3.12 with pandas 3.1.0 / numpy + pyarrow 26.0.0 is fine, so it is QGIS's build, not ours,
+and it is **macOS-only as far as this session measured** — the project works on Linux.
+
+### What it costs the plugin
+
+Two call sites, both in `gt/`, and both on paths a user reaches immediately:
+
+| Call site | What breaks |
 |---|---|
-| QGIS 4.2.1's pandas 3.0.3 + pyarrow 23.0.1 | **SIGSEGV** |
-| homebrew 3.12 + pandas 3.1.0 + pyarrow 26.0.0 | fine |
+| `gt/image_manager.py:70` — `pd.read_parquet(parquet_path)` | `HabCam.imagemetadata` is one of the two config keys that *block startup*, and `test_imagemetadata.pq` has a `timestamp[us]` column (`index`). Reading it kills QGIS. |
+| `gt/video_manager.py:170` — `pd.to_datetime(...)` in `load_video_metadata_survey`, and `:218` `.dt.total_seconds()` downstream | `pd.to_datetime` is proven to segfault, so this call site cannot run on macOS at all. (Not executed here for want of a survey CSV — the crash is proven on the function, not on this caller.) |
 
-So it is a **QGIS 4.2.1 macOS bundling bug**: that pandas/pyarrow pair cannot convert a
-`timestamp[us]` column. `pq.read_table()` is fine; only `.to_pandas()` dies. Narrowed by column:
-doubles fine, both string columns fine, and `test_imagemetadata.pq`'s `index` column is
-`timestamp[us]` — so the plugin's own test dataset triggers it.
+Nothing in `mixins/` or `pygui/` touches datetimes directly, so the blast radius is those two files.
+Avoiding `to_pandas()` is **not sufficient**: any code that builds or parses a datetime column dies.
 
-**And the `.venv` cannot rescue it.** Prepending instead of appending gets the venv's working
-pandas 3.1.0 / pyarrow 26.0.0 and the real file then reads fine — but only in a process that has not
-started QGIS. Measured:
+### Why the `.venv` cannot rescue it
+
+Prepending instead of appending gets the venv's working pandas, and the real file then reads fine —
+but only in a process that has not started QGIS. Measured:
 
 ```text
 after initQgis: pandas already imported? True | pyarrow? True
 ```
 
 `import qgis.core` imports `pandas` and `pyarrow` itself, before any plugin code runs. By the time
-`_bootstrap_venv()` executes they are in `sys.modules`, and a `sys.path` change — append or prepend —
-cannot displace them. **No `sys.path` strategy can give this plugin a working pandas on macOS
-QGIS 4.2.1.** The fix has to be in the plugin: read parquet through `pyarrow` and convert the
-timestamp column without `to_pandas()`, or stop converting that column at all.
+`_bootstrap_venv()` executes they are in `sys.modules`, and a `sys.path` change — append or
+prepend — cannot displace them. **No `sys.path` strategy can give this plugin a working pandas on
+macOS QGIS 4.2.1.**
 
-This is queued as `seq-C2-parquet-no-pandas`, and it is bigger than a bug: it is a constraint on
-every future `gt/` reader, which is why it is worth a decision record if the owner agrees.
+So the fix is in the plugin: keep datetimes out of pandas on this platform — read parquet through
+`pyarrow` and hand back the timestamp column as something else (epoch integers, strings, or the
+index), and replace `pd.to_datetime` with parsing that does not build a pandas datetime dtype.
+Queued as `seq-C2-pandas-datetime`. It is bigger than a bug: it is a constraint on every future
+`gt/` reader, which is why it is worth a decision record if the owner agrees — a build session
+writes neither (`WORKFLOW.md` §6.2).
 
 ### What does work, with the venv present
 
@@ -234,47 +272,142 @@ Two softer leads, not chased:
   hand-written code. This does not contradict **D-005** (which is about generated `Ui_*.py`), but a
   session that reads the convention as "ints are fine everywhere" will be surprised.
 
-## 6. The GUI check — the owner's, and it is launch-and-look
+## 6. Running and debugging it on the Mac
 
-No agent in this session drove the QGIS window, and nothing above is a UI check. Both profiles are
-built and waiting, so this is five minutes.
+### 6.0 Open the right profile — this is where it goes wrong
 
-**A. the Plugin Manager case** — `QGIS4/profiles/gt-mac-novenv`, plugin installed, no `.venv`:
+**The plugin is NOT in the `default` profile.** It is installed in two profiles of its own, and
+QGIS reopens whichever profile it used last (`profiles.ini` → `lastProfile`). On 2026-10-24 the
+owner opened QGIS, saw eight plugins and no GroundTruther: that was `default`, which carries only
+the core set plus `db_manager_community`.
 
-1. Launch `/Applications/QGIS-final-4_2_1.app`, *Settings → User Profiles → gt-mac-novenv*.
-2. *Plugins → Manage and Install Plugins → Installed*. **Expect**: GroundTruther listed, version 0.4.
-3. Tick it. **Expect**: it fails to enable, with a traceback dialog ending
+| Profile | What is in it |
+|---|---|
+| `default` | the owner's own. **No GroundTruther.** Left untouched by this session |
+| `gt-mac-novenv` | the plugin, **no `.venv`** — exactly what a Plugin Manager install gives you |
+| `gt-mac-test` | the plugin **and** a working `.venv` |
+
+All three live under `~/Library/Application Support/QGIS/QGIS4/profiles/` (**QGIS4**, not QGIS3).
+
+Launch straight into one, rather than clicking through *Settings → User Profiles*:
+
+```bash
+open -na /Applications/QGIS-final-4_2_1.app --args --profile gt-mac-test
+```
+
+```bash
+open -na /Applications/QGIS-final-4_2_1.app --args --profile gt-mac-novenv
+```
+
+`-n` forces a new instance, so this works even when QGIS is already open on another profile. QGIS
+writes the profile it used into `profiles.ini` on exit, so after one of these a plain double-click
+reopens the same one — which is also how `default` became sticky.
+
+Two ways to confirm you are where you think you are: the window title names the profile, and
+*Settings → User Profiles* shows it ticked. If GroundTruther still does not appear in
+*Plugins → Manage and Install Plugins → Installed*, tick **Show also experimental plugins** in that
+dialog's *Settings* tab — `metadata.txt` has `experimental=True`. (QGIS's own scanner does find it
+in both profiles — `qgis.utils.findPlugins` returns `['groundtruther']` with version 0.4 and
+`qgisMinimumVersion=4.0` — so discovery is not the problem; the profile is.)
+
+### 6.1 The ordered check — the owner's, since no agent can drive the window
+
+**A. the Plugin Manager case** — `gt-mac-novenv`:
+
+1. Launch with the `gt-mac-novenv` command above.
+2. *Plugins → Manage and Install Plugins → Installed*. **Expect**: GroundTruther, version 0.4.
+3. Tick it. **Expect**: it fails to enable, with a traceback ending
    `ModuleNotFoundError: No module named 'pyqtgraph'`.
-4. *View → Panels → Log Messages*, tab **GroundTruther**. **Expect, today: nothing at all** — the tab
-   is empty or absent. That emptiness is the WP-4 bug: confirming it is what makes WP-4 worth
-   building. If a `GroundTruther` message *is* there, say so, because this session saw none.
+4. *View → Panels → Log Messages*, tab **GroundTruther**. What belongs here changed when
+   `seq-U1-deps-message` (#67) landed — read that PR for what it now says, and compare. Before it,
+   this session measured **nothing at all** in that tab.
 5. **Expect no toolbar button and no GroundTruther menu.**
 
-**B. the working case** — `QGIS4/profiles/gt-mac-test`, same plugin plus the `.venv`:
+**B. the working case** — `gt-mac-test`:
 
-6. *Settings → User Profiles → gt-mac-test*, then enable GroundTruther in the Plugin Manager.
-   **Expect**: it enables, and the GroundTruther toolbar button and menu appear.
-7. Click the button. **Expect**: the main dock opens. There is **no `config/config.yaml`** on this
-   Mac, so expect the two documented *errors* for `HabCam.imagepath` and `HabCam.imagemetadata`,
-   surfaced however the dialog surfaces them — and expect **no** complaint about any other key.
-8. Open *Settings* in the dock and point `HabCam.imagepath` at
+6. Launch with the `gt-mac-test` command and enable GroundTruther. **Expect**: it enables, and the
+   toolbar button and menu appear.
+7. Click the button. **Expect**: the dock opens. There is **no `config/config.yaml`** on this Mac,
+   so expect the two documented *errors* for `HabCam.imagepath` and `HabCam.imagemetadata` and
+   **no** complaint about any other key.
+8. Load `~/dev/groundtruther_test_dataset/bathy_2015.tif` as a raster and confirm it draws. It
+   needs no pandas, and §5 measured it as valid and readable — so this step working tells you the
+   install is sound.
+9. In the dock's Settings, point `HabCam.imagepath` at
    `~/dev/groundtruther_test_dataset/image_subset` and `HabCam.imagemetadata` at
-   `~/dev/groundtruther_test_dataset/test_imagemetadata.pq`, then save.
-9. **This is the one that matters.** Try to browse an image. **Expect QGIS to disappear** — no dialog,
-   no crash report from the plugin, the whole application gone. That is §5's segfault reached through
-   the UI. If QGIS *survives* and shows a HabCam image, then §5 is wrong about the GUI and
-   `seq-C2-parquet-no-pandas` should be re-scoped; please say so.
-10. Either way, load `~/dev/groundtruther_test_dataset/bathy_2015.tif` as a raster first and confirm
-    it draws — §5 measured that it is valid and readable, and it needs no parquet.
+   `~/dev/groundtruther_test_dataset/test_imagemetadata.pq`, and save.
+10. **The one that matters.** Browse an image. **Expect QGIS to vanish** — no dialog, no plugin
+    error, the whole application gone. That is §5 reached through the UI. If QGIS *survives* and
+    shows a HabCam image, §5 is wrong about the GUI and `seq-C2-pandas-datetime` needs re-scoping;
+    please say so.
 
 Please don't delete the two profiles afterwards; `seq-C2` will want them.
+
+### 6.2 How to debug it when something goes wrong
+
+**Where the messages are.** *View → Panels → Log Messages* (not the Python console) has one tab per
+tag. `GroundTruther` is the plugin's own (D-003); **Plugins** carries QGIS's plugin-loading errors,
+and that is where a `classFactory` traceback lands. A plugin that fails to enable writes to
+**Plugins**, not to `GroundTruther`, so check both before concluding the plugin said nothing.
+
+**See stdout and stderr.** The log panel does not show them. Launch from a terminal instead of the
+Finder and anything printed, plus Qt's own warnings, comes to the shell:
+
+```bash
+/Applications/QGIS-final-4_2_1.app/Contents/MacOS/QGIS-final-4_2_1 --profile gt-mac-test
+```
+
+**Reproduce an import failure by hand.** *Plugins → Python Console*, then:
+
+```python
+import importlib, traceback
+try:
+    importlib.import_module("groundtruther.groundtruther")
+except Exception:
+    traceback.print_exc()
+```
+
+and to see what the plugin's own bootstrap did:
+
+```python
+import sys, groundtruther
+print(groundtruther.__file__)
+print([p for p in sys.path if ".venv" in p])   # empty means _bootstrap_venv found no venv
+```
+
+**Re-enable without restarting.** Install the **Plugin Reloader** plugin and use it after editing
+code. Failing that, untick and retick in the Plugin Manager — but a module that already failed to
+import may be cached, so a restart is the honest check.
+
+**When QGIS disappears with no message, it segfaulted.** macOS writes a report; the newest one names
+the faulting library and function, which is how §5's diagnosis was corrected from "a pyarrow bug" to
+"pandas' datetime C extension":
+
+```bash
+ls -t ~/Library/Logs/DiagnosticReports/*.ips | head -3
+```
+
+To read one without wading through 100 kB of JSON — the first line is a header, the rest is the
+document:
+
+```bash
+python3 -c 'import json,sys; d=json.loads(open(sys.argv[1]).read().split("\n",1)[1]); t=d["threads"][d.get("faultingThread",0)]; i=d["usedImages"]; print(d["exception"]); [print(" ", (i[f["imageIndex"]].get("name") or "?"), f.get("symbol","")) for f in t["frames"][:12]]' "$(ls -t ~/Library/Logs/DiagnosticReports/*.ips | head -1)"
+```
+
+**Headless, without the window.** For anything that does not need the GUI, the harness in §3 is
+faster and gives a real traceback. Do not use the `python3.12` recipe in `CLAUDE.md` on macOS: it
+runs an unentitled interpreter and makes every working compiled dependency look broken (§3).
+
+**Rule of thumb from this session.** A result too sweeping to be true — "every compiled dependency
+fails", "pandas is entirely broken" — is usually the instrument, not the subject. Both times here,
+checking the harness first would have saved the detour.
 
 ## 7. Work packages
 
 | Package | Scope | Depends on | Lane | Size | State |
 |---|---|---|---|---|---|
 | `mac-install-test WP-1` | install from the zip, confirm the no-`.venv` blocker, measure every dependency, exercise `gt/` against the dataset, leave the owner §6 | — | U | M | ✅ this session |
-| `mac-install-test WP-2` | parquet without `pandas.to_pandas()` on timestamp columns | WP-1 | C | M | queued `seq-C2-parquet-no-pandas` |
+| `mac-install-test WP-2` | keep datetimes out of pandas: `gt/image_manager.py:70` and `gt/video_manager.py:170` | WP-1 | C | M | queued `seq-C2-pandas-datetime` |
 | `mac-install-test WP-3` | the macOS profile path and the faithful headless harness, in `CLAUDE.md` and the install page | WP-1 | U + D | S | queued `seq-U2-macos-profile-docs` |
 
 ## 8. Lane split
