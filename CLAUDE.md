@@ -266,6 +266,11 @@ Project-specific, and not derivable from the rulebook:
 - **Lane U owns the live QGIS install.** The QGIS profile symlink points at the one main checkout,
   so a GUI check is a serialised resource: agents verify headless and *name* the check the owner
   must do (`WORKFLOW.md` §3.1). There is no staging anywhere.
+- **The QGIS profiles are shared state git does not isolate.** A worktree isolates the repo, not
+  `~/Library/Application Support/QGIS/QGIS4/profiles/`, which holds *copies* of the plugin and
+  `gt-mac-test`'s `.venv`. Refresh one with `scripts/mac-profile-install.sh <profile>` (never by
+  hand), re-run it after a merge before asking for a GUI check, and say on the queue row that you
+  touched it. `gt-mac-novenv` must stay venv-less (`WORKFLOW.md` §3.1).
 - **Merging a `website/` change publishes it** to <https://epifanio.github.io/groundtruther/> —
   the one thing here that deploys on a merge (`WORKFLOW.md` §8).
 - The older plans in `PLANNING/` stay as closed records; `PLANNING/legacy/` holds the pre-2026-10-23

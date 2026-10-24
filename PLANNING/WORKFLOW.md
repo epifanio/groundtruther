@@ -144,6 +144,28 @@ Linux one and a GUI check on either is still the owner's, so a session names the
 launch the GUI themselves (§5.2 rule 3's neighbours in `CLAUDE.md`); they verify headless and name
 the check the owner must do.
 
+**Writing into a profile is lane U's too, and it is the one piece of state git does not isolate.**
+A worktree per session isolates the *repository*; it does nothing for
+`~/Library/Application Support/QGIS/QGIS4/profiles/`, which every session on that Mac shares and
+which no `git status` reports on. The profiles hold a copy of the plugin (not a symlink), each
+profile's `config/config.yaml`, and `gt-mac-test`'s `.venv` — hundreds of megabytes that no branch,
+no PR and no merge can protect. On 2026-10-24 a `.venv` measured working at 07:31 was gone by 09:21,
+no session's command log held a deletion, and the recovery cost a morning. So:
+
+* A session that needs a profile in a known state runs **`scripts/mac-profile-install.sh <profile>`**
+  rather than copying files by hand. It overlays the plugin from a git ref, never deletes, keeps
+  `config/config.yaml`, and installs exactly what `gt/deps_check.py` reports missing, so a second
+  run is a no-op. Re-run it after any merge before asking the owner to look: the profiles hold
+  **copies**, and a stale copy makes a landed fix look broken.
+* A session that changes a profile **says so on its queue row**, naming the profile — the same way
+  it names the machine for a GUI check. Two sessions must not be rewriting one profile at once.
+* **`gt-mac-novenv` must stay venv-less.** It exists to be exactly what the QGIS Plugin Manager
+  gives a user, which is the only way the missing-dependency path is tested for real. The script
+  refuses `--venv` for it.
+* Quit QGIS before rewriting the profile it is running on. The process holds the old modules while
+  the tree holds the new ones, and a fixed bug then looks unfixed. The script refuses unless
+  `--force`.
+
 Each slot runs one session at a time by default. A second one may run beside it only when it is in
 another lane, the queue's *Order rules* say the two share no file and no machine, and the owner
 starts it; the owner's word goes into the order rules as "Slot <k> runs <n> sessions at once
