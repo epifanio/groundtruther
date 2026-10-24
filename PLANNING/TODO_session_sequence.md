@@ -59,6 +59,8 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | ◐ | `seq-D1-install-docs` | epifanio | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | 2026-10-24 · #85 · verified: mkdocs build --strict -f website/mkdocs.yml clean (throwaway venv from website/requirements-docs.txt, python3.12 — 3.15 cannot build watchdog); rendered HTML read, not the diff; merged on the owner's go at master 31e13cb and the deploy confirmed live: https://epifanio.github.io/groundtruther/installation/plugin-manager/ HTTP 200, gh-pages 'Deployed 31e13cb' · shipped as: the docs site, published from master 31e13cb · memory note: 2026-10-24_seq-D1-install-docs.md |
 | ◐ | `seq-C2-parquet-no-pandas` | claude | `mac-install-test` WP-2: keep datetimes out of pandas — **every** pandas datetime operation segfaults QGIS 4.2.1 on macOS, at `gt/image_manager.py:70` and `gt/video_manager.py:170` (the row's name is narrower than the work) | §2.6 | 2026-10-24 · #73 · verified: in QGIS 4.2.1's own interpreter (the plan's §3 harness): the SIGSEGV reproduced at exit 139, then test_imagemetadata.pq reading 5900x38 with its timestamp index intact AND the survey-CSV reader and compute_frame_indices returning [0, 250] — both call sites of §5. 43 tests pass under the broken pandas 3.0.3 and 464 under a working 3.1.0; a reverted reader fails 14 tests on good pandas and takes pytest down with exit 139 on the broken one · memory note: 2026-10-24_seq-C2-parquet-no-pandas.md |
 | ⏭ | `seq-D2-docs-pandas-per-version` | — | the site says which QGIS build the pandas segfault belongs to, and stops claiming the MBES table is read with `pandas.read_parquet` | §2.9 | Queued on the owner's word, 2026-10-24: *"Queue a docs row for the two website pages."* Three findings at `master` 62a7d85, all lane D (D-006): `image-metadata.md:19` is accurate about 4.2.1 but frames it as the reason, where **D-009** is; `macos.md:67`'s "on QGIS 4.2.1 only 10 of the 20" is version-shaped and unmeasured on 4.2.3 (that is `mac-ondevice-test`'s own open end, folded in); and `mbes-soundings.md:6` is now **false** — PR #81 moved `pygui/querybuilder_gui.py` onto `pandas_safe.read_parquet`. **Merging `website/` publishes the site** (§1 State) |
+| ⬜ | `seq-C3-roughness-keyless-gateway` | — | make the keyless `seafloor-gateway` a configuration the plugin supports, instead of a key it refuses to go without | §2.10 | Queued 2026-10-24 from **D-011** question 3 (the plugin should call `https://seafloor.fastgis.eu`, not the keyed FastGIS copy). **The open end that asked for this overstated it, and this row corrects it:** the gateway *is* reachable today without code — `Roughness.direct_url` posts keyless and `mixins/roughness_mixin.py:842` derives the mosaic URL from it by sibling path — but that field is documented as the on-host GPU fast path (`config_model.py:109`), skips `base_url`+`route` composition, and is per-route. So this is not "unreachable": it is a documented keyed path plus an escape hatch being misused. The work is to make the keyless remote gateway a first-class choice. Nothing here is urgent: the GPU box is offline (§3) |
+| ⏸ | `seq-C4-seafloor-code-moves` | — | move the four computing modules D-011 names out of this repository and onto the seafloor side | — | Queued 2026-10-24 from **D-011**: `gt/ribbon.py` (1065), `scripts/build_ribbon.py` (1195), `gt/roughness_join.py` (164), `gt/mosaic_nav.py` (PR #43) — ~2,400 lines. **Waits on** three things, all outside this repository: 0.4.1 being listed on plugins.qgis.org (D-011 question 4 — moving code out of a plugin whose release is awaiting approval risks the release), the GPU box being up so anything moved can be exercised at all, and a clone-and-diff of `stereo-roughness`, which was read through the GitHub API and has had no push since 2026-06-22. No prompt yet: it would describe a tree none of us has seen |
 
 **Order rules** (only about open rows; a closing session deletes the ones about itself):
 
@@ -97,6 +99,11 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
   `decisions/D-011_seafloor-processing-on-the-api.md`. The PRs stay open: the record recommends the
   moves wait until 0.4.1 is listed, and #41 turns out not to be seafloor work at all. #43 and #37 are
   conflicting with `master`; that is `master` moving, not a verdict.
+- **Since 2026-10-24 · Two of the six parked PRs can land on their own.** D-011 re-read them
+  individually: **#41** (collapsible Settings sections, `configure.py` + `tests/gui/`) is not
+  seafloor work at all and was parked with the batch by mistake, and **#42** is a 24-line fix to a
+  UI label (`gt/roughness_interpret.py`) that the boundary does not touch. Both are the owner's to
+  merge or drop; neither waits on anything.
 
 ### Deferred plans (💤, the owner's word)
 
@@ -120,8 +127,8 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 | done 2026-10-24 | the GUI half of the on-device test. The owner ran §6.1 and QGIS segfaulted at step 10 (`mixins/image_browser_mixin.py:606`, `pd.DataFrame([row])` on a row named by the object-dtype datetime index — `TODO_mac-install-test.md` §6.2). Fixed in **PR #100, merged `0155844`**; both test profiles were refreshed from `master` (they hold copies, and were stale) and **the owner then confirmed in the window: *"The image drew and QGIS stayed up"*** — no new crash report, the process still alive. Both halves of the on-device test now pass | `mac-ondevice-test` | **closed** |
 | **queued 2026-10-24 as `seq-D2-docs-pandas-per-version`, §2.9** | the published install page says '15 of the 20 Python packages it needs are not installed'; measured on macOS QGIS 4.2.1 it is 10 of 20 (6 blocking), because the app bundles pandas/numpy/pyarrow/scipy. `gt/deps_check.py:73`'s comment generalises the same way. The runtime dialog counts correctly; it is the prose that is platform-shaped — and the page now says 10, still tied to 4.2.1 and never measured on 4.2.3 | `mac-ondevice-test` | that row closes, or the owner declines it |
 | **queued 2026-10-24 as `seq-D2-docs-pandas-per-version`, §2.9** (the owner: *"Queue a docs row for the two website pages."*) | the site should say which build the pandas segfault belongs to, now that D-009 measured 4.2.3 clean. **This line overstated it when written and is corrected here:** `macos.md` says nothing about the segfault — its version-shaped claim is the dependency count at `:67` — while `mbes-soundings.md:6` was missed and is now false (PR #81). All three are in the queued row. Not edited by `plan-pandas-datetime-record`: merging `website/` publishes the site and publishing is the owner's to time (§1 State) | `plan-pandas-datetime-record` | that row closes, or the owner declines it |
-| **lane C, before the settings can change** | `gt/roughness_client.py:223` raises `"No API key configured"` on the non-direct path, but `seafloor-gateway` is unauthenticated **by design** — so pointing the plugin at `https://seafloor.fastgis.eu` needs a code change, not just per-user config. FastGIS's own split plan calls this step "no code"; measured from this side it is not. Nothing is queued: it waits on D-011 question 3 | `d011-seafloor-boundary` | the client can call a keyless gateway, or the owner picks the keyed FastGIS route and the question closes |
-| **gated on 0.4.1 being listed** | the four moves D-011 names — `gt/ribbon.py`, `scripts/build_ribbon.py`, `gt/roughness_join.py` and `gt/mosaic_nav.py` (PR #43) — out of this repository and into the seafloor side. ~2,400 lines. Deliberately not started: 0.4.1 is uploaded and awaiting approval, and the GPU box is offline so nothing moved could be exercised | `d011-seafloor-boundary` | 0.4.1 is listed and the owner answers D-011 questions 1 and 2 |
+| **queued 2026-10-24 as `seq-C3-roughness-keyless-gateway`, §2.10** | `gt/roughness_client.py:223` raises `"No API key configured"` on the `endpoint`+`route` path and `mixins/roughness_mixin.py:836` gates the dialog the same way, while `seafloor-gateway` is unauthenticated **by design**. **This line said that makes the gateway need a code change, and that was wrong** — `Roughness.direct_url` already posts keyless to a full URL and the mosaic URL is derived from it (`roughness_mixin.py:842`), so the gateway can be reached by configuration today. What is true is narrower: `direct_url` is documented as the *on-host* fast path (`config_model.py:109`), so that is an escape hatch being misused, not support. The row makes it first-class | `d011-seafloor-boundary` | that row closes, or the owner keeps the keyed FastGIS route |
+| **queued 2026-10-24 as `seq-C4-seafloor-code-moves` (⏸)** | the four moves D-011 names — `gt/ribbon.py`, `scripts/build_ribbon.py`, `gt/roughness_join.py` and `gt/mosaic_nav.py` (PR #43) — out of this repository and into the seafloor side. ~2,400 lines. Deliberately not started: 0.4.1 is uploaded and awaiting approval, and the GPU box is offline so nothing moved could be exercised | `d011-seafloor-boundary` | 0.4.1 is listed and the owner answers D-011 questions 1 and 2 |
 | **the owner, in the FastGIS repo** | FastGIS `main` still serves all four `/seafloor/*` paths (live OpenAPI, 2026-10-24) although its own decision of 2026-08-22 was that seafloor stays out of it, and its split plan is 💤 deferred. One surface should exist, not two. Nothing in this repository can close it | `d011-seafloor-boundary` | FastGIS drops the routes, or the owner keeps them and D-011 question 3 is answered that way |
 | — | `stereo-roughness` was read through the GitHub API, not cloned, and has had no push since 2026-06-22 — the service deployed on the GPU box may be ahead of its `master`. Check before moving any code into it | `d011-seafloor-boundary` | someone clones it and compares, or the moves begin and find out |
 | — | PR #41 (collapsible Settings sections) is not seafloor work and was parked with the batch by mistake; it is unrelated to D-011 and can land on its own | `d011-seafloor-boundary` | #41 merges, or the owner drops it |
@@ -217,6 +224,66 @@ note `seq-D2-docs-pandas-per-version` and put its commit in your final report.
 ```
 
 
+### 2.10 `seq-C3-roughness-keyless-gateway`
+
+```text
+Work on D-011 question 3 (the plugin calls the keyless seafloor-gateway), as session
+`seq-C3-roughness-keyless-gateway` (slot 2 of PLANNING/TODO_session_sequence.md). First command:
+`git fetch origin && git worktree add ../groundtruther-seq-C3-keyless -b claude/seq-C3-roughness-keyless-gateway origin/master`
+(if that branch already exists, add the worktree on it and carry on from what it holds; an app-made
+session worktree counts: name its branch `claude/seq-C3-roughness-keyless-gateway`), then work only
+there. `scripts/session.sh start seq-C3-roughness-keyless-gateway` does this and prints this prompt.
+Claim first: a PR that only sets your row in §1 to ▶ ("started" and the date, your handle in Who) and
+moves ⏭ on, merged before any other work (`scripts/session.sh claim seq-C3-roughness-keyless-gateway`).
+Memory: attach `epifanio/groundtruther-memory` (local: `scripts/memory-repo.sh sync` at start and
+end); read `MEMORY.md` and 2026-10-24_d011-seafloor-boundary.md.
+Read PLANNING/WORKFLOW.md §1-§5; PLANNING/decisions/D-011_seafloor-processing-on-the-api.md (the
+boundary and its four answers), D-002 (all GRASS/FastGIS HTTP through `gt/grass_api.py`), D-003,
+D-007, D-008. Then read `gt/roughness_client.py` whole, `config_model.py`'s `RoughnessSettings`, and
+`mixins/roughness_mixin.py` around lines 820-870.
+
+The job: a keyless remote gateway is a configuration this plugin SUPPORTS, not an escape hatch.
+Today `gt/roughness_client.py:221-227` refuses the `endpoint`+`route` path without a key
+("No API key configured") and `mixins/roughness_mixin.py:836` gates the dialog the same way. The
+only keyless path is `Roughness.direct_url`, whose docstring (`config_model.py:109`) calls it the
+on-host GPU URL for "running *on* the GPU host" — it takes a full URL, skips `base_url`+`route`
+composition, and the mosaic URL is derived from it by sibling path at `roughness_mixin.py:842`.
+Pointing that at `https://seafloor.fastgis.eu/seafloor/roughness` works today. That is the misuse to
+replace, and the earlier open end was wrong to call the gateway unreachable — do not repeat that.
+
+Three things must still be true when you are done, and your report must say how you know:
+1. The keyed FastGIS route keeps working unchanged. The owner's key is live and in use against
+   `api.fastgis.eu`; this is not a migration, it is a second supported shape.
+2. `direct_url` keeps working, including the derived mosaic URL.
+3. A keyless `base_url` + `route` sends NO `X-API-Key` header at all, rather than an empty one.
+Decide and say in the PR whether keylessness is inferred (no key configured -> send no header) or
+declared (an explicit field). Inferred is simpler and needs no config migration; declared catches a
+key the user meant to set and forgot. Recommend one, implement one, and give the reason.
+
+Verification, in a session that cannot reach the service: the GPU box behind both gateways is OFFLINE
+(§3), so no end-to-end roughness call will succeed and you must not report one. What you CAN do, and
+should: POST a junk `frame_key` keyless to `https://seafloor.fastgis.eu/seafloor/roughness` and show
+that it answers 502 `roughness service unreachable` and NOT 401/403 — that is the proof the gateway
+accepted an unauthenticated request. Unit-test the header shaping against a stub (the suite already
+stubs `requests.post` in `tests/unit/test_roughness_client.py`), both transports and both auth
+shapes. Run the whole unit suite, not just your file.
+
+Scope: `gt/roughness_client.py`, `mixins/roughness_mixin.py`, `config_model.py`,
+`tests/unit/test_roughness_client.py`, and the settings page that documents the keys (D-006 wants a
+feature's config keys documented). Do NOT touch `gt/grass_api.py` or anything under `/grass/*`: those
+keys stay required (D-002). Do not move any of the four modules D-011 names — that is
+`seq-C4-seafloor-code-moves`, and it waits.
+Needs the owner's answers: nothing. Your PR changes code, so leave it OPEN for them (§6.3) whatever
+else happens, and touching `website/` means merging it publishes the site.
+Before closing: `python3 PLANNING/check_planning.py` clean, and the unit suite green.
+Close by PLANNING/TODO_session_sequence.md §6.1: your row ✅ (or ◐, with its open ends) with the
+date, PRs and memory note; ⏭ on the next row that can run; your prompt removed from §2; any later
+prompt your work made stale. `scripts/session.sh close seq-C3-roughness-keyless-gateway --mark …
+--prs … --verified … --note …` does the mechanical part and leaves the PR open. Then push the dated
+memory note `seq-C3-roughness-keyless-gateway` and put its commit in your final report.
+```
+
+
 ## 3. Checks owed by the owner
 
 Things only the owner can do (try it on a device, look at it in a browser, decide), each with the
@@ -266,6 +333,21 @@ session it came from and the date.
   `mixins/video_browser_mixin.py` now goes through the shim (PR #91, merged 2026-10-24, `master` `9d01eb1`) and no
   `from PyQt6` / `import PyQt6` statement is left in the plugin. What remains is the follow-up
   record adding `enforce: PyQt6 in mixins/` to D-004 — an open end on `sip-shim-d004`, not a check.
+- **Start the GPU box behind the roughness service.** Everything seafloor is blocked on it, and no
+  session can do it. Measured 2026-10-25: `https://seafloor.fastgis.eu/seafloor/health` answers
+  HTTP 502 `{"detail":"roughness service unreachable"}` — the gateway is healthy and the GPU service
+  behind it is not. (`https://roughness.epinux.com/health` answering 403 Cloudflare Access is the
+  *expected* tokenless response and says nothing either way; read the gateway's 502, not that 403.)
+  It has been down since at least 2026-08-22. Until it is up, `seq-C3-roughness-keyless-gateway` can
+  prove its header shaping but no roughness result can be verified end to end, and
+  `seq-C4-seafloor-code-moves` cannot start. From `d011-seafloor-boundary`, 2026-10-24.
+- **Decide whether FastGIS keeps serving `/seafloor/*`.** D-011 recommends one surface, the
+  standalone gateway, and FastGIS's own decision of 2026-08-22 was that seafloor stays out of it —
+  but `https://api.fastgis.eu/openapi.json` still lists all four seafloor paths (read 2026-10-24, re-read 2026-10-25),
+  and that repository's split plan is 💤 deferred since 2026-10-09 *and* stale (it claims the routes
+  never shipped). The change is in the FastGIS repository, so nothing here can close it; what is
+  owed is the owner's call on whether the plugin's keyed route is being kept or retired. From
+  `d011-seafloor-boundary`, 2026-10-24.
 
 ## 4. Where two sessions can still collide
 
