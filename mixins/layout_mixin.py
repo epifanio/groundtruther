@@ -3,6 +3,9 @@ from qgis.PyQt.QtCore import QSettings, Qt
 from qgis.PyQt.QtWidgets import QAction, QDockWidget
 
 _KEY = "GroundTruther/layout"
+# Where the whole-window arrangement lives. Kept beside, not inside, the per-dock
+# keys so an older build that only understands those keeps working.
+_STATE_KEY = f"{_KEY}/mainwindow_state"
 
 # Default dock areas for each managed dock (attribute name → Qt area value)
 _DEFAULTS = {
@@ -32,10 +35,24 @@ class LayoutMixin:
         self._add_layout_menu_action()
 
     def _save_layout(self) -> None:
-        """Persist current dock geometry / state to QSettings."""
+        """Persist the dock arrangement to QSettings.
+
+        The arrangement itself is ``QMainWindow.saveState()``, exactly as
+        :meth:`_capture_layout` does it for session files: per-dock
+        ``saveGeometry`` records only a rectangle, so a dock that was docked,
+        tabbed or split comes back floating or in the wrong area — which is the
+        bug this method used to have.  Qt matches the blob to docks by
+        ``objectName``; all six managed docks set one.
+
+        The per-dock keys are still written, because a user who downgrades, or a
+        settings file already on disk, is read by the fallback in
+        :meth:`_restore_layout`.
+        """
         from qgis.utils import iface as _iface
         mw = _iface.mainWindow()
         s = QSettings()
+        s.setValue(_STATE_KEY,
+                   bytes(mw.saveState().toBase64()).decode("ascii"))
         for attr in _DEFAULTS:
             dock = getattr(self, attr, None)
             if dock is None:
@@ -47,7 +64,12 @@ class LayoutMixin:
             s.setValue(f"{prefix}/floating", "true" if dock.isFloating() else "false")
             s.setValue(f"{prefix}/visible",  "true" if dock.isVisible()  else "false")
             if not dock.isFloating():
-                s.setValue(f"{prefix}/area", int(mw.dockWidgetArea(dock)))
+                # ``.value``, not ``int(...)``: under PyQt6 Qt.DockWidgetArea is a
+                # scoped enum and ``int()`` raises TypeError. It did, on the first
+                # docked dock, every time — and both callers wrapped this method in
+                # ``except Exception: pass``, so the layout was silently never
+                # saved. That is the bug behind "the docks won't re-dock".
+                s.setValue(f"{prefix}/area", mw.dockWidgetArea(dock).value)
 
     def _restore_layout(self) -> None:
         """Apply previously saved dock geometry, position and visibility from QSettings.
@@ -56,16 +78,44 @@ class LayoutMixin:
         loads the last-session visibility is restored so docks re-open where the
         user left them.  Toolbar toggle actions are synced automatically via
         each dock's visibilityChanged signal.
+
+        A ``mainwindow_state`` blob is applied with ``QMainWindow.restoreState``,
+        which is the only thing that restores docked / tabbed / split placement
+        faithfully.  It is deferred by one event-loop pass for the reason
+        :meth:`_apply_layout` gives: ``restoreState`` only places docks already
+        present in the window, and the main GroundTruther dock is added in
+        ``run()`` after this runs.  Settings written before that blob existed
+        fall through to the per-dock path below, which is why it is kept.
         """
+        from qgis.PyQt.QtCore import QByteArray, QTimer
         from qgis.utils import iface as _iface
         mw = _iface.mainWindow()
         s = QSettings()
+
+        blob = s.value(_STATE_KEY)
+        if blob:
+            state = QByteArray.fromBase64(str(blob).encode("ascii"))
+            # Visibility is restored first and explicitly: restoreState brings a
+            # dock back only if it was visible when saved, and a dock the user
+            # had closed must stay closed rather than inherit a default.
+            for attr in _DEFAULTS:
+                dock = getattr(self, attr, None)
+                if dock is None:
+                    continue
+                visible_raw = s.value(f"{_KEY}/{attr}/visible")
+                dock.setVisible(visible_raw in (True, "true", "1", 1))
+            QTimer.singleShot(0, lambda: mw.restoreState(state))
+            return
+
         for attr, default_area in _DEFAULTS.items():
             dock = getattr(self, attr, None)
             if dock is None:
                 continue
             prefix = f"{_KEY}/{attr}"
 
+            # --- legacy per-dock fallback: settings saved before _STATE_KEY ---
+            # Known to restore a docked/tabbed dock as floating or in the wrong
+            # area; kept only so an existing settings file still places roughly.
             # Use s.contains() to distinguish "not yet saved" from a False value.
             if not s.contains(f"{prefix}/floating"):
                 continue  # first run — keep hidden at default position
@@ -174,14 +224,26 @@ class LayoutMixin:
             dock = getattr(self, attr, None)
             if dock is not None:
                 dock.hide()
+        # Drop the stored arrangement as well. _save_layout would overwrite it at
+        # close anyway, but a crash before that would otherwise bring the old
+        # layout back and make the reset look like it had not worked.
+        QSettings().remove(_STATE_KEY)
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                      #
     # ------------------------------------------------------------------ #
 
     def _has_saved_layout(self) -> bool:
-        """Return True if at least one dock has a persisted position."""
+        """Return True if a layout was persisted by a previous session.
+
+        ``groundtruther.py`` run() uses this to decide whether to apply the
+        first-run arrangement, so it must know about **both** storage formats:
+        answering False while a ``mainwindow_state`` blob exists would push the
+        default positioning over the layout just restored.
+        """
         s = QSettings()
+        if s.contains(_STATE_KEY):
+            return True
         return any(
             s.contains(f"{_KEY}/{attr}/floating") for attr in _DEFAULTS
         )
