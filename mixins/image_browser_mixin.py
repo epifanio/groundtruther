@@ -603,9 +603,16 @@ class ImageBrowserMixin:
         ]
         available = [c for c in wanted_cols if c in self.imageMetadata.columns]
         if available:
-            md_str = pd.DataFrame(
-                [self.imageMetadata[available].iloc[self.imageindex]]
-            ).to_html()
+            # ``.to_dict()``, never ``pd.DataFrame([row])``: ``.iloc[i]`` carries the
+            # index label as the Series' *name*, and this index holds
+            # ``datetime.datetime`` objects (object dtype by design — see
+            # ``gt/pandas_safe.py``).  ``pd.DataFrame([series])`` builds the new
+            # frame's index from that name, and pandas 3 segfaults inferring a dtype
+            # for it — SIGSEGV in ``maybe_convert_objects``, no traceback, the whole
+            # of QGIS gone.  The dict drops the name; the panel shows the timestamp
+            # in its own Time row anyway.
+            row = self.imageMetadata[available].iloc[self.imageindex]
+            md_str = pd.DataFrame([row.to_dict()]).to_html()
             self.send_imagemetadata_string.emit(md_str)
 
         if not self.savekml.lock_location.isChecked():
