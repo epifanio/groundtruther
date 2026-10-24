@@ -39,14 +39,14 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | Unit | Now | Since (UTC) | Recorded by | Rollback · notes |
 |---|---|---|---|---|
 | Plugin on plugins.qgis.org | **0.3**, experimental, QGIS 3.0–3.99 · uploaded **2023-06-01** · plugin_id 2982 | 2023-06-01 | `plan-adopt-groundtruther` | **Read from the live feed** (`plugins.xml?qgis=3.99`), 2026-10-23 — *not* from `metadata.txt`, which says `version=0.4`, `qgisMinimumVersion=4.0`. **The QGIS 4 / Qt6 work has never been published:** `master` is 0.4, users get the 2023 QGIS-3 build. Publishing 0.4 is a production rollout — a production approver's go, each time (`WORKFLOW.md` §8). Rollback = re-upload the previous zip. |
-| Docs site (`gh-pages` → <https://epifanio.github.io/groundtruther/>) | built from `master` **650a164** (`gh-pages` abe7632, MkDocs 1.6.1) | 2026-09-24 | `plan-adopt-groundtruther` | **publishes itself**: `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every push to `master` touching `website/**`. No go, no staging — merging a `website/` change *is* the deploy. Read live 2026-10-23: HTTP 200, and `gh-pages` says "Deployed 650a164". The site lags `master` whenever the commits in between touched no `website/**` path — that is the rule working, not drift, so **compare the two shas before concluding anything**; this cell deliberately does not name `master`'s tip, because the next merge would make it false. Rollback = merge a fix; the workflow redeploys. |
+| Docs site (`gh-pages` → <https://epifanio.github.io/groundtruther/>) | built from `master` **cf8be3d** (PR #80, `seq-U2`; was 650a164 until then) | 2026-10-24 | `seq-U2-macos-profile-docs` | **publishes itself**: `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every push to `master` touching `website/**`. No go, no staging — merging a `website/` change *is* the deploy. Read live 2026-10-23: HTTP 200, and `gh-pages` says "Deployed 650a164"; republished 2026-10-24 from `cf8be3d` when #80 merged `website/docs/installation/macos.md`. The site lags `master` whenever the commits in between touched no `website/**` path — that is the rule working, not drift, so **compare the two shas before concluding anything**; this cell deliberately does not name `master`'s tip, because the next merge would make it false. Rollback = merge a fix; the workflow redeploys. |
 
 ### Slot 1 — U (UI & plugin shell)
 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
 | ✅ | `seq-U1-deps-message` | epifanio | `publish-0-4` WP-4: load and say what is missing instead of dying, when the venv is absent | §2.4 | 2026-10-24 · #67 **merged by the owner** (`master` `ab010ed`; *"Go ahead and merge #67"*), opened and left for their review (§6.3) · verified: QGIS 4.2.1 (macOS, arm64) in the signed harness of TODO_mac-install-test.md §3, re-run against `master`'s own content after the merge — with no `.venv`, `startPlugin` True (was **False**), **13** messages tagged GroundTruther (were **0**), the stub is what QGIS holds; with a `.venv`, the real plugin module imports. tests/unit 432 passed, 5 pre-existing pyarrow/GDAL failures. **GUI confirmed by the owner 2026-10-24** on `gt-mac-novenv`, reinstalled from a `make-release-zip.sh` artifact of `ab010ed` first (both profiles still held pre-WP-4 code): the dialog renders with a live install link, headline *"6 of the 20"*, the 4 optional ones apart, Show Details carrying all ten REQUIRED/optional; `groundtruther=true`, no error marker. The log *panel*'s display was not eyeballed, but `_log_report` runs before the stub that produced that dialog is returned · memory note: 2026-10-24_seq-U1-deps-message.md
-| ⏭ | `seq-U2-macos-profile-docs` | — | `mac-install-test` WP-3: the macOS profile path and a headless harness that is faithful to the app's signing, in `CLAUDE.md` and the install page | §2.7 | wait met by `seq-U1-deps-message` 2026-10-24, and **in `master` at `ab010ed`**: `_bootstrap_venv()` keeps the `.venv` name and now **returns** the directory it added (or `None`), and `setup_wsl.sh` creates `.venv` beside the plugin instead of `gtenv` in the cwd. Nothing blocks this row |
+| ✅ | `seq-U2-macos-profile-docs` | epifanio | `mac-install-test` WP-3: the macOS profile path and a headless harness that is faithful to the app's signing, in `CLAUDE.md` and the install page | §2.7 | 2026-10-24 · #78, #80 · verified: the documented harness run verbatim on this Mac against QGIS 4.2.1: qgis.core imports pandas+pyarrow itself, messageReceived captured nothing while a spy did, gt.config_check imported; the -I variant dies at init_fs_encoding. mkdocs build --strict passes (venv on homebrew python3.12; python3.15 cannot build watchdog) · memory note: 2026-10-24_seq-U2-macos-profile-docs.md |
 
 ### Slot 2 — C (core & config), D (docs), P (packaging & install)
 
@@ -55,13 +55,16 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | ◐ | `seq-P2-release-zip` | claude | `publish-0-4` WP-1: one safe release zip from a tag; delete the two paths that ship the API key | §2.1 | 2026-10-24 · #50 · verified: built from a throwaway tag: 2.7 MB / 237 files; config/config.yaml, .venv, PLANNING/, website/, tests/, docs/, .claude/, .github/, grassdata/ absent; qtui/icons/ present (82 entries); no API-key value in the unpacked tree, and a planted fake key was refused; git status --short clean after a successful AND a failed build · memory note: 2026-10-24_seq-P2-release-zip.md |
 | ◐ | `seq-P1-release-metadata` | epifanio | `publish-0-4` WP-2: `metadata.txt` typos, tags, homepage, icon path, 0.4 changelog | §2.2 | 2026-10-24 · #56 **merged by the owner 2026-10-24** (`master` 4f4d6b5; they said *"Go ahead and merge #56"*) · verified: configparser on metadata.txt: one [general] section, no key containing a space (origin/master had the junk key "category of the plugin"); icon=qtui/icons/epi.gif exists on disk and is tracked by git (the declared qtui/icons/qgis/epi.gif did not exist); and inside a real artifact built with scripts/make-release-zip.sh from a throwaway tag at the PR head: the zips metadata.txt parses with no junk key, description/tags/homepage as intended, version=0.4 experimental=True qgisMinimumVersion=4.0 unchanged, and groundtruther/qtui/icons/epi.gif present (2439 bytes). git status --short clean after the build; tag and zip deleted. py_compile __init__.py passes; check_planning 0/0. No website/ or docs/ page references any changed value (grep), so no docs claim to re-verify; mkdocs is not installed on the Mac, CI docs.yml is the run that counts · memory note: 2026-10-24_seq-P1-release-metadata.md |
 | ✅ | `seq-C1-deps-check` | epifanio | `publish-0-4` WP-3: `gt/deps_check.py` — which required modules are importable, Qt-free | §2.3 | 2026-10-24 · #61 **merged by the owner 2026-10-24** (`master` 6e22c32; they said *"Go ahead and merge #61"*) · verified: throwaway venv in the scratchpad (Python 3.15.0, pytest 9.1.1; this Mac has no .venv): pytest tests/unit/test_deps_check.py -> 24 passed. Whole unit suite, after installing numpy pandas pydantic requests PyYAML scipy (needed to collect at all): 421 passed, 3 skipped, 5 pre-existing failures wanting pyarrow and osgeo/GDAL in files this PR does not touch. check_planning 0/0; py_compile clean; no print() (D-003) and a test asserts no qgis/Qt in sys.modules after import (D-008). Finding: a static module-level import-graph walk from groundtruther.py shows 16 of the 20 deps are reached unguarded (mostly via pygui/querybuilder_gui.py, imported eagerly by the dock), so their absence stops the dock being constructed at all; only av, cv2, PyOpenGL are guarded and pydantic/starlette are off the chain. starlette is in requirements.txt and no module imports it. · memory note: 2026-10-24_seq-C1-deps-check.md |
-| ⏭ | `seq-D1-install-docs` | — | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | wait met by `seq-U1-deps-message` 2026-10-24: the behaviour the page describes is **in `master` at `ab010ed`** (#67) — read the code and §2.4's receipts, not this row. Nothing blocks it, and it now holds slot 2's ⏭ (`seq-C2-parquet-no-pandas` closed 2026-10-24) |
+| ⏭ | `plan-pandas-datetime-record` | — | promote "no pandas datetimes in `gt/`" to a decision record, and queue the call sites still unfixed | §2.8 | Added on the owner's word, 2026-10-24: *"Queue a planning session to promote 'no pandas datetimes in gt/' to a decision record."* **Moved ahead of `seq-D1-install-docs` by epifanio, 2026-10-24:** *"Move plan-pandas-datetime-record ahead of seq-D1-install-docs in slot 2."* `seq-D1` had already claimed the slot by then (#83), so it runs to its close and this is the ⏭ behind it (§3.2). Settles two of `seq-C2-parquet-no-pandas`'s open ends. Writes `PLANNING/` only |
+| ▶ | `seq-D1-install-docs` | epifanio | `publish-0-4` WP-5: the install page — what the Plugin Manager gives you and what it does not | §2.5 | started 2026-10-24 · wait met by `seq-U1-deps-message` 2026-10-24: the behaviour the page describes is **in `master` at `ab010ed`** (#67) — read the code and §2.4's receipts, not this row. Nothing blocks it, and it now holds slot 2's ⏭ (`seq-C2-parquet-no-pandas` closed 2026-10-24) |
 | ◐ | `seq-C2-parquet-no-pandas` | claude | `mac-install-test` WP-2: keep datetimes out of pandas — **every** pandas datetime operation segfaults QGIS 4.2.1 on macOS, at `gt/image_manager.py:70` and `gt/video_manager.py:170` (the row's name is narrower than the work) | §2.6 | 2026-10-24 · #73 · verified: in QGIS 4.2.1's own interpreter (the plan's §3 harness): the SIGSEGV reproduced at exit 139, then test_imagemetadata.pq reading 5900x38 with its timestamp index intact AND the survey-CSV reader and compute_frame_indices returning [0, 250] — both call sites of §5. 43 tests pass under the broken pandas 3.0.3 and 464 under a working 3.1.0; a reverted reader fails 14 tests on good pandas and takes pytest down with exit 139 on the broken one · memory note: 2026-10-24_seq-C2-parquet-no-pandas.md |
 
 **Order rules** (only about open rows; a closing session deletes the ones about itself):
 
-- none yet
-  the headless recipe that describes `_bootstrap_venv`.
+- `plan-pandas-datetime-record` before `seq-D1-install-docs`: the owner moved it up on 2026-10-24,
+  after `seq-D1` had already claimed the slot (#83). Nothing technical orders the two — both only
+  write docs — so `seq-D1` was left to run to its close rather than being stopped, and the moved row
+  is the ⏭ behind it. Paste it as soon as `seq-D1` closes.
 - The P strand (P2, P1) and the C/U/D strand share no file, so they may run side by side **if the
   owner starts a second slot-2 session** (`WORKFLOW.md` §3.1). Slot 2 runs one at a time by default.
 
@@ -99,8 +102,8 @@ Each item carries the date it was raised, so a catch-up can say how long it has 
 | — | The GUI check in QGIS on the Mac is the owner's: queue §3 -> PLANNING/TODO_mac-install-test.md §6, both profiles already built | `mac-install-test` | closes when the owner reports what they saw |
 | when #73 merges | PR #73 is a code PR left for the owner to review and merge; the GUI confirmation is step 9 of TODO_mac-install-test.md §6 (browse an image in the gt-mac-test profile), plus a survey-metadata CSV in the video browser for the second call site | `seq-C2-parquet-no-pandas` | #73 merged and both paths exercised without taking QGIS down |
 | done 2026-10-24 | website/docs/data-model/image-metadata.md said the file is read with pandas.read_parquet and that the index is a DatetimeIndex. Corrected in **#76**, merged after #73 (`e9a0d47`) so the site never described unbuilt behaviour; the page is published. mbes-soundings.md:6 is deliberately NOT part of it — the MBES table is read by pygui/querybuilder_gui.py, which #73 does not touch, so that line is still accurate | `seq-C2-parquet-no-pandas` | ✅ closed |
-| next planning session | the no-datetime64 constraint binds every future gt/ reader of temporal data, and gt/pandas_safe.py is where a record would point; a build session writes none (WORKFLOW.md §6.2) | `seq-C2-parquet-no-pandas` | a decision record exists or the owner declines it |
-| unscheduled, outside lane C | the same crash lives in pygui/querybuilder_gui.py:620,733,739 and scripts/build_ribbon.py:75,90; arrow_table_to_dataframe() is the drop-in | `seq-C2-parquet-no-pandas` | both read without pd.read_parquet |
+| next planning session — **queued 2026-10-24 as `plan-pandas-datetime-record`, §2.8** | the no-datetime64 constraint binds every future gt/ reader of temporal data, and gt/pandas_safe.py is where a record would point; a build session writes none (WORKFLOW.md §6.2) | `seq-C2-parquet-no-pandas` | a decision record exists or the owner declines it |
+| unscheduled, outside lane C — **`plan-pandas-datetime-record` (§2.8) is asked to queue it** | the same crash lives in pygui/querybuilder_gui.py:620,733,739 and scripts/build_ribbon.py:75,90; arrow_table_to_dataframe() is the drop-in | `seq-C2-parquet-no-pandas` | both read without pd.read_parquet |
 
 ## 2. Prompts
 
@@ -140,37 +143,79 @@ read: MEMORY.md, 2026-10-23_adopt-groundtruther.md. Docs check: the build above 
 
 ### 2.6 `seq-C2-parquet-no-pandas` (closed 2026-10-24; its prompt is in git history)
 
-### 2.7 `seq-U2-macos-profile-docs`
+### 2.7 `seq-U2-macos-profile-docs` (closed 2026-10-24; its prompt is in git history)
+
+### 2.8 `plan-pandas-datetime-record`
 
 ```text
-/build-session seq-U2-macos-profile-docs
-Plan: PLANNING/TODO_mac-install-test.md WP-3 (the macOS profile path and a faithful headless
-harness), slot 1, lane U + D. Read that plan's §1 and §3 first. Scope: two documentation gaps that
-cost this project a session's worth of wrong conclusions.
-(a) CLAUDE.md documents only the Linux profile path. Add the macOS one —
-`~/Library/Application Support/QGIS/QGIS4/profiles/<profile>/python/plugins/groundtruther` (QGIS4,
-not QGIS3) — beside it, in Run / develop.
-(b) CLAUDE.md's headless recipe under Testing is Linux-only — it names /usr/share/qgis/python and
-python3.14 (CLAUDE.md:166) and says nothing about macOS. So the gap is that there is NO macOS
-recipe, and a session improvising one reaches for the app's bundled python3.12. (Earlier versions of
-this prompt said the recipe itself runs python3.12; it does not. Checked by seq-C2, 2026-10-24.)
-That interpreter carries the hardened runtime with NO entitlements, so every pip-installed .so fails
-to dlopen with "different Team IDs", because the app binary — and only the app binary — carries
-com.apple.security.cs.disable-library-validation. A session that improvises will report working
-dependencies as broken. Add the warning and the harness recipe from the plan's §3, and say plainly
-that `qgis --code` does not work (QGIS starts offscreen and populates the profile but never reaches
-the script). Also record in Testing that `import qgis.core` imports pandas and pyarrow itself, so a
-plugin cannot choose its own copy of either — and that it is QGIS's bundled pandas 3.0.3 that is
-broken, not the pyarrow pairing (the plan's §5), so no pin can fix it.
-Verify on the real thing: run the recipe you document, as written, on this Mac, and paste what it
-prints. If the install page in website/ gained macOS content from seq-D1-install-docs, keep the two
-consistent and do not duplicate the harness — the site is for users, CLAUDE.md is for agents.
-Touch only CLAUDE.md and website/. Do not touch __init__.py or gt/. Needs a yes: nothing here,
-unless you would change a convention.
-Decisions that bind this work: D-006 (user-facing docs are the MkDocs site), D-007. Note that
-merging a website/ change publishes it (WORKFLOW.md §8). Memory notes to read: MEMORY.md,
-2026-10-24_mac-install-test.md. Docs check: mkdocs build --strict -f website/mkdocs.yml.
+Plan the decision record for "no pandas datetimes in gt/", as session `plan-pandas-datetime-record`
+(slot 2 of PLANNING/TODO_session_sequence.md). This is a PLANNING session: it writes the record, the
+plan and the queue rows, and builds nothing. First command:
+`git fetch origin && git worktree add ../groundtruther-plan-pandas-datetime-record -b claude/plan-pandas-datetime-record origin/master`
+(if that branch already exists, add the worktree on it and carry on from what it holds; an app-made
+session worktree counts: name its branch `claude/plan-pandas-datetime-record`), then work only there.
+`scripts/session.sh start plan-pandas-datetime-record` does this and prints this prompt. The skill
+`/plan-session` carries PLANNING/WORKFLOW.md §1–§5; read §4 step 5 (promoting an answer to a record),
+§5.3 and PLANNING/decisions/README.md for the record's shape.
+Check the tokens left and ask the owner which model to use.
+Claim first: a PR that only sets your row in §1 to ▶ ("started" and the date, your handle in Who) and
+moves ⏭ on, merged before any other work (`scripts/session.sh claim plan-pandas-datetime-record`).
+Memory: attach `epifanio/groundtruther-memory` (local: `scripts/memory-repo.sh sync` at start and
+end); read `MEMORY.md`, 2026-10-24_seq-C2-parquet-no-pandas.md and 2026-10-24_mac-install-test.md.
+Read PLANNING/WORKFLOW.md §1–§5; PLANNING/TODO_mac-install-test.md §5 (the measurements and the
+crash frame); PLANNING/DECISIONS.md and PLANNING/decisions/ (D-008 is the closest in shape — same
+lanes, and it explains why it carries no enforce regex); gt/pandas_safe.py as it stands on `master`.
+
+Why there is a record to write. In QGIS 4.2.1 on macOS, pandas' datetime C extension is broken (a
+pandas/numpy C-API ABI mismatch in QGIS's own bundle): every pandas datetime operation SIGSEGVs the
+application — pd.to_datetime, any datetime64 Series, pd.to_timedelta, and even an EMPTY
+datetime64 array. `seq-C2-parquet-no-pandas` fixed the two gt/ call sites (#73, `e9a0d47`) behind
+gt/pandas_safe.py and left this as an open end, because a build session writes no record
+(WORKFLOW.md §6.2). Three findings of its own decide the shape of the rule: the breakage CANNOT be
+probed for at runtime (the probe is the crash), so the rule is unconditional on every platform and
+not a macOS gate; pd.ArrowDtype looks like the tidy alternative and is a trap (reading one element
+back builds a pd.Timestamp and dies); and the real hazard is pandas' type INFERENCE — the
+DataFrame/Series constructors and set_index infer datetime64 from object-dtype datetimes — so "do
+not call pd.to_datetime" would be too narrow a rule to be useful.
+
+What to decide with the owner, each asked with a recommendation (WORKFLOW.md §4, step 5), then frozen:
+1. The scope the record binds: gt/ only, or every module that reads temporal data (pygui/ and
+   scripts/ have call sites too — see the open end below). Recommend the wider scope, since the
+   crash does not care which directory it is in.
+2. Whether it carries an `enforce:` regex for the checker (D4) or, like D-008, says why it cannot.
+   A regex for `pd.to_datetime|read_parquet|datetime64` over gt/, pygui/ and scripts/ would be
+   cheap, but it cannot see inference through a constructor, which is the real hazard, and it must
+   not fire on gt/pandas_safe.py itself. Recommend an enforce line WITH an exemption for
+   pandas_safe.py, and say plainly in the record that it catches the obvious half only.
+3. Whether the rule is permanent or expires when QGIS ships a fixed bundle. Recommend permanent
+   with a stated review trigger, since nothing tells the plugin which build it is running on.
+Write the record as PLANNING/decisions/D-009_<slug>.md (the next free id; confirm it is free) with
+its row in PLANNING/DECISIONS.md in the same PR, status accepted on merge (one maintainer,
+WORKFLOW.md §4 step 5). Point it at gt/pandas_safe.py as the one home, and cite the crash frame.
+
+Also settle, while you are in here, the second open end seq-C2 left: the same crash lives in
+pygui/querybuilder_gui.py:620,733,739 and scripts/build_ribbon.py:75,90, which are lanes U and P,
+outside lane C — arrow_table_to_dataframe() is the drop-in. Queue that as its own row (or rows, if
+the two lanes must not share a session) with a pastable prompt, and say in the order rules how it
+relates to seq-U2-macos-profile-docs, which also touches lane U. Then move both of seq-C2's open
+ends: the record one closes when the record exists; the call-site one closes when its row does.
+
+Touch only PLANNING/. Build nothing, change no code, deploy nothing (WORKFLOW.md §2).
+Needs the owner's answers: the three questions above, and any row you add (§7).
+Decisions that bind this work: D-007 (the commit trailer). D-008 is the model to follow, not a
+constraint on this one.
+Before closing: update PLANNING/TODO_mac-install-test.md §5 and PLANNING/TODO_INDEX.md if the record
+changes what they claim; `python3 PLANNING/check_planning.py` clean (it checks the record's front
+matter, its index row, and runs any enforce line you add over the whole tree — so an enforce regex
+that is too broad will fail the build, which is the point of trying it before you commit to it).
+Close by PLANNING/TODO_session_sequence.md §6.1: your row ✅ (or ◐, with its open ends) with the
+date, PRs and memory note; ⏭ on the next row that can run; your prompt removed from §2; any later
+prompt your work made stale. `scripts/session.sh close plan-pandas-datetime-record --mark … --prs …
+--verified … --note …` does the mechanical part. Your PR is docs-only, so you merge it yourself
+(§6.3). Then push the dated memory note `plan-pandas-datetime-record` and put its commit in your
+final report.
 ```
+
 
 ## 3. Checks owed by the owner
 
