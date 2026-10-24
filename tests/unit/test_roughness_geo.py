@@ -213,8 +213,23 @@ def test_extract_images_ortho_alt_key():
 
 # --- write_geotiff (GDAL round-trip) ---------------------------------------
 
-def test_write_geotiff_singleband_roundtrip(tmp_path):
+# GDAL's Python bindings arrive with QGIS, not from pip, so `from osgeo import
+# gdal` inside these three raised ModuleNotFoundError and FAILED the run
+# anywhere QGIS is not importable — CI included. A module-level
+# `pytest.importorskip` would skip this whole file and lose the ~35 tests above
+# that need no GDAL at all, so the skip is per test. tests/README.md promises
+# tests/unit needs "nothing (just the venv)"; this is what keeps that true.
+try:
     from osgeo import gdal
+except ImportError:                                        # pragma: no cover
+    gdal = None
+
+needs_gdal = pytest.mark.skipif(
+    gdal is None, reason="GDAL bindings ship with QGIS, not pip")
+
+
+@needs_gdal
+def test_write_geotiff_singleband_roundtrip(tmp_path):
     arr = np.arange(12, dtype=np.float32).reshape(3, 4)
     path = str(tmp_path / "dem.tif")
     rg.write_geotiff(arr, GT, 32619, path)
@@ -227,8 +242,8 @@ def test_write_geotiff_singleband_roundtrip(tmp_path):
     assert np.array_equal(ds.GetRasterBand(1).ReadAsArray(), arr)
 
 
+@needs_gdal
 def test_write_geotiff_rgb_roundtrip(tmp_path):
-    from osgeo import gdal
     rgb = np.zeros((3, 4, 3), dtype=np.uint8)
     rgb[..., 0] = 255
     path = str(tmp_path / "ortho.tif")
@@ -240,6 +255,7 @@ def test_write_geotiff_rgb_roundtrip(tmp_path):
                           np.full((3, 4), 255, np.uint8))
 
 
+@needs_gdal
 def test_write_geotiff_bad_geotransform(tmp_path):
     with pytest.raises(ValueError):
         rg.write_geotiff(np.zeros((2, 2)), [1, 2, 3], 32619,
