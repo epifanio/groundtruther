@@ -1,0 +1,31 @@
+# What `tests/unit/` needs in a plain CI runner — nothing more.
+#   pip install -r dependencies/requirements-test.txt && pytest tests/unit
+#
+# NOT the plugin's runtime set (dependencies/requirements.txt): a unit run needs
+# neither numba, nor pyqtgraph, nor plotnine, nor anything Qt. This list was
+# derived by installing into an empty environment until the suite collected and
+# passed, so it is what the tests actually import and not a guess.
+#
+# Deliberately absent, because their absence SKIPS rather than fails:
+#   * GDAL (`osgeo`)        — ships with QGIS, not pip; skips 3 GeoTIFF
+#                             round-trips in tests/unit/test_roughness_geo.py
+#   * opencv-python-headless — skips tests/unit/test_video_reader.py
+#   * the Zenodo sample dataset — skips one annotation test
+# Adding either package to this file makes those run; nothing else changes.
+pytest>=8
+
+# the data path
+numpy
+pandas
+pyarrow
+
+# config_model.py's schema, gt/config_check.py's YAML, gt/grass_api.py's client
+pydantic>=1.9
+PyYAML
+requests
+
+# gt/roughness_*.py
+scipy
+
+# gt/video_reader.py imports it at module level
+av>=11

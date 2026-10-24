@@ -13,6 +13,22 @@ How it stays QGIS-free: `tests/conftest.py` registers `groundtruther` as a packa
 pointing at the repo and **stubs `groundtruther.configure`** (no-op `log_exception`),
 so the stateless `gt/` helpers import without dragging in `qgis.PyQt`.
 
+## In CI
+
+`.github/workflows/checks.yml` runs `pytest tests/unit` on every pull request,
+on a plain Ubuntu runner with Python 3.12 and
+**`dependencies/requirements-test.txt`** — nothing else. That file is the unit
+layer's "just the venv" made explicit, and it was derived by installing into an
+empty environment until the suite collected and passed, not written from memory.
+
+Three things are deliberately absent from it, because their absence **skips**
+rather than fails: GDAL's `osgeo` bindings (they ship with QGIS, not pip, and
+cover three GeoTIFF round-trips), `opencv-python-headless`, and the Zenodo
+sample dataset. Install any of them and those tests run; nothing else changes.
+
+The same workflow builds the docs with `mkdocs build --strict`, which until then
+first ran in the push-to-master job that also publishes the site.
+
 ## Run
 
 ```bash
