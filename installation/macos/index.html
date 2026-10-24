@@ -25,7 +25,7 @@
       
       
       <link rel="icon" href="../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.8.0">
     
     
       
@@ -33,10 +33,10 @@
       
     
     
-      <link rel="stylesheet" href="../../assets/stylesheets/main.ec1eaa64.min.css">
+      <link rel="stylesheet" href="../../assets/stylesheets/main.57a0d79d.min.css">
       
         
-        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.fb2fffe2.min.css">
       
       
 
@@ -1411,26 +1411,54 @@ profile plugins folder:</p>
 </code></pre></div>
 <h2 id="option-b-official-qgisapp-its-bundled-python">Option B — official QGIS.app + its bundled Python<a class="headerlink" href="#option-b-official-qgisapp-its-bundled-python" title="Permanent link">&para;</a></h2>
 <ol>
-<li>Install <strong>QGIS 4</strong> from the official <a href="https://qgis.org/download/">macOS installer</a>
-   (the all-in-one signed package).</li>
 <li>
-<p>Install the dependencies into the <strong>QGIS app's own Python</strong> (not your system
-   Python). The interpreter lives inside the bundle, e.g.:</p>
-<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nv">QGIS_PY</span><span class="o">=</span><span class="s2">"/Applications/QGIS.app/Contents/MacOS/python3.12"</span>
-<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="s2">"</span><span class="nv">$QGIS_PY</span><span class="s2">"</span><span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--user<span class="w"> </span>-r<span class="w"> </span>dependencies/requirements.txt
+<p>Install <strong>QGIS 4</strong> from the official <a href="https://qgis.org/download/">macOS installer</a>
+   (the all-in-one signed package).</p>
+</li>
+<li>
+<p>Install the dependencies <strong>where the plugin looks for them</strong>. GroundTruther's
+   <code>__init__.py</code> adds exactly one directory to <code>sys.path</code> at load:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>&lt;plugin folder&gt;/.venv/lib/python&lt;X.Y&gt;/site-packages
 </code></pre></div>
-<p>Adjust the path and the version to match your QGIS — in the 4.2.1 bundle the
-interpreter is <code>Contents/MacOS/python3.12</code> and there is no <code>MacOS/bin/</code>
-directory. Do <strong>not</strong> install <code>qgis</code>, <code>gdal</code>, or <code>PyQt</code> via pip — they ship
-with the app.</p>
+<p>Nothing else is consulted — not <code>--user</code>, not your system Python. Installing
+anywhere else succeeds and leaves the plugin still reporting the packages as
+missing.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nv">QGIS_APP</span><span class="o">=</span><span class="s2">"/Applications/QGIS.app"</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="nv">PLUGIN</span><span class="o">=</span><span class="s2">"</span><span class="nv">$HOME</span><span class="s2">/Library/Application Support/QGIS/QGIS4/profiles/default/python/plugins/groundtruther"</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># The bundled interpreter cannot start without its own PYTHONHOME: run it</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="c1"># bare and it dies with "ModuleNotFoundError: No module named 'encodings'".</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONHOME</span><span class="o">=</span><span class="s2">"</span><span class="nv">$QGIS_APP</span><span class="s2">/Contents/Frameworks"</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="nb">export</span><span class="w"> </span><span class="nv">PYTHONPATH</span><span class="o">=</span><span class="s2">"</span><span class="k">$(</span><span class="nb">echo</span><span class="w"> </span><span class="s2">"</span><span class="nv">$QGIS_APP</span><span class="s2">"</span>/Contents/Resources/python3.*/site-packages<span class="k">)</span><span class="s2">"</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="nv">PY</span><span class="o">=</span><span class="s2">"</span><span class="k">$(</span>ls<span class="w"> </span><span class="s2">"</span><span class="nv">$QGIS_APP</span><span class="s2">"</span>/Contents/MacOS/python3.*<span class="w"> </span><span class="p">|</span><span class="w"> </span>head<span class="w"> </span>-1<span class="k">)</span><span class="s2">"</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>
+<a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a><span class="c1"># Ask it for its own version rather than hardcoding one — the directory name</span>
+<a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a><span class="c1"># must match the Python your QGIS actually runs, or nothing is found.</span>
+<a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a><span class="nv">VER</span><span class="o">=</span><span class="s2">"</span><span class="k">$(</span><span class="s2">"</span><span class="nv">$PY</span><span class="s2">"</span><span class="w"> </span>-c<span class="w"> </span><span class="s1">'import sys; print(f"python{sys.version_info.major}.{sys.version_info.minor}")'</span><span class="k">)</span><span class="s2">"</span>
+<a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>
+<a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a><span class="s2">"</span><span class="nv">$PY</span><span class="s2">"</span><span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a><span class="w">  </span>--target<span class="w"> </span><span class="s2">"</span><span class="nv">$PLUGIN</span><span class="s2">/.venv/lib/</span><span class="nv">$VER</span><span class="s2">/site-packages"</span><span class="w"> </span><span class="se">\</span>
+<a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a><span class="w">  </span>-r<span class="w"> </span>dependencies/requirements.txt
+</code></pre></div>
+<p>Do <strong>not</strong> install <code>qgis</code>, <code>gdal</code> or <code>PyQt</code> via pip — they ship with the app.</p>
+<div class="admonition tip">
+<p class="admonition-title">You need fewer packages than the list suggests</p>
+<p>The macOS bundle already ships <code>numpy</code>, <code>pandas</code>, <code>pyarrow</code>, <code>scipy</code>,
+<code>matplotlib</code>, <code>requests</code>, <code>PyYAML</code>, <code>Jinja2</code> and <code>pydantic</code>, so on QGIS
+4.2.1 only <strong>10</strong> of the 20 are actually missing. You do not have to work
+out which: pip skips what is already importable, and the plugin's own
+dialog counts at runtime and names them. The figures on this site are
+examples, not promises — the number you see is the number for your build.</p>
+</div>
 <div class="admonition warning">
 <p class="admonition-title">Running that interpreter directly is not a way to test your install</p>
 <p><code>Contents/MacOS/python3.12</code> is signed with the hardened runtime and, unlike
 the QGIS app itself, is <strong>not</strong> allowed to load libraries signed by anyone
-else. Run it by hand and every pip-installed package with compiled code
-fails with <em>"different Team IDs"</em> — even though the same packages load
-perfectly inside QGIS. Check your dependencies from the QGIS <strong>Python
-Console</strong> instead.</p>
+else. Installing with it works, as above; <em>importing</em> with it does not.
+Run it by hand and every pip-installed package with compiled code fails
+with <em>"different Team IDs"</em> — even though the same packages load perfectly
+inside QGIS. Check your dependencies from the QGIS <strong>Python Console</strong>
+instead.</p>
 </div>
 </li>
 <li>
@@ -1438,6 +1466,14 @@ Console</strong> instead.</p>
    it in the Plugin Manager.</p>
 </li>
 </ol>
+<div class="admonition danger">
+<p class="admonition-title">A QGIS upgrade can hide every dependency</p>
+<p>That <code>python&lt;X.Y&gt;</code> directory is tied to one Python version. If a QGIS update
+moves from, say, 3.12 to 3.13, the plugin looks in <code>lib/python3.13/</code> and finds
+nothing — every package reads as missing although none was removed. Re-run the
+install above after a QGIS upgrade; deriving <code>VER</code> rather than typing it is
+what makes that a repeat of the same command.</p>
+</div>
 <div class="admonition note">
 <p class="admonition-title">Which Python is my QGIS using?</p>
 <p>In QGIS open <em>Plugins → Python Console</em> and run
@@ -1507,10 +1543,10 @@ your data and the GRASS API endpoint/key. Try the
     
       
       
-      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "navigation.indexes", "toc.follow", "search.suggest", "search.highlight", "content.code.copy"], "search": "../../assets/javascripts/workers/search.a7633da7.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../../assets/javascripts/bundle.d7400e89.min.js"></script>
+      <script src="../../assets/javascripts/bundle.c21346df.min.js"></script>
       
     
   </body>
