@@ -10,7 +10,15 @@ import getpass
 import xmlrpc.client
 from optparse import OptionParser
 
-standard_library.install_aliases()
+# ``standard_library.install_aliases()`` used to sit here, with no matching
+# ``from future import standard_library`` -- a leftover of the python-future
+# 2-to-3 conversion whose import was lost.  It raised
+# ``NameError: name 'standard_library' is not defined`` on line 13 of every run,
+# on every interpreter, so this script had been unrunnable for as long as that
+# line existed: the upload it exists to perform could never have been done with
+# it.  Dropped rather than repaired, because the aliases it installs are for
+# Python 2 and everything below already uses the Python 3 names
+# (``xmlrpc.client``).
 
 # Configuration
 PROTOCOL = 'https'
