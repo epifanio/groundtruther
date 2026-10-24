@@ -65,6 +65,7 @@ nav:
   - Home: index.md
   - Installation:
       - installation/index.md
+      - From the QGIS Plugin Manager: installation/plugin-manager.md
       - Linux: installation/linux.md
       - macOS: installation/macos.md
       - Windows: installation/windows.md
