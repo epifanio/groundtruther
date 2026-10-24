@@ -6,7 +6,7 @@ with toolboxes that call a remote **GRASS GIS** service for bathymetric derivati
 backscatter queries, and arbitrary GRASS modules. It runs **inside QGIS** (not
 standalone). Published at https://plugins.qgis.org/plugins/groundtruther/.
 
-This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fastgis.md](docs/grass_fastgis.md).
+This file orients an AI agent. Deep-dive on the GRASS subsystem: [docs/grass_fastgis.md](docs/grass_fastgis.md); every FastGIS route and request body the plugin sends: [docs/fastgis_api_reference.md](docs/fastgis_api_reference.md).
 
 ## Run / develop (Linux; the macOS differences are called out)
 - QGIS 4.0+ runs on **system Python 3.14** (PEP-668, no pip). Plugin Python deps live
@@ -164,8 +164,12 @@ fails the build.
   keys + the validation model) · **Data model** (every column the plugin reads) ·
   Architecture. Adding a *feature* means adding its tool page **and** its config keys
   to the settings reference.
-- `docs/grass_fastgis.md` and `docs/photogrammetric_ribbon.md` are agent-facing deep
-  dives and stay separate from the site. The ribbon **does** have a user page now
+- `docs/grass_fastgis.md`, `docs/fastgis_api_reference.md` and
+  `docs/photogrammetric_ribbon.md` are agent-facing deep dives and stay separate from the
+  site. The API reference is derived from the two clients (`gt/grass_api.py`,
+  `gt/roughness_client.py`), so it is a subset of what FastGIS serves and
+  `api.fastgis.eu/openapi.json` outranks it; re-read the clients before trusting a body
+  there. The ribbon **does** have a user page now
   (`website/docs/tools/seabed-ribbon.md`, added 2026-09-24) even though it is a
   script under `scripts/` and not a dock — it produces a map product users need to
   interpret. That page leads with a "this is a script, not a panel" warning; keep
