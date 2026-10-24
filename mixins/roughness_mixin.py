@@ -574,7 +574,11 @@ class RoughnessMixin:
     def _georef_settings_prefix(self) -> str:
         """QgsSettings key prefix, scoped to the current dataset (metadata file)."""
         dataset = str(getattr(self, "metadatafile", "") or "default")
-        digest = hashlib.md5(dataset.encode("utf-8")).hexdigest()[:12]
+        # ``usedforsecurity=False``: this digest names a cache bucket, it is not
+        # a security primitive. Without the flag Bandit reports B324 (weak hash)
+        # at HIGH severity, which plugins.qgis.org treats as blocking.
+        digest = hashlib.md5(  # noqa: S324 - cache key, not security
+            dataset.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
         return f"groundtruther/roughness/{digest}"
 
     def _load_georef_calibration(self) -> dict:

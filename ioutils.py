@@ -25,6 +25,7 @@ import requests
 from io import StringIO
 import tempfile
 import os
+import subprocess
 from osgeo import ogr, osr
 import uuid
 
@@ -207,9 +208,15 @@ def send_layer_as_geojson_using_gdal_(layer, api_endpoint):
         temp_file.name
     ]
     
-    result = os.system(' '.join(ogr2ogr_cmd))
+    # ``subprocess.run`` with the argument LIST, never ``os.system`` on a joined
+    # string: that spawned a shell, which plugins.qgis.org's Bandit scan blocks
+    # as B605 (shell injection, CWE-78) and which blocked the 0.4 upload. It was
+    # also plainly wrong — a temp path containing a space would have been split
+    # into two arguments. ``check=False`` keeps the original control flow: the
+    # non-zero case is handled just below rather than raising.
+    result = subprocess.run(ogr2ogr_cmd, check=False)
     
-    if result != 0:
+    if result.returncode != 0:
         os.remove(temp_file.name)
         os.remove(geojson_temp_file.name)
         return {"error": "Failed to convert GeoPackage to GeoJSON using ogr2ogr"}

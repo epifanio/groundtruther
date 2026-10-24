@@ -33,6 +33,28 @@ jobs:
       # the directory keeps a green run honest about what it covered.
       - run: pytest tests/unit -q
 
+  security:
+    name: bandit (what plugins.qgis.org blocks on)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install bandit==1.9.4
+      # plugins.qgis.org scans every upload with Bandit and BLOCKS the version on
+      # a critical finding — and a blocked version cannot be unblocked, only
+      # superseded by a new upload. That is how 0.4 was lost. `-lll` fails the job
+      # on HIGH severity only, which is the line the server draws; the LOW and
+      # MEDIUM findings (57 try/except/pass among them) stay informational.
+      #
+      # The scan covers what SHIPS, so it excludes what make-release-zip.sh strips.
+      - run: >
+          bandit -r . -lll
+          -x ./tests,./website,./PLANNING,./docs,./scripts,./.github,./plugin_upload.py
+
   docs:
     name: docs build (strict)
     runs-on: ubuntu-latest
