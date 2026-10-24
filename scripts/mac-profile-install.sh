@@ -37,7 +37,7 @@ set -euo pipefail
 PLUGINNAME=groundtruther
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 PROFILES="$HOME/Library/Application Support/QGIS/QGIS4/profiles"
-QGIS_APP="${QGIS_APP:-/Applications/QGIS-final-4_2_1.app}"
+QGIS_APP="${QGIS_APP:-/Applications/QGIS-final-4_2_3.app}"   # 4.2.3 since 2026-10-24; override per run with QGIS_APP=
 
 die() { echo "!! $*" >&2; exit 1; }
 say() { echo ">> $*"; }
