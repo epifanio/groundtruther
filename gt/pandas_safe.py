@@ -70,6 +70,8 @@ import datetime
 import numpy as np
 import pandas as pd
 import pyarrow as pa
+import pyarrow.compute as pc
+import pyarrow.parquet as pq
 
 # The Arrow types pandas maps onto datetime64 / timedelta64, i.e. the ones whose
 # conversion is broken.  date32/date64/time64 land as object dtype and are safe.
@@ -105,6 +107,21 @@ def object_series(values, index=None) -> pd.Series:
     spelled out.
     """
     return pd.Series(object_array(values), index=index, dtype=object)
+
+
+def temporal_epoch_us(column) -> np.ndarray:
+    """A timestamp/duration Arrow column as int64 **microseconds**.
+
+    The cheap representation, for tables too big to carry Python objects: 8
+    bytes per row, exactly what pandas used before this module existed, and the
+    conversion happens entirely inside Arrow.  Timestamps become microseconds
+    since the Unix epoch (UTC), durations microseconds of elapsed time.  A
+    column with nulls comes back as float64 with ``nan``, as pandas does for any
+    nullable integer column.
+    """
+    as_us = pc.cast(column, pa.duration("us") if pa.types.is_duration(column.type)
+                    else pa.timestamp("us"), safe=False)
+    return pc.cast(as_us, pa.int64()).combine_chunks().to_numpy(zero_copy_only=False)
 
 
 def temporal_objects(column) -> np.ndarray:
@@ -172,15 +189,39 @@ def _pandas_index_fields(schema) -> list[tuple[str, str | None]]:
             if isinstance(entry, str) and entry in names]
 
 
-def arrow_table_to_dataframe(table) -> pd.DataFrame:
+def arrow_table_to_dataframe(table, temporal: str = "objects",
+                             set_index: bool = True) -> pd.DataFrame:
     """Convert a ``pyarrow.Table`` to a DataFrame, crash-free on pandas 3.
 
     Does what ``table.to_pandas()`` does — the same columns in the same order,
     with the index restored from the file's pandas metadata — except that
-    timestamp and duration data is converted by :func:`temporal_objects` and
-    lands as object dtype.  Use this, never ``to_pandas()``, anywhere in ``gt/``
-    that turns Arrow data into a DataFrame.
+    timestamp and duration data never goes through pandas' broken datetime
+    machinery.  Use this, never ``to_pandas()``, anywhere that turns Arrow data
+    into a DataFrame.
+
+    Parameters
+    ----------
+    temporal:
+        How to carry timestamp/duration columns.
+
+        ``"objects"`` (the default) keeps them faithful: object dtype holding
+        ``datetime.datetime`` / ``datetime.timedelta``.  Costs roughly 56 bytes
+        a row, so it suits tables of thousands of rows, not millions.
+
+        ``"epoch_us"`` keeps them cheap: int64 microseconds (see
+        :func:`temporal_epoch_us`), 8 bytes a row — the same footprint pandas
+        had before this module existed.  For bulk numeric tables such as the
+        MBES soundings, where 20 million Python datetimes would cost more than a
+        gigabyte and nothing reads the column as a date anyway.
+    set_index:
+        False leaves the columns the file's pandas metadata marks as the index
+        as ordinary columns, on a plain ``RangeIndex``.  Use it instead of
+        calling ``reset_index()`` on the result: moving object datetimes out of
+        an index makes pandas re-infer them, and that inference is the crash.
     """
+    if temporal not in ("objects", "epoch_us"):
+        raise ValueError(f"temporal must be 'objects' or 'epoch_us', not {temporal!r}")
+    convert = temporal_objects if temporal == "objects" else temporal_epoch_us
     names = list(table.schema.names)
     unsafe = {name for name, arrow_type in zip(names, table.schema.types)
               if is_unsafe_arrow_type(arrow_type)}
@@ -197,17 +238,20 @@ def arrow_table_to_dataframe(table) -> pd.DataFrame:
         # still has to carry the file's row count.
         df = pd.DataFrame(index=pd.RangeIndex(table.num_rows))
     for name in unsafe:
-        df[name] = object_series(temporal_objects(table.column(name)),
-                                 index=df.index)
+        values = convert(table.column(name))
+        df[name] = (object_series(values, index=df.index)
+                    if temporal == "objects"
+                    else pd.Series(values, index=df.index))
     df = df[names]
 
-    if index_names:
+    if index_names and set_index:
         # Not ``set_index``: it infers a dtype for the new index, and for
         # datetimes that inference is the segfault.  Build each level by hand,
         # forcing object dtype for the temporal ones.
         levels = [
             pd.Index(df[name].to_numpy(), dtype=object, name=label)
-            if name in unsafe else pd.Index(df[name], name=label)
+            if name in unsafe and temporal == "objects"
+            else pd.Index(df[name], name=label)
             for name, label in index_fields
         ]
         index = (levels[0] if len(levels) == 1
@@ -216,3 +260,15 @@ def arrow_table_to_dataframe(table) -> pd.DataFrame:
         df = df.drop(columns=index_names)
         df.index = index
     return df
+
+
+def read_parquet(path, temporal: str = "objects",
+                 set_index: bool = True) -> pd.DataFrame:
+    """``pandas.read_parquet`` without pandas doing the datetime conversion.
+
+    The drop-in for ``pd.read_parquet``, which segfaults QGIS on macOS whenever
+    the file carries a timestamp column.  Arguments are as for
+    :func:`arrow_table_to_dataframe`.
+    """
+    return arrow_table_to_dataframe(pq.read_table(path), temporal=temporal,
+                                    set_index=set_index)
