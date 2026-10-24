@@ -39,14 +39,14 @@ The running system is the truth: read it before a rollout (`WORKFLOW.md` §8).
 | Unit | Now | Since (UTC) | Recorded by | Rollback · notes |
 |---|---|---|---|---|
 | Plugin on plugins.qgis.org | **0.3**, experimental, QGIS 3.0–3.99 · uploaded **2023-06-01** · plugin_id 2982 | 2023-06-01 | `plan-adopt-groundtruther` | **Read from the live feed** (`plugins.xml?qgis=3.99`), 2026-10-23 — *not* from `metadata.txt`, which says `version=0.4`, `qgisMinimumVersion=4.0`. **The QGIS 4 / Qt6 work has never been published:** `master` is 0.4, users get the 2023 QGIS-3 build. Publishing 0.4 is a production rollout — a production approver's go, each time (`WORKFLOW.md` §8). Rollback = re-upload the previous zip. |
-| Docs site (`gh-pages` → <https://epifanio.github.io/groundtruther/>) | built from `master` **650a164** (`gh-pages` abe7632, MkDocs 1.6.1) | 2026-09-24 | `plan-adopt-groundtruther` | **publishes itself**: `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every push to `master` touching `website/**`. No go, no staging — merging a `website/` change *is* the deploy. Read live 2026-10-23: HTTP 200, and `gh-pages` says "Deployed 650a164". The site lags `master` whenever the commits in between touched no `website/**` path — that is the rule working, not drift, so **compare the two shas before concluding anything**; this cell deliberately does not name `master`'s tip, because the next merge would make it false. Rollback = merge a fix; the workflow redeploys. |
+| Docs site (`gh-pages` → <https://epifanio.github.io/groundtruther/>) | built from `master` **cf8be3d** (PR #80, `seq-U2`; was 650a164 until then) | 2026-10-24 | `seq-U2-macos-profile-docs` | **publishes itself**: `.github/workflows/docs.yml` runs `mkdocs gh-deploy --force` on every push to `master` touching `website/**`. No go, no staging — merging a `website/` change *is* the deploy. Read live 2026-10-23: HTTP 200, and `gh-pages` says "Deployed 650a164"; republished 2026-10-24 from `cf8be3d` when #80 merged `website/docs/installation/macos.md`. The site lags `master` whenever the commits in between touched no `website/**` path — that is the rule working, not drift, so **compare the two shas before concluding anything**; this cell deliberately does not name `master`'s tip, because the next merge would make it false. Rollback = merge a fix; the workflow redeploys. |
 
 ### Slot 1 — U (UI & plugin shell)
 
 | Mark | Session | Who | Work | Prompt | Receipt / notes |
 |---|---|---|---|---|---|
 | ✅ | `seq-U1-deps-message` | epifanio | `publish-0-4` WP-4: load and say what is missing instead of dying, when the venv is absent | §2.4 | 2026-10-24 · #67 **merged by the owner** (`master` `ab010ed`; *"Go ahead and merge #67"*), opened and left for their review (§6.3) · verified: QGIS 4.2.1 (macOS, arm64) in the signed harness of TODO_mac-install-test.md §3, re-run against `master`'s own content after the merge — with no `.venv`, `startPlugin` True (was **False**), **13** messages tagged GroundTruther (were **0**), the stub is what QGIS holds; with a `.venv`, the real plugin module imports. tests/unit 432 passed, 5 pre-existing pyarrow/GDAL failures. **GUI confirmed by the owner 2026-10-24** on `gt-mac-novenv`, reinstalled from a `make-release-zip.sh` artifact of `ab010ed` first (both profiles still held pre-WP-4 code): the dialog renders with a live install link, headline *"6 of the 20"*, the 4 optional ones apart, Show Details carrying all ten REQUIRED/optional; `groundtruther=true`, no error marker. The log *panel*'s display was not eyeballed, but `_log_report` runs before the stub that produced that dialog is returned · memory note: 2026-10-24_seq-U1-deps-message.md
-| ▶ | `seq-U2-macos-profile-docs` | epifanio | `mac-install-test` WP-3: the macOS profile path and a headless harness that is faithful to the app's signing, in `CLAUDE.md` and the install page | §2.7 | started 2026-10-24 · wait met by `seq-U1-deps-message` 2026-10-24, and **in `master` at `ab010ed`**: `_bootstrap_venv()` keeps the `.venv` name and now **returns** the directory it added (or `None`), and `setup_wsl.sh` creates `.venv` beside the plugin instead of `gtenv` in the cwd. Nothing blocks this row |
+| ✅ | `seq-U2-macos-profile-docs` | epifanio | `mac-install-test` WP-3: the macOS profile path and a headless harness that is faithful to the app's signing, in `CLAUDE.md` and the install page | §2.7 | 2026-10-24 · #78, #80 · verified: the documented harness run verbatim on this Mac against QGIS 4.2.1: qgis.core imports pandas+pyarrow itself, messageReceived captured nothing while a spy did, gt.config_check imported; the -I variant dies at init_fs_encoding. mkdocs build --strict passes (venv on homebrew python3.12; python3.15 cannot build watchdog) · memory note: 2026-10-24_seq-U2-macos-profile-docs.md |
 
 ### Slot 2 — C (core & config), D (docs), P (packaging & install)
 
@@ -141,37 +141,7 @@ read: MEMORY.md, 2026-10-23_adopt-groundtruther.md. Docs check: the build above 
 
 ### 2.6 `seq-C2-parquet-no-pandas` (closed 2026-10-24; its prompt is in git history)
 
-### 2.7 `seq-U2-macos-profile-docs`
-
-```text
-/build-session seq-U2-macos-profile-docs
-Plan: PLANNING/TODO_mac-install-test.md WP-3 (the macOS profile path and a faithful headless
-harness), slot 1, lane U + D. Read that plan's §1 and §3 first. Scope: two documentation gaps that
-cost this project a session's worth of wrong conclusions.
-(a) CLAUDE.md documents only the Linux profile path. Add the macOS one —
-`~/Library/Application Support/QGIS/QGIS4/profiles/<profile>/python/plugins/groundtruther` (QGIS4,
-not QGIS3) — beside it, in Run / develop.
-(b) CLAUDE.md's headless recipe under Testing is Linux-only — it names /usr/share/qgis/python and
-python3.14 (CLAUDE.md:166) and says nothing about macOS. So the gap is that there is NO macOS
-recipe, and a session improvising one reaches for the app's bundled python3.12. (Earlier versions of
-this prompt said the recipe itself runs python3.12; it does not. Checked by seq-C2, 2026-10-24.)
-That interpreter carries the hardened runtime with NO entitlements, so every pip-installed .so fails
-to dlopen with "different Team IDs", because the app binary — and only the app binary — carries
-com.apple.security.cs.disable-library-validation. A session that improvises will report working
-dependencies as broken. Add the warning and the harness recipe from the plan's §3, and say plainly
-that `qgis --code` does not work (QGIS starts offscreen and populates the profile but never reaches
-the script). Also record in Testing that `import qgis.core` imports pandas and pyarrow itself, so a
-plugin cannot choose its own copy of either — and that it is QGIS's bundled pandas 3.0.3 that is
-broken, not the pyarrow pairing (the plan's §5), so no pin can fix it.
-Verify on the real thing: run the recipe you document, as written, on this Mac, and paste what it
-prints. If the install page in website/ gained macOS content from seq-D1-install-docs, keep the two
-consistent and do not duplicate the harness — the site is for users, CLAUDE.md is for agents.
-Touch only CLAUDE.md and website/. Do not touch __init__.py or gt/. Needs a yes: nothing here,
-unless you would change a convention.
-Decisions that bind this work: D-006 (user-facing docs are the MkDocs site), D-007. Note that
-merging a website/ change publishes it (WORKFLOW.md §8). Memory notes to read: MEMORY.md,
-2026-10-24_mac-install-test.md. Docs check: mkdocs build --strict -f website/mkdocs.yml.
-```
+### 2.7 `seq-U2-macos-profile-docs` (closed 2026-10-24; its prompt is in git history)
 
 ### 2.8 `plan-pandas-datetime-record`
 
