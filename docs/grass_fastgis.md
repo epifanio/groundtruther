@@ -4,6 +4,10 @@ How GroundTruther talks to the **FastGIS GRASS API** (`https://api.fastgis.eu`,
 repo `epifanio/FastGIS`). This replaced a legacy flat, unauthenticated API
 (`mbapi.wps.met.no/api/*`) — that migration is the origin of this subsystem.
 
+Route-by-route request bodies for every call the plugin makes, GRASS and `/seafloor/*`
+alike, are in [fastgis_api_reference.md](fastgis_api_reference.md). This page is the
+architecture; that one is the wire.
+
 ## Three structural facts about the new API
 1. **Auth:** every request carries an `X-API-Key: fgk_…` header. Missing header → HTTP
    **422**; invalid/revoked key → **401**.
