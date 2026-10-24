@@ -262,3 +262,45 @@ def colors_from_rgb(rgb, valid=None, *, trim_border: int = 0):
     if valid is not None:
         out[..., 3] = np.asarray(valid, dtype=float)
     return out
+
+
+def payload_bytes(result) -> int:
+    """Approximate in-memory size of a cached roughness payload, in bytes.
+
+    Counts the base64 blobs, which are all that make a payload big — the metrics
+    are a few hundred bytes. Used to bound the panel's frame cache: once the
+    surface outputs are fetched by default an entry is ~1.1 MB instead of ~32 KB,
+    and with the 2-D overlay ~5.4 MB, so a count-only cap stops being meaningful.
+    """
+    if not isinstance(result, dict):
+        return 0
+    total = 0
+    for value in result.values():
+        if isinstance(value, str):
+            total += len(value)
+        elif isinstance(value, dict):
+            for inner in value.values():
+                if isinstance(inner, str):
+                    total += len(inner)
+    return total
+
+
+def evict_to_budget(cache, max_items: int, max_bytes: int) -> int:
+    """Trim an LRU ``OrderedDict`` (oldest first) to both caps. Returns evictions.
+
+    The most-recently-used entry is always kept, even when it alone exceeds
+    *max_bytes* — dropping what the user is looking at would make the panel
+    redraw from nothing.
+    """
+    evicted = 0
+    while len(cache) > max_items:
+        cache.popitem(last=False)
+        evicted += 1
+    if max_bytes > 0:
+        total = sum(payload_bytes(v) for v in cache.values())
+        while total > max_bytes and len(cache) > 1:
+            _key, value = cache.popitem(last=False)
+            total -= payload_bytes(value)
+            evicted += 1
+    return evicted
+
