@@ -41,6 +41,27 @@ on macOS, and checked:
 | D-004 | **no `PyQt6` import in any shipped `.py`** — the `sip` fix (#91) ships as `from qgis.PyQt import sip` |
 | it loads | unpacked into a clean profile with **no `.venv`**: `startPlugin` True, 13 messages tagged `GroundTruther`, WP-4's dialog path working from the artifact itself |
 
+**2026-10-24: the tag exists and the artifact is built. Only the upload is left.**
+
+The owner asked for the three open PRs to go in and the release retagged (*"fix it sand retag"*).
+`#103`, `#106` and `#104` were merged — the last of which **published the docs site** — and `v0.4`
+was moved to `master` **`6ce2c92`** and **pushed to origin** on their word. The artifact was rebuilt
+from that tag:
+
+| | |
+|---|---|
+| `dist/groundtruther-v0.4.zip` | 2.8 MB, 241 entries, one top-level `groundtruther/` |
+| sha256 | `b6d284d9880652794f0c8c39a9d2d18e0e54bcb1ff2770b97173e16c80a0fb7b` |
+| forbidden paths | none; no key-shaped literal; `qtui/icons/epi.gif` present |
+| `metadata.txt` | `version=0.4`, `experimental=True`, `qgisMinimumVersion=4.0`, no key with a space |
+| vs the tag | diff against a `git archive` of `v0.4`: **only** the six stripped directories differ |
+| it loads | the shipped zip in a clean no-venv profile on **QGIS 4.2.3**: `loadPlugin True`, `startPlugin True`, `_MissingDependenciesPlugin`, 10 of 20 missing / 6 blocking, and the dialog's link resolves to `installation/macos/` |
+
+**Still unanswered, and cheaper to settle before the upload than after:** `scripts/` is not on the
+strip list, so `scripts/mac-profile-install.sh` now ships *inside* the plugin — a macOS
+profile-management script in a QGIS plugin install. That is #50's open question about ~1 MB of repo
+furniture, still awaiting the owner. Changing the strip list is a rebuild from the same tag.
+
 So the only parts of WP-6 left are the ones no session may do: create the real tag, build from it, and
 upload with the owner's plugins.qgis.org credentials. Rebuild from the real tag anyway rather than
 shipping a dry-run zip, and `unzip -l` it once before uploading.
