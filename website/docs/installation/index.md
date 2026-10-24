@@ -7,6 +7,13 @@ own. Installing it has three parts:
 2. **Make the plugin's Python dependencies importable by QGIS's Python.**
 3. **Install the plugin itself** (QGIS Plugin Manager, or a symlink for development).
 
+!!! warning "Step 2 is not optional, and the Plugin Manager does not do it"
+    Installing GroundTruther from *Plugins → Manage and Install Plugins* gives you
+    the plugin's code — **not** the 20 Python packages it needs. Without them the
+    plugin loads, shows one dialog naming what is missing, and cannot open its
+    panel. Read **[From the QGIS Plugin Manager](plugin-manager.md)** for what
+    that looks like and why, then do step 2 below for your platform.
+
 !!! info "The key idea: deps must reach *QGIS's* Python"
     QGIS ships and uses its **own** Python interpreter. The plugin's extra
     packages (pandas, opencv, pyqtgraph, numba, …) must be visible to *that*
@@ -50,6 +57,10 @@ Then install the plugin (below).
 === "From the QGIS Plugin Manager"
     *Plugins → Manage and Install Plugins → search "GroundTruther" → Install.*
     (Marked experimental — enable *Show experimental plugins* in settings.)
+
+    This installs the plugin's code only. **Do the dependency step above first**
+    — see [From the QGIS Plugin Manager](plugin-manager.md) for what happens if
+    you don't, and which packages stop the plugin from starting at all.
 
 === "From source (development)"
     Symlink the repository into your QGIS profile's plugins folder; the folder
