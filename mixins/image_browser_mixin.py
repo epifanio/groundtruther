@@ -19,7 +19,6 @@
 """Image browser mixin: navigation, display, metadata panel, annotation overlay."""
 import os
 from functools import lru_cache
-from sys import platform
 
 import numpy as np
 import pandas as pd
@@ -207,9 +206,11 @@ class ImageBrowserMixin:
         self._image_counter_label.setMinimumWidth(70)
         self.w.horizontalLayout_13.addWidget(self._image_counter_label)
 
-        if platform == "darwin":
-            self.w.fwd.hide()
-            self.w.rwd.hide()
+        # No platform-specific hiding here. `fwd`/`rwd` were hidden on macOS from
+        # 80ca551 with no reason recorded anywhere in the tree, and a user read
+        # exactly that as "the image browser was missing the component to browse
+        # the images". If a real macOS layout problem brings this back, say what
+        # the problem is in a comment beside it.
 
     def _clear_image_cache(self):
         """Discard all cached image arrays (call when the image directory changes)."""
@@ -1042,8 +1043,11 @@ class ImageBrowserMixin:
     def _on_image_dock_visibility(self, visible: bool) -> None:
         # NOTE: do NOT couple the Image Index nav dock here — visibilityChanged
         # also fires when the image dock is tabbed behind another panel, which
-        # would wrongly hide the nav on focus loss. The nav follows the explicit
-        # toggle in _toggle_image_dock instead.
+        # would wrongly hide the nav on focus loss. The nav follows its OWN
+        # toolbar action, via _toggle_nav_dock. (This used to say
+        # "_toggle_image_dock", which only ever touches _image_dock — the comment
+        # described a coupling the code does not have, and reading it is part of
+        # why a hidden panel looked like a missing widget.)
         action = getattr(self, '_image_dock_action', None)
         if action is None:
             return

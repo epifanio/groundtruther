@@ -27,6 +27,14 @@ with the map and the imagery kept in sync.
 
 - **Navigate** with the forward/back buttons, the **index slider**, or the index
   spin-box; the **step** control sets how many images each press advances.
+
+!!! tip "The slider is in its own panel, behind its own toolbar button"
+    The index slider, spin-box, step and zoom-to controls live in a separate QGIS
+    panel titled **Image Index**, which starts hidden. It has its **own toolbar
+    button** — *Show / hide the Image Index navigator* — next to the Image Browser
+    one, and the two are independent: showing the browser does not show the
+    navigator. If the image is displayed but you cannot find the controls to move
+    between images, that second button is what you want.
 - **Click the map** (image-query tool) to jump to the image nearest that point.
 - Enable **Zoom-to** so the map recenters on each image as you browse. The
   zoom control is a **map scale (1:N)** — larger numbers zoom out — so it behaves
