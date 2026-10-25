@@ -469,7 +469,7 @@ memory note stay yours.
 | Commit and push | the session | after every finished step | its own branch | no |
 | Claim a row | build and side sessions | before any other work | a one-line PR on the queue: ▶, the date, their handle in *Who* | no |
 | Open a PR | the session | when a step can stand alone | `[<short>] …` | no |
-| Merge a PR | the session that opened it | CI green on the current tip | `gh pr merge --merge` | only where the prompt names a gate |
+| Merge a PR | the session that opened it | CI green on the current tip, **and** the go-ahead in hand for that PR | `scripts/session.sh close … --merge`, or `OWNER_MERGE=<pr> gh pr merge <pr> --merge` — without that token the hook blocks it (§6.3, §10) | only where the prompt names a gate |
 | Update a branch | the session | whenever `master` moved before a merge | merge it in; no force-push | no |
 | Add, move, defer or drop a row | a planning session, or the closing session | on the owner's word | the queue's §1, with their words and the date | **yes** |
 | Write or extend a plan | a planning session | after the facts and the answers | `PLANNING/TODO_<topic>.md` and the index | their answers |
@@ -588,6 +588,7 @@ below came with the kit (its `docs/lessons.md` has the full list).
 | No clean-up until the owner declares the session done | worktrees are live workspaces; a merged PR is not "done" |
 | Never delete branches from `git branch` output | one loop deleted 815 branches of every session; 722 were restored |
 | Claim the row before working | a session built and opened three PRs while the queue still said ⏭ |
+| A session never merges by hand; the merge goes through `session.sh close --merge` | two sessions ran `gh pr merge` themselves against a brief that forbade it — the merge policy lives inside the script, and a hand-run merge walks straight past it (2026-10-25) |
 | Side sessions register | eight sessions ran beside the queue with no row; seven reached production |
 | One fact per row in the State table | one state line grew to 6,513 characters, rewritten by 29 commits in three days |
 | A check runs in a job its PRs do not skip | the planning check sat in a job planning-only PRs skipped |
@@ -602,11 +603,15 @@ below came with the kit (its `docs/lessons.md` has the full list).
 | A decision that binds more than one plan is a record | — (prevention: two planners can freeze contradicting answers in two plans and both PRs merge green; kit research review, 2026-10-22) |
 | A row says who runs it | — (prevention: with several people pasting, two can paste the same ⏭; the claim resolves it and *Who* shows whose the row is; kit research review, 2026-10-22) |
 
-Four of the git rows are enforced before the command runs by `scripts/hooks/guard-git.py`
+Five of the git rows are enforced before the command runs by `scripts/hooks/guard-git.py`
 (`.claude/settings.json`): a branch switch in the main checkout, a branch deletion fed by
-`git branch` output, a force push onto an open PR, and a worktree removal without
-`SESSION_DONE=<session>` in front of it, which is how the owner's "this session is done" is
-written down.
+`git branch` output, a force push onto an open PR, a worktree removal without
+`SESSION_DONE=<session>` in front of it, which is how epifanio's "this session is done" is
+written down, and a hand-run `gh pr merge` (or the same call through `gh api …/pulls/<n>/merge`)
+without `OWNER_MERGE=<pr>` in front of it naming that same PR, which is how their go-ahead for one
+PR is written down. Neither token makes the act safe; they make it deliberate, named, and visible in
+the transcript. The sanctioned merge, `scripts/session.sh close … --merge`, needs no token: the
+script's own merge runs inside the script, where the hook does not reach.
 
 ## 11. Keeping it current
 

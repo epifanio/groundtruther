@@ -31,6 +31,12 @@ the line on stderr is what the session reads; exit 0 lets it through.
 4. No clean-up until the owner declares the session done: `git worktree remove|prune`, and `rm -r` of
    a registered worktree, unless the command carries SESSION_DONE=<session>, which a session writes
    only on the owner's word.
+5. No merge by hand: `gh pr merge`, or the same call through `gh api .../pulls/<n>/merge`, unless the
+   command carries OWNER_MERGE=<pr> naming that same PR, which a session writes only once the owner
+   has said to merge that PR. `scripts/session.sh close … --merge` is the path, and the guard it
+   carries (MERGE_POLICY, DOCS_PATHS) is the whole point: a hand-run `gh pr merge` walked past it
+   twice (docs/lessons.md). The token does not make the merge safe; it makes it deliberate, named and
+   greppable, the way SESSION_DONE= does for a worktree.
 
 By hand:
   echo '{"tool_name":"Bash","tool_input":{"command":"git switch -c x"},"cwd":"."}' | python3 scripts/hooks/guard-git.py
@@ -134,6 +140,25 @@ def main() -> int:
             if target in paths:
                 block(f"{m.group(1)} is a registered worktree, a live workspace: no clean-up until the owner "
                       "declares that session done. On their word, prefix the command with SESSION_DONE=<session>.")
+
+    # 5. a merge run by hand, past scripts/session.sh and past the owner's go-ahead
+    if re.search(r"\bgh\b" + SEG + r"\bpr\b" + SEG + r"\bmerge\b", cmd) \
+            or re.search(r"\bgh\b" + SEG + r"\bapi\b" + SEG + r"/pulls/\d+/merge\b", cmd):
+        seg = next((s for s in re.split(r"[|;&]+", cmd) if re.search(r"\bgh\b.*merge", s)), cmd)
+        want = re.search(r"\bOWNER_MERGE=(\d+)\b", cmd)
+        m = re.search(r"\bmerge\s+(?:-\S+\s+)*(\d+)\b", seg) or re.search(r"/pulls/(\d+)/merge\b", seg)
+        pr = m.group(1) if m else None
+        if not want:
+            block("no session merges a PR by hand: `scripts/session.sh close <session> … --merge` is the "
+                  "path, and the merge policy it enforces is the point of it (WORKFLOW.md §6.3, §7). Once "
+                  "the owner has said to merge this PR, in so many words, prefix the command with "
+                  "OWNER_MERGE=<pr> naming that same PR.")
+        if pr is None:
+            block("a merge names its PR: OWNER_MERGE=<pr> is a go-ahead for one PR, so say which one "
+                  "(`gh pr merge <pr> --merge`) rather than merging whatever PR this branch has.")
+        if pr != want.group(1):
+            block(f"OWNER_MERGE={want.group(1)} does not name PR #{pr}: a go-ahead is per PR (WORKFLOW.md "
+                  "§7). Merge the PR the owner named, or ask them about this one.")
     return 0
 
 
