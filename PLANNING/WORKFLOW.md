@@ -59,7 +59,7 @@ Three rules follow from the table:
 
 | Kind | Started by | It may | It may not | It ends with |
 |---|---|---|---|---|
-| **Planning** | The owner opens a session and talks about a topic: an idea, feedback, a bug | read code and live systems, measure, ask, write or extend plans, add rows and prompts to the queue, mark what `master` shows as done | build the feature, deploy anything | one docs-only PR merged, a memory note, a report of what was queued and what is still asked |
+| **Planning** | The owner opens a session and talks about a topic: an idea, feedback, a bug | read code and live systems, measure, ask, write or extend plans, add rows and prompts to the queue, mark what `master` shows as done | build the feature, deploy anything | one docs-only PR, merged on the owner's word (§6.3), a memory note, a report of what was queued and what is still asked |
 | **Build** (queued) | The owner pastes a ⏭ prompt | build one work package or one stack of PRs in one lane; deploy with the go of one of epifanio (§7) | change an answered decision of the owner's, a vocabulary or a tuned constant without asking; build against an accepted record in `DECISIONS.md` (§6.2); touch another lane's files | its row closed with receipts, the State table and the plan updated, a memory note |
 | **Side** (beside the queue) | The owner starts something urgent or small that has no row: a bug, a follow-up a build session spun off | the same as a build session | run unregistered: its first PR adds a row to *Beside the queue* in the queue's §1 | the same close as a build session |
 | **Catch-up** | The owner pastes the prompt of §2.1 | read, fetch, fast-forward, sync memory, report | build, deploy, delete, open PRs | a report |
@@ -245,8 +245,8 @@ their words and the date. When two open rows touch the same files or the same ma
     --live` and fix what it reports: a row still ⏭ whose session has open PRs, a ▶ row nobody is
     running, an open end past its date. For the topic you planned, mark what `master`
     already shows as done. Each mark is checked against the PR, not against another note.
-11. **Land it.** One docs-only PR titled `[plan-<topic>] …`, the checker clean, merged when CI is
-    green. Then the memory note and its index line.
+11. **Land it.** One docs-only PR titled `[plan-<topic>] …`, the checker clean, CI green — then
+    left open unless the owner has said to merge it (§6.3). Then the memory note and its index line.
 12. **Report and stop**: what was written, where each session sits in the queue, which questions are
     still open, and the next prompt to paste.
 
@@ -408,17 +408,33 @@ resolves it with a new record that supersedes the old one.
 ### 6.3 Integrate
 
 - PRs are titled `[<short>] …`. A plan or record PR is docs-only and separate from code.
-- **Merging** (the owner's answer, §12 Q3). Always a merge commit (`gh pr merge --merge`), never a
-  squash or a rebase.
-  - **A docs-only PR** — a plan, a decision record, a claim, a close, a `website/` or `docs/` page —
-    the session merges itself, when CI is green on the current tip.
+- **Merging** (§12 Q3, as superseded on 2026-10-25). Always a merge commit
+  (`gh pr merge --merge`), never a squash or a rebase. **No session merges a PR on its own, and
+  docs-only is not an exception.** Not merging is the default: `scripts/session.sh close` leaves its
+  PR open unless the command carries `--merge`, which is how the owner's go-ahead for that one PR is
+  written down where the transcript shows it. `--no-merge` is still accepted and is now redundant.
+  - **A docs-only PR** — a plan, a decision record, a close, a `website/` or `docs/` page — is the
+    furthest a `--merge` can reach, not something the session may merge unasked. Under
+    `MERGE_POLICY=owner-code` (this project's setting) the script asks GitHub what the PR actually
+    holds and refuses `--merge` on anything outside `DOCS_PATHS` (`PLANNING/ website/ docs/`),
+    go-ahead or not — because the close commit rides whatever branch the session used, so a reused
+    branch puts its code in that PR too.
   - **A PR that changes code** the session does **not** merge: it opens it, leaves it for the owner,
     and says so in its final report. The owner reviews it and checks the plugin in the live QGIS,
     which no agent can do. A prompt may name a different gate; it never removes this one.
+  - **The claim PR is the one merge still automatic**, because it is the slot lock and no work can
+    start without it. Before merging it the script asks GitHub what it holds and refuses anything
+    but the queue file. (With `PLANNING_HOME=separate` nothing is merged at all: claim and close
+    push to the planning repo's main.)
   - So a code session's row closes **◐**, with the open end "`PR #<n>` awaits the owner's review,
     the live QGIS check and their merge · closes when the owner has merged it". Where the queue's
     §6.1 says "merged" for a code row, read "opened and left for the owner". The close PR itself is
-    docs-only, so the session merges that one.
+    docs-only, so `--merge` may land it — once the owner has said so, not before.
+  - **A merge run by hand is blocked, not merely discouraged**: `scripts/hooks/guard-git.py` refuses
+    `gh pr merge`, and the same call through `gh api …/pulls/<n>/merge`, unless the command carries
+    `OWNER_MERGE=<pr>` naming that same PR (§10). The script's own merge runs inside the script,
+    where the hook does not reach, so the sanctioned path needs no token. Prose alone had already
+    failed twice.
   Wait for CI with a command whose exit status you read, never through a pipe (`| tail` under
   `set -e` once let a merge run on a red run). `scripts/ci-wait.sh <n>` does it and exits with the
   checks' status; by hand: `gh pr checks <n> --watch` where `gh pr checks --help`
@@ -469,7 +485,8 @@ memory note stay yours.
 | Commit and push | the session | after every finished step | its own branch | no |
 | Claim a row | build and side sessions | before any other work | a one-line PR on the queue: ▶, the date, their handle in *Who* | no |
 | Open a PR | the session | when a step can stand alone | `[<short>] …` | no |
-| Merge a PR | the session that opened it | CI green on the current tip, **and** the go-ahead in hand for that PR | `scripts/session.sh close … --merge`, or `OWNER_MERGE=<pr> gh pr merge <pr> --merge` — without that token the hook blocks it (§6.3, §10) | only where the prompt names a gate |
+| Merge the claim PR | the session | before any other work, CI green | `scripts/session.sh claim` does it; it holds the queue file and nothing else | no — it is the slot lock |
+| Merge any other PR | the session that opened it | CI green on the current tip, **and** the go-ahead in hand for that PR | `scripts/session.sh close … --merge`, or `OWNER_MERGE=<pr> gh pr merge <pr> --merge` — without that token the hook blocks it (§6.3, §10) | **yes, every PR** |
 | Update a branch | the session | whenever `master` moved before a merge | merge it in; no force-push | no |
 | Add, move, defer or drop a row | a planning session, or the closing session | on the owner's word | the queue's §1, with their words and the date | **yes** |
 | Write or extend a plan | a planning session | after the facts and the answers | `PLANNING/TODO_<topic>.md` and the index | their answers |
@@ -646,10 +663,17 @@ recommendation `setup-session-system` put to them, recorded as the answer.
   cannot reach it. A machine that keeps the clone elsewhere overrides `autoMemoryDirectory` in
   `.claude/settings.local.json`. **The Linux machine still owes one command** (the queue's §3):
   `scripts/memory-repo.sh init https://github.com/epifanio/groundtruther-memory --import <its auto-memory dir>`.
-- **Q3 merge style and who merges:** merge commits (`gh pr merge --merge`). A session merges its own
-  **docs-only** PR when CI is green on the current tip; a PR that **changes code** is left for the
-  owner, who reviews it and checks the plugin in the live QGIS. This keeps the project's existing
-  rule ("the user merges") and accounts for agents not being able to drive the QGIS GUI. §6.3.
+- **Q3 merge style and who merges:** merge commits (`gh pr merge --merge`), never a squash or a
+  rebase. **The rest of this answer was superseded on 2026-10-25** and the current rule is §6.3's:
+  no session merges a PR on its own, docs-only included; `scripts/session.sh close` merges nothing
+  without `--merge`, which carries the owner's word for one named PR. As frozen on 2026-10-23 it
+  read: *"A session merges its own **docs-only** PR when CI is green on the current tip; a PR that
+  **changes code** is left for the owner, who reviews it and checks the plugin in the live QGIS."*
+  That docs-only exception cost two unasked merges (§10) — the second pair while the brief forbade
+  it — so the script and then the hook were changed, and the owner reworded this on 2026-10-25:
+  *"reword WORKFLOW.md §6.3 so its merge policy matches scripts/session.sh (merge=no default,
+  --merge carries my word for one PR)"*. The reason the answer gave still holds and is why a code PR
+  is the owner's: agents cannot drive the QGIS GUI.
 - **Q4 deploys:** two units. The **plugin** on plugins.qgis.org — a production approver's go, each
   time, never reused. The **docs site** on `gh-pages` — it publishes itself on any push to `master`
   touching `website/**`, so merging such a PR *is* the deploy; no go and no staging, and the merging
