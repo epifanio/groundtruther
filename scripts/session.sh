@@ -34,6 +34,9 @@
 # the claim, because the claim is the slot lock and no work can start without it — and before merging
 # it the script asks GitHub what that PR holds and refuses anything but the queue file. (With
 # PLANNING_HOME=separate nothing is merged at all: claim and close push to the planning repo's main.)
+# Going around this script is blocked rather than discouraged: scripts/hooks/guard-git.py refuses a
+# hand-run `gh pr merge` unless it carries OWNER_MERGE=<pr> naming that PR, so a merge off this path
+# is a thing a session has to decide to write down.
 #
 # The queue edits are PLANNING/queue.py (it uses the checker's parser). The CI wait is
 # scripts/ci-wait.sh. What stays the session's own: the State table, later prompts, the next prompt
@@ -125,7 +128,7 @@ land() {   # $1 session, $2 title, $3 yes|no (merge), $4 the lane the PR must st
   else
     echo ">> PR #$n (already open) updated"
   fi
-  "$REPO/scripts/ci-wait.sh" "$n" || die "CI is red on PR #$n: fix it, push, then: gh pr merge $n --merge"
+  "$REPO/scripts/ci-wait.sh" "$n" || die "CI is red on PR #$n: fix it, push, then come back here — a merge by hand is blocked (scripts/hooks/guard-git.py)"
   if [[ "$merge" == yes && -n "$lane" ]]; then
     # The commit rides whatever branch the session used, so a reused branch puts its code in this PR
     # too — ask GitHub what is in it, never assume, and never merge past the lane.
@@ -143,7 +146,8 @@ land() {   # $1 session, $2 title, $3 yes|no (merge), $4 the lane the PR must st
     echo ">> PR #$n merged"
   else
     echo ">> PR #$n left open. Merging it is the owner's call, not yours (§6.3): say it is ready, and"
-    echo ">> merge it only once they have said to — then:  gh pr merge $n --merge"
+    echo ">> merge it only once they have said to — then:  OWNER_MERGE=$n gh pr merge $n --merge"
+    echo ">> (without that token the hook blocks the merge: scripts/hooks/guard-git.py)"
   fi
 }
 

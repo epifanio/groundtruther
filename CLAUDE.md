@@ -319,8 +319,10 @@ Something urgent with no row is a side session: the build rules, registered unde
 Always: one worktree per session (`scripts/session.sh start <session>`); never switch branches in a
 checkout you did not create; commit and push after every finished step; the checker
 (`python3 PLANNING/check_planning.py`) before any PR that touches `PLANNING/`; a production deploy is
-a go from one of epifanio, each time. Hooks sync memory and block the four git mistakes; a
-clean-up the owner approved runs with `SESSION_DONE=<session>` in front.
+a go from one of epifanio, each time. Hooks sync memory and block the five git mistakes; a
+clean-up epifanio approved runs with `SESSION_DONE=<session>` in front, and a merge they asked for
+with `OWNER_MERGE=<pr>` — a merge by hand without it is blocked, and `scripts/session.sh close …
+--merge` is the path that needs neither.
 
 Memory is the private repo `epifanio/groundtruther-memory` (`scripts/memory-repo.sh init|sync|status`): read
 `MEMORY.md`, then `user_<login>.md`; a dated note at the end; no secrets; `PLANNING/memory_inbox/`

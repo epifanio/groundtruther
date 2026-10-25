@@ -76,9 +76,11 @@ Q10), and the rows that depend on it wait.
 ## 6. What runs by itself
 
 Hooks (`.claude/settings.json`) sync memory at session start and end, print the queue at start, and
-block four git mistakes before a command runs: a branch switch in the main checkout, a branch
-deletion fed by `git branch` output, a force push onto an open PR, and a worktree removal before you
-declared the session done (then the session runs it with `SESSION_DONE=<session>` in front).
+block five git mistakes before a command runs: a branch switch in the main checkout, a branch
+deletion fed by `git branch` output, a force push onto an open PR, a worktree removal before you
+declared the session done (then the session runs it with `SESSION_DONE=<session>` in front), and a
+merge run by hand past `scripts/session.sh` (then, for the PR you named, `OWNER_MERGE=<pr>` in
+front).
 `.githooks/pre-push` runs the planning check before every push; CI runs it on every PR.
 
 ## 7. Where things are
